@@ -1424,6 +1424,26 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   "¿Cómo configuro Gmail paso a paso?" colapsable (vive como un array de
   datos grande en `admin.js`, de poco valor para el operador de
   `/control`, que no es quien configura su propio Gmail).
+- **Ocultar la SECCIÓN completa de un grupo de pestañas por plan no es lo
+  mismo que filtrar CADA pestaña por su propio flag** (punto 444,
+  2026-10-29): `reportesPlanVisible()` en `frontend/admin.js` solo decide
+  si el bloque "Reportes" del sidebar se oculta entero (las 5 flags en
+  0) — un plan con solo 1 de 5 flags activo (ej. Solicita, solo
+  `reportesEstadoTicketsHabilitado`) mostraba igual las 5 pestañas, el
+  backend ya las rechazaba con 404 (`requiereFeature()` bien gateado en
+  las 5 rutas) pero la UI ofrecía 4 controles muertos — mismo bug-shape
+  que "backend-only no es suficiente" ya documentado arriba para
+  cualquier módulo, aplicado aquí a pestañas DENTRO de un módulo ya
+  visible, no solo al módulo completo. Patrón correcto, ya aplicado
+  (`PESTANAS_REPORTES` con propiedad `flag` por entrada +
+  `pestanaReportesVisible(clave)` que combina perfil Y plan +
+  `primeraPestanaReportesVisible()` para nunca aterrizar en una pestaña
+  que el plan no incluye): si un módulo futuro tiene sub-pestañas con
+  flags de plan INDEPENDIENTES entre sí (no todo-o-nada), replicar este
+  patrón desde el día uno — nunca asumir que ocultar el contenedor basta.
+  Validado real con 3 tenants (1/5, 5/5 y 3/5 flags, este último con un
+  subconjunto que NO arranca en la primera pestaña declarada, para
+  probar que el fallback de pestaña default también elige bien).
 
 ## Stack
 

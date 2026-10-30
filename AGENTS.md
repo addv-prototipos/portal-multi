@@ -611,6 +611,19 @@ solo la frase en español de la UI.
   `.campo-ayuda` sin excepción — el halo de descubribilidad (localStorage
   global, 3 eventos: pointerdown/click/focusin) se agrupó ahí en vez de
   duplicarlo 5 veces.
+- **Ocultar la sección completa de un grupo de pestañas por plan no es lo
+  mismo que filtrar cada pestaña por su propio flag** (punto 444,
+  2026-10-29): bug real reportado por el usuario — `reportesPlanVisible()`
+  en `admin.js` solo ocultaba el bloque "Reportes" entero (las 5 flags en
+  0); un plan con solo 1 de 5 activo (Solicita) mostraba igual las 5
+  pestañas aunque el backend ya las rechazara con 404. Fix:
+  `PESTANAS_REPORTES` ganó propiedad `flag` por entrada +
+  `pestanaReportesVisible(clave)` (perfil Y plan) +
+  `primeraPestanaReportesVisible()` como default de entrada en vez de
+  `'por-reporte'` hardcodeado. Validado real con 3 tenants (1/5, 5/5,
+  3/5 flags). Cualquier módulo futuro con sub-pestañas de flags
+  independientes replica este patrón — nunca basta con ocultar el
+  contenedor.
 
 ## Stack
 
@@ -776,12 +789,19 @@ trabajo nuevo sobre esta arquitectura sigue el mismo protocolo
 `addv-web-app` de analizar-proponer-confirmar-implementar.
 
 **Aún sin validar contra infraestructura real de producción**: Docker
-Swarm multi-nodo real (segmento 8), `/control` repartido en dos
-servidores físicos distintos (segmento 9b), y el cutover real del
-segmento 6. **Todavía no hay ningún tenant de producción real dado de
-alta con tráfico real** salvo lo que el propio usuario haya provisionado
-fuera de estas sesiones — confirmar estado actual en `PROJECT_STATE.md`
-antes de asumir esto.
+Swarm MULTI-nodo real (segmento 8 — el single-nodo SÍ ya se validó real,
+ver abajo), `/control` repartido en dos servidores físicos distintos
+(segmento 9b), y el cutover real del segmento 6.
+
+**Actualización 2026-10-29 (punto 442)**: ya existe un despliegue
+productivo real — Clarvo en Vultr (`clarvo-prod-01`, `clarvo.mx`),
+Docker Swarm en modo de 1 solo nodo, HTTPS real con Let's Encrypt. Es
+el primer tenant de producción real del proyecto con tráfico real
+posible, distinto de `yt.addv.com.mx` (que sigue siendo el VPS de
+pruebas en Hostinger). Detalle operativo completo en `VULTR/prodDoc.html`
+y `VULTR/README-VULTR.md` (ambos gitignored, nunca en el repo) —
+confirmar ahí el estado real antes de asumir nada sobre este
+despliegue específico.
 
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 

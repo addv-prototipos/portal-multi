@@ -25560,3 +25560,146 @@ en los 2 call sites de `admin.js` (`cargarConfigSmtp` y el guardado de
 plantillas). Probado real: correo de prueba enviado y recibido en
 `antonio.prado@addv.mx` desde el tenant `prueba-cancel-8` (sin SMTP
 propio, 100% vía default) y desde el sitio base (con su SMTP propio).
+
+**Addendum 2 (29 oct 2026, mismo día) — 2 bugs reales encontrados por el
+usuario en ese mismo tenant**:
+1. **"No veo dónde revertir"**: al dar clic en "Usar mi propio correo en
+   su lugar" (banner verde), el formulario se revela pero no hay forma de
+   volver al banner sin recargar la página — `#smtp-revertir-franja`
+   solo aparecía cuando `configurado=true` (conexión propia YA guardada),
+   nunca en el estado intermedio (revelado a mano, nada guardado
+   todavía). Fix: `aplicarEstadoDefaultSmtp()` ahora distingue 2 modos
+   para esa misma franja — `'cancelar'` (nada guardado: oculta el
+   formulario localmente, SIN llamar al servidor, texto "Aún no has
+   guardado nada…") vs `'revertir'` (conexión propia real: el
+   `POST /revertir` de siempre). Mismo contenedor/ids, label y texto
+   cambian según el modo (`smtp-revertir-texto`/`btn-smtp-revertir-label`,
+   IDs nuevos en los spans).
+2. **"Dice que fue exitosa sin haber configurado nada"**: `POST
+   /api/admin/config/smtp/prueba` llamaba `marcarSmtpVerificado()`
+   incondicionalmente tras cualquier envío exitoso — si el envío salió
+   por el DEFAULT (tenant sin conexión propia), igual estampaba
+   `ultima_verificacion_en` en la fila (vacía) de ESE tenant, mostrando
+   "Última verificación exitosa" sobre una conexión que nunca existió.
+   Causa raíz: `enviarCorreo()` no exponía si había usado el default.
+   Fix: `enviarCorreo()` ahora regresa `{ usandoDefault }`; la ruta solo
+   llama `marcarSmtpVerificado()` cuando `!usandoDefault`. Limpieza de
+   datos: la fila de prueba ya contaminada en
+   `tenant_prueba-cancel-8.configuracion` (creada por el propio bug, con
+   `host` del default pero `usuario`/`password` vacíos) se borró por
+   completo — vuelve a su estado real de "nunca configurado" (`NULL`
+   implícito, no una fila a medias). Probado real: 2do envío de prueba
+   desde ese mismo tenant confirmado con `usandoDefault:true` en la
+   respuesta y `ultima_verificacion_en` siguiendo en `null` después.
+
+## Punto 444 — Bug visual real reportado por el usuario: sidebar de Reportes mostraba las 5 pestañas sin filtrar por flag de plan (29 oct 2026, CERRADO)
+
+Reporte del usuario, con captura anotada (tachó a mano las pestañas que
+no debían aparecer): el tenant `prueba-cancel-8` (plan CLARVO Solicita,
+solo `reportesEstadoTicketsHabilitado=1`, las otras 4 en 0) mostraba las
+5 pestañas de Reportes en el sidebar de `/admin` (Por reporte, Cortes,
+Todo lo eliminado, Estado del inventario, Estado de tickets) — debía
+mostrar solo "Estado de tickets".
+
+**Diagnóstico**: confirmado por query directa a `control_tenants.tenants`
+que plan y tenant coincidían exacto (`0,0,0,0,1`) — no era desincronía de
+datos. Confirmado por `grep` en `backend/server.js` que las 4 rutas
+(`requiereFeature('reportesPorReporteHabilitado')` etc.) ya estaban bien
+gateadas — el backend ya devolvía 404 real en las 4. El bug era 100%
+frontend: `frontend/admin.js` tenía `reportesPlanVisible()` (oculta la
+SECCIÓN completa "Reportes" solo si las 5 flags están en 0) pero ningún
+código filtraba cada pestaña INDIVIDUAL por su propio flag — el bloque
+de `aplicarRestriccionesPerfil()` solo ocultaba por perfil (`fiscal`),
+nunca por plan. Mismo bug-shape ya documentado en `CLAUDE.md`:
+"backend-only no es suficiente, el frontend también debe ocultar la
+entrada que no lleva a ningún lado".
+
+**Fix** (`frontend/admin.js`): cada entrada de `PESTANAS_REPORTES`
+(objeto declarativo ya existente para las 5 pestañas) ganó una propiedad
+`flag` con el nombre real del flag de plan correspondiente. 2 funciones
+nuevas: `pestanaReportesVisible(clave)` (combina perfil Y plan, AND, con
+`planPermite()` ya existente) y `primeraPestanaReportesVisible()`
+(primera pestaña visible en el orden declarado — reemplaza el
+`'por-reporte'` hardcodeado como default de entrada). El bloque de
+`aplicarRestriccionesPerfil()` que antes solo ocultaba por perfil ahora
+itera `PESTANAS_REPORTES` y oculta botón+botón-sidebar por
+`pestanaReportesVisible()`. Los 2 sitios que forzaban `'por-reporte'`
+como pestaña activa (primer expand del submenú, y la corrección
+hardcodeada `if (perfilActual === 'fiscal') activarPestanaReportes(...)`
+al entrar a la vista) se generalizaron: el segundo ahora detecta CUALQUIER
+pestaña activa que ya no sea visible (no solo el caso fiscal) y cae a
+`primeraPestanaReportesVisible()`.
+
+**Validado real en navegador** (Playwright/chrome-devtools MCP, no solo
+`node --check`), 3 escenarios con password temporal fijada a mano en
+cada tenant (`crypto.scryptSync`, mismo formato que `authUsuario.js`,
+tenants de prueba ya existentes de sesiones anteriores — sin tocar datos
+de negocio real):
+1. `prueba-cancel-8` (Solicita, `0,0,0,0,1`): sidebar muestra SOLO
+   "Estado de tickets", aterriza ahí directo al expandir Reportes.
+2. `prueba-cancel-4` (Domina, `1,1,1,1,1`): las 5 pestañas visibles,
+   default sigue siendo "Por reporte" — sin regresión para planes con
+   todo habilitado.
+3. `prueba-cancel-6` (Controla, `0,1,0,1,1`, subconjunto NO empezando en
+   la primera pestaña declarada): sidebar muestra solo Cortes/Estado del
+   inventario/Estado de tickets, default cae en "Cortes" (primera
+   visible), confirma que `primeraPestanaReportesVisible()` funciona con
+   cualquier combinación, no solo los casos extremos.
+
+Archivos modificados: `frontend/admin.js`, `PROJECT_STATE.md`,
+`CLAUDE.md` (este punto).
+
+## Punto 445 — Auditoría de calidad y seguridad v1.3 (sonar_1.3.html) (29 oct 2026, CERRADO)
+
+Petición del usuario: correr la evaluación estilo SonarQube de nuevo y
+generar `calidad/sonar_1.3.html` (misma serie que sonar.html/1.1/1.2).
+
+**Resultado**: Quality Gate **APROBADA CON CONDICIONES** (la 1.2 era
+APROBADA). Cero vulnerabilidades de código propio: los 51 hallazgos con
+ID vigentes al cierre de la 1.2 fueron re-estado línea por línea contra
+HEAD `7160a10` — 44 cerrados (N-02 cerró: la intermitencia de control no
+se reprodujo), 2 parciales (m-11, i-03), 4 abiertos (i-01, i-02, i-04,
+N-05) + nota N-04 (hostinger/ desfasado, fuera de alcance por puntos
+412/435 — además `hostinger/control/` no existe en el paquete).
+
+**2 hallazgos nuevos mayores** (las 2 condiciones de la gate):
+
+- **N-06 — supply-chain (primera vez con `npm audit`)**: 8
+  vulnerabilidades en backend, 7 en control. 1 crítica (proxy-addr,
+  explotabilidad BAJA aquí: trust proxy es hop-count numérico, no
+  subnet), altas de body-parser/brace-expansion/js-yaml/qs con
+  explotabilidad baja-media, sharp (librsvg, procesa imágenes en
+  runtime) y **nodemailer 9.1.1 con 12 advisories — la más relevante**:
+  divulgación cross-tenant de credenciales SMTP vía caché DNS global
+  TLS, contexto exacto de este producto multi-tenant con SMTP
+  por-tenant (punto 443). Fix: `npm audit fix` (no-breaker) + upgrade a
+  nodemailer 10.3.1 (breaking, con prueba de envío real).
+- **N-07 — 14 tests rojos en 5 suites**: todos verificados como tests
+  DESACTUALIZADOS, no regresiones — el commit 7160a10 y la ronda 417-443
+  cambiaron comportamiento sin actualizar los tests
+  (`configSmtpParaMostrar` ahora async ×3; campo `verificadoEn` nuevo
+  ×4; query `totalReal` del punto 432 sin mock ×2; `urlPortal`
+  condicional al plan ×1; ruta `convertir/:token` eliminada por Stripe,
+  ahora `pagar/:token` ×4). Esfuerzo de fix: <1 h, solo tests.
+
+**1 menor nuevo**: N-08 — `preferenciasDashboard` (backend) es la 2da
+suite intermitente (timeout bajo carga, verde en aislado; hermana de
+N-05). Ratings: Seguridad A→B (por A06 supply-chain), Confiabilidad
+B→C (suite roja), Mantenibilidad C (monolitos crecieron: admin.js
+21,247 +935; server.js 11,428 +450). Tests: 1,883 (backend 1,371/1,374,
+control 498/509).
+
+**Gotcha operativo descubierto en esta ronda**: `nodemailer` se agregó
+a `control/package.json` (punto 443) pero el `node_modules` local de
+esta máquina no lo tenía — la suite de control tiró 18 rojos falsos
+hasta correr `npm install` en `control/`. Los fallos de esta ronda
+fueron investigados uno por uno antes de emitir el informe; el informe
+reporta los 11 rojos reales de control (todos N-07).
+
+**Sin tocar código de producto**: solo se generó el informe. Roadmap de
+remediación en la sección 7 del HTML (Fase A = las 2 condiciones, en
+horas).
+
+**Archivos tocados**: `calidad/sonar_1.3.html` (nuevo),
+`PROJECT_STATE.md` (este punto).
+

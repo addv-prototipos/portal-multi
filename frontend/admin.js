@@ -84,7 +84,9 @@
     smtpAccHeaderConexion: document.getElementById('smtp-acc-header-conexion'),
     smtpAccBodyConexion: document.getElementById('smtp-acc-body-conexion'),
     smtpRevertirFranja: document.getElementById('smtp-revertir-franja'),
+    smtpRevertirTexto: document.getElementById('smtp-revertir-texto'),
     btnSmtpRevertir: document.getElementById('btn-smtp-revertir'),
+    btnSmtpRevertirLabel: document.getElementById('btn-smtp-revertir-label'),
     smtpRevertirError: document.getElementById('smtp-revertir-error'),
     configSidebarSmtpEstado: document.getElementById('config-sidebar-smtp-estado'),
     configSidebarSmtpEstadoTexto: document.getElementById('config-sidebar-smtp-estado-texto'),
@@ -2746,11 +2748,18 @@
     // Punto 360: perfil "fiscal" solo puede ver la pestaña "Estado de
     // tickets" dentro de Reportes — las otras 4 (Por reporte/Cortes/
     // Eliminados/Estado del inventario) son de Ventas/Gastos/Inventarios,
-    // el backend ya las bloquea con 403 para este perfil. Se ocultan los
-    // botones en vez de dejarlos ahí para terminar en un error.
-    ['btnReportesVistaPorReporte', 'btnReportesVistaCortes', 'btnReportesVistaLedger', 'btnReportesVistaEstadoInventario',
-      'btnSidebarReportesPorReporte', 'btnSidebarReportesCortes', 'btnSidebarReportesLedger', 'btnSidebarReportesEstadoInventario'].forEach((clave) => {
-      if (els[clave]) els[clave].hidden = perfilActual === 'fiscal';
+    // el backend ya las bloquea con 403 para este perfil.
+    // Bug real (punto en curso): esto solo cubría el candado de PERFIL —
+    // nunca el de PLAN (cada pestaña tiene su propio flag,
+    // reportesPorReporteHabilitado/etc., ver PESTANAS_REPORTES más abajo)
+    // así que un plan como Solicita (solo Estado de tickets) mostraba las
+    // 5 pestañas igual, aunque el backend ya rechazara 4 con 404. Se
+    // ocultan los botones en vez de dejarlos ahí para terminar en un
+    // error — mismo criterio que el resto del archivo.
+    Object.entries(PESTANAS_REPORTES).forEach(([clave, def]) => {
+      const visible = pestanaReportesVisible(clave);
+      if (els[def.boton]) els[def.boton].hidden = !visible;
+      if (def.botonSidebar && els[def.botonSidebar]) els[def.botonSidebar].hidden = !visible;
     });
 
     // Reportes → "Estado de tickets" para el perfil "administrador"
@@ -5913,6 +5922,7 @@
       botonSidebar: 'btnSidebarReportesPorReporte',
       vista: 'reportesVistaPorReporte',
       caption: 'Elige un reporte automático, manual o de cierre mensual para ver su contenido completo.',
+      flag: 'reportesPorReporteHabilitado',
     },
     cortes: {
       boton: 'btnReportesVistaCortes',
@@ -5920,6 +5930,7 @@
       vista: 'reportesVistaCortes',
       caption: 'Historial de cortes de ventas que has generado — consulta o imprime cualquiera de nuevo.',
       alEntrar: () => renderListaCortes(),
+      flag: 'reportesCortesHabilitado',
     },
     ledger: {
       boton: 'btnReportesVistaLedger',
@@ -5933,6 +5944,7 @@
           cargarEstadisticasReportes();
         }
       },
+      flag: 'reportesEliminadosHabilitado',
     },
     'estado-inventario': {
       boton: 'btnReportesVistaEstadoInventario',
@@ -5945,6 +5957,7 @@
           cargarEstadoInventario();
         }
       },
+      flag: 'reportesEstadoInventarioHabilitado',
     },
     // Punto 360 (2026-10-02): movido desde "Inicio" — mismo contenido/
     // lógica, se recarga cada vez que se entra a la pestaña (igual que
@@ -5955,8 +5968,32 @@
       vista: 'reportesVistaEstadoTickets',
       caption: 'Resumen de solicitudes de facturación: estatus, tendencia y las más recientes.',
       alEntrar: () => cargarEstadoTickets(),
+      flag: 'reportesEstadoTicketsHabilitado',
     },
   };
+
+  // Bug real reportado por el usuario (punto en curso): reportesPlanVisible()
+  // solo decide si la SECCIÓN completa de Reportes se oculta (las 5 en
+  // false) — nunca filtraba CADA pestaña por su propio flag, así que un
+  // plan como Solicita (solo reportesEstadoTicketsHabilitado=1) mostraba
+  // las 5 pestañas en el sidebar aunque el backend ya rechazara 4 de
+  // ellas con 404 (requiereFeature ya las gatea bien — esto era solo la
+  // UI mostrando controles que no llevan a ningún lado, mismo bug-shape
+  // ya documentado para cualquier módulo: "backend-only no es suficiente").
+  // Combina perfil (fiscal solo ve estado-tickets) Y plan (AND, mismo
+  // criterio que el resto de aplicarRestriccionesPerfil).
+  function pestanaReportesVisible(clave) {
+    const def = PESTANAS_REPORTES[clave];
+    if (clave !== 'estado-tickets' && perfilActual === 'fiscal') return false;
+    return planPermite(def.flag);
+  }
+
+  // Primera pestaña visible en el orden declarado — reemplaza el
+  // "por-reporte" hardcoded de siempre como default de entrada, para
+  // nunca aterrizar en una pestaña que el plan no incluye.
+  function primeraPestanaReportesVisible() {
+    return Object.keys(PESTANAS_REPORTES).find((clave) => pestanaReportesVisible(clave)) || 'estado-tickets';
+  }
   let invEstadoCargado = false;
   let reportesEstadisticasCargadas = false;
 
@@ -6030,7 +6067,7 @@
       // y eso se respeta — nunca se resetea a "Por reporte" en cada
       // visita, mismo comportamiento de "recordar la pestaña" de siempre).
       if (vaAExpandir && !document.querySelector('.admin-vista-btn-sub.is-active')) {
-        activarPestanaReportes('por-reporte');
+        activarPestanaReportes(primeraPestanaReportesVisible());
         return; // activarPestanaReportes ya deja el submenú expandido
       }
       expandirSubgrupoReportes(vaAExpandir);
@@ -6326,9 +6363,21 @@
   let smtpMostrarFormularioPropio = false;
   let ultimoDatoSmtp = null;
 
-  // Decide banner vs. formulario de conexión + franja de revertir.
+  // Decide banner vs. formulario de conexión + franja de abajo.
   // "Correo de quien va a facturar" y "Plantillas de correo" nunca pasan
   // por aquí — son independientes de la conexión SMTP (ver admin.html).
+  //
+  // 3 estados reales (usandoDefault/configurado son mutuamente
+  // excluyentes — nunca ambos true):
+  //   A) usandoDefault=true, sin revelar  -> banner verde
+  //   B) usandoDefault=true, revelado a mano, nada guardado todavía
+  //      -> formulario vacío + franja "Cancelar" (SOLO local, sin
+  //         llamada al servidor — no hay nada que revertir ahí)
+  //   C) configurado=true (conexión propia ya guardada)
+  //      -> formulario lleno + franja "Volver al predeterminado"
+  //         (POST /revertir real)
+  let smtpModoFranjaRevertir = 'cancelar'; // 'cancelar' | 'revertir'
+
   function aplicarEstadoDefaultSmtp(data) {
     const usandoDefault = Boolean(data && data.usandoDefault);
     const configurado = Boolean(data && data.configurado);
@@ -6336,7 +6385,25 @@
     if (els.smtpDefaultBanner) els.smtpDefaultBanner.hidden = !(usandoDefault && !smtpMostrarFormularioPropio);
     if (els.smtpAccHeaderConexion) els.smtpAccHeaderConexion.hidden = !mostrarFormulario;
     if (els.smtpAccBodyConexion) els.smtpAccBodyConexion.hidden = !mostrarFormulario;
-    if (els.smtpRevertirFranja) els.smtpRevertirFranja.hidden = !configurado;
+
+    const mostrarFranja = configurado || (usandoDefault && smtpMostrarFormularioPropio);
+    smtpModoFranjaRevertir = configurado ? 'revertir' : 'cancelar';
+    if (els.smtpRevertirFranja) {
+      els.smtpRevertirFranja.hidden = !mostrarFranja;
+      if (mostrarFranja) {
+        const esRevertir = smtpModoFranjaRevertir === 'revertir';
+        if (els.smtpRevertirTexto) {
+          els.smtpRevertirTexto.textContent = esRevertir
+            ? '¿Prefieres usar el correo predeterminado de Clarvo en vez del tuyo?'
+            : 'Aún no has guardado nada — puedes salir sin perder el correo predeterminado.';
+        }
+        if (els.btnSmtpRevertirLabel) {
+          els.btnSmtpRevertirLabel.textContent = esRevertir
+            ? 'Volver al correo predeterminado de Clarvo'
+            : 'Cancelar';
+        }
+      }
+    }
   }
 
   function aplicarAcordeonSmtp() {
@@ -6819,7 +6886,11 @@
         els.smtpPruebaError.textContent = data.error || 'No se pudo enviar el correo de prueba.';
         return;
       }
-      showToast(data.mensaje || 'Correo de prueba enviado.');
+      showToast(
+        data.usandoDefault
+          ? `${data.mensaje || 'Correo de prueba enviado.'} (vía el correo predeterminado de Clarvo — no hay conexión propia que marcar como verificada).`
+          : data.mensaje || 'Correo de prueba enviado.'
+      );
       renderSmtpVerificado(data.verificadoEn);
     } catch (err) {
       els.smtpPruebaError.textContent = 'No se pudo conectar con el servidor.';
@@ -6879,18 +6950,28 @@
     });
   }
 
-  // "Volver al correo predeterminado de Clarvo" (propuesta 8, confirmada
-  // por el usuario): borra la conexión propia guardada y vuelve a
-  // usandoDefault=true — recarga la tarjeta completa para que el banner
-  // verde reaparezca con el estado real ya confirmado por el servidor.
+  // Franja de abajo del formulario de conexión: en modo 'cancelar' (nada
+  // guardado todavía, formulario revelado a mano) solo oculta el
+  // formulario local y vuelve a mostrar el banner, SIN tocar el
+  // servidor — no hay ninguna conexión propia que revertir. En modo
+  // 'revertir' (conexión propia ya guardada, propuesta 8 confirmada por
+  // el usuario) sí borra la conexión propia vía
+  // POST /admin/config/smtp/revertir y recarga la tarjeta completa.
   if (els.btnSmtpRevertir) {
     els.btnSmtpRevertir.addEventListener('click', async () => {
+      if (els.smtpRevertirError) els.smtpRevertirError.textContent = '';
+
+      if (smtpModoFranjaRevertir === 'cancelar') {
+        smtpMostrarFormularioPropio = false;
+        aplicarEstadoDefaultSmtp(ultimoDatoSmtp);
+        return;
+      }
+
       const authHeader = getAuthHeader();
       if (!authHeader) {
         showLogin();
         return;
       }
-      if (els.smtpRevertirError) els.smtpRevertirError.textContent = '';
       els.btnSmtpRevertir.disabled = true;
       try {
         const res = await fetch(`${API_BASE}/admin/config/smtp/revertir`, {
@@ -8510,11 +8591,17 @@
     if (vista === 'usuarios') cargarUsuarios();
     if (vista === 'lectura-reportes') {
       cargarListaReportes();
-      // Punto 360: fiscal solo tiene "Estado de tickets" alcanzable — se
-      // activa sola en vez de dejar "Por reporte" seleccionada por
-      // default (el botón está oculto para este perfil, nunca llega ahí
-      // con un clic, pero el HTML lo marca activo desde el inicio).
-      if (perfilActual === 'fiscal') activarPestanaReportes('estado-tickets');
+      // Punto 360 + bug real (punto en curso): si la pestaña marcada
+      // activa desde el HTML estático ("Por reporte") no es alcanzable
+      // para este perfil/plan (su botón está oculto — nunca llega ahí
+      // con un clic), se corrige a la primera pestaña que sí lo sea, en
+      // vez de dejar contenido de una pestaña sin botón visible en el
+      // sidebar. Antes solo cubría el caso "fiscal"; ahora cubre
+      // cualquier plan que apague alguna de las 5 pestañas.
+      const pestanaActivaAhora = Object.keys(PESTANAS_REPORTES).find((clave) => els[PESTANAS_REPORTES[clave].boton]?.classList.contains('is-active'));
+      if (!pestanaActivaAhora || !pestanaReportesVisible(pestanaActivaAhora)) {
+        activarPestanaReportes(primeraPestanaReportesVisible());
+      }
     }
     if (vista === 'mi-cuenta') cargarMiCuenta();
     if (vista === 'metodo-pago') cargarVistaMetodoPago();
