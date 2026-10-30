@@ -1674,6 +1674,32 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   (`geoip-lite@2.0.3`), aunque declare un `engines` más exigente — ver
   el gotcha de arriba sobre `EBADENGINE` siendo solo advertencia en
   Node 20.
+- **Un archivo suelto (`docker-stack.yml`, `.env`, etc.) empacado junto a
+  directorios en el mismo `tar` puede NO sobreescribirse en el servidor
+  aunque `tar tzf` confirme que está en el paquete** (punto 455,
+  2026-10-30, **downtime real en producción**): `/opt/clarvo/docker-stack.yml`
+  en Vultr quedó desactualizado desde el 28 de octubre (con un servicio
+  `minio:` real que ya no debería existir desde el punto 415) pese a que
+  el `tar` de esta sesión (y probablemente los de los puntos 442/451/453
+  también) sí lo incluía — causa raíz no confirmada (posible interacción
+  de `bsdtar`/Git Bash en Windows con un archivo suelto junto a
+  directorios en el mismo `tar`), nunca reproducida a propósito para no
+  arriesgar otro incidente. Efecto real: un `docker stack deploy -c
+  docker-stack.yml clarvo` con el archivo viejo tumbó `backend` y
+  `mysql-primary` a 0/1 (downtime real, breve) y creó un servicio
+  `minio` huérfano. **Regla nueva, aplica a cualquier despliegue futuro
+  con un archivo suelto en el paquete `tar`**: después de extraer en el
+  servidor, verificar SIEMPRE con `md5sum`/`diff` contra el archivo
+  local — un `grep` de una línea esperada NO basta (ese `grep` pasó en
+  este incidente real, apuntando a una línea que coincidía por
+  casualidad con un offset distinto del archivo viejo). Si el archivo es
+  crítico para el servicio, hacer `scp` del archivo individual aparte,
+  nunca confiar solo en el `tar` del paquete completo.
+- **`docker stack deploy` nunca purga solo un servicio que ya no está en
+  el YAML** (punto 455): hace falta `--prune` en el comando, o
+  `docker service rm <nombre>` a mano después — un servicio eliminado
+  del `docker-stack.yml` sigue corriendo indefinidamente si no se hace
+  ninguna de las dos cosas.
 
 ## Stack
 

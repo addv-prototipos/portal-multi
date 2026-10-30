@@ -1,6 +1,6 @@
 {
   "name": "fiscal-uploads-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "API para captura de datos de facturacion y carga de constancia de situacion fiscal",
   "main": "server.js",
   "type": "commonjs",

@@ -26417,3 +26417,68 @@ control/test/integration/control.test.js, docker-compose.yml,
 frontend/style.css, frontend/mantenimiento.html,
 frontend/nginx.conf.template, frontend/assets/fonts/*.woff2 (4 archivos
 nuevos), PROJECT_STATE.md (este punto).
+
+## Punto 455 — Despliegue a producción real (Vultr) de la remediación del punto 454 + versión 1.0.1 + incidente real de downtime (30 oct 2026, CERRADO)
+
+A petición explícita del usuario: version bump a **1.0.1** (backend/
+package.json, control/package.json, y la etiqueta visible
+`.config-sidebar-version` en Configuraciones de /admin) + despliegue a
+Vultr/clarvo.mx de toda la remediación del punto 454.
+
+**Antes de desplegar, se detectó y resolvió un riesgo real**: el fix de
+m-11 (USER appuser sin su-exec) habría reventado producción tal cual,
+porque `VULTR/docker-stack.yml` y `hostinger/docker-compose.prod.yml`
+SEGUÍAN con el bind mount viejo `.../uploads:/app/uploads` que ya no
+existe en el `docker-compose.yml` de dev — mismo `EACCES` que rompió
+local, pero en un servidor real. Corregido en ambos (quitar el volumen,
+conservar `UPLOAD_DIR: /app/uploads` — **error propio corregido en el
+momento**: la primera pasada quitó también `UPLOAD_DIR`, lo que habría
+hecho caer el código a su default `/uploads`, un path que el Dockerfile
+NO prepara — detectado antes de desplegar, revertido a dejar `UPLOAD_DIR`
+intacto, solo el volumen fuera).
+
+**Incidente real durante el despliegue — downtime real, breve, ya
+recuperado**: el primer `docker stack deploy -c docker-stack.yml clarvo`
+corrió contra un `/opt/clarvo/docker-stack.yml` **desactualizado desde
+el 28 de octubre** (309 líneas, con un servicio `minio:` real que ya no
+debería existir desde el punto 415/Garage) — el `tar`/`scp` de código
+de esta sesión (y, retroactivamente, probablemente también los de los
+puntos 442/451/453) nunca sobreescribió ese archivo suelto en la raíz
+del paquete: el `tar` SÍ lo incluía (confirmado con `tar tzf`), pero la
+extracción en el servidor lo dejó intacto — causa raíz no identificada
+con certeza (posible interacción de `bsdtar` de Git Bash/Windows con un
+archivo suelto junto a directorios en el mismo `tar`), **sin reproducir
+a propósito para no arriesgar otro incidente**. Efecto real: el deploy
+con el archivo viejo puso `clarvo_backend` y `clarvo_mysql-primary` en
+**0/1 (caídos)** y creó un servicio `clarvo_minio` huérfano — downtime
+real de la aplicación completa, breve (segundos, dentro de la misma
+sesión de diagnóstico). Recuperado: `scp` directo del archivo correcto
+(sin pasar por `tar`) → re-`docker stack deploy` → los 3 servicios
+volvieron a 1/1 → `docker service rm clarvo_minio` (un `docker stack
+deploy` **nunca purga solo** un servicio que ya no está en el YAML —
+hace falta `--prune` o removerlo a mano).
+
+**Verificado real tras la recuperación**: `docker service ls` con los 8
+servicios esperados (sin `minio`); `clrv-backend`/`clrv-control` ambos
+`appuser` + versión `1.0.1` confirmada (`require('./package.json').version`
+dentro de cada contenedor); `/app/uploads/tickets|facturas` escribibles
+sin `EACCES`; `curl` real 200 en `https://clarvo.mx/`, `/api/health`,
+`/control`; puerto del frontend confirmado `8088` (no se corrió con el
+mapeo viejo del archivo desactualizado).
+
+**Lección para cualquier despliegue futuro que incluya un archivo
+suelto junto a directorios en el mismo `tar`** (`docker-stack.yml`,
+`.env`, cualquier archivo top-level del paquete de despliegue): **no
+asumir que `tar tzf` mostrando el archivo en el listado = que la
+extracción lo aplicó** — verificar SIEMPRE después de extraer con
+`md5sum`/`diff` contra el archivo local, nunca solo con un `grep` de
+una línea esperada (ese `grep` SÍ pasó en este incidente, apuntando a
+una línea que coincidía por casualidad con un offset distinto del
+archivo viejo). Si el archivo es crítico para el servicio (como
+`docker-stack.yml`), hacer el `scp` del archivo individual aparte,
+nunca confiar solo en el `tar` del paquete completo.
+
+Archivos: `backend/package.json`, `control/package.json`,
+`frontend/admin.html` (versión 1.0.1), `VULTR/docker-stack.yml`,
+`hostinger/docker-compose.prod.yml` (bind mount de uploads retirado,
+mismo fix que dev), `PROJECT_STATE.md` (este punto).
