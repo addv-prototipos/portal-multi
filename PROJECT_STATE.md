@@ -26878,3 +26878,110 @@ específicamente a Vultr/producción real, pedido explícito del usuario.
 Archivos: `VULTR/README-VULTR.md` (corrección del bug de backup,
 gitignored — no entra a git), `PROJECT_STATE.md` (este punto). Ningún
 archivo de código tocado — este punto es 100% operación de despliegue.
+
+## Punto 461 — Conectar "Publicar en clarvo.mx" en /control: el campo existía en BD pero ningún camino de la UI podía encenderlo (30-31 oct 2026, CERRADO)
+
+El usuario, tras el despliegue del punto 460, reportó que no encontraba
+en `/control` → Planes ninguna forma de publicar un plan nuevo en la
+sección de precios pública de clarvo.mx — mencionó un artifact previo
+("Clarvo — Publicar sin desplegar: 3 opciones") sobre el tema.
+
+**Verificación contra código real antes de tocar nada** (mismo criterio
+del punto 399): la Opción 1 del artifact (fetch desde el navegador,
+`GET /api/public/planes`, sin cambiar infraestructura) SÍ estaba
+implementada — la columna `publicado_sitio` existe en
+`control_tenants.planes`, el endpoint público filtra por ella, y
+`clarvo-Site/src/components/site/PricingSection.astro` ya la consume
+(los 4 planes reales ya se ven en vivo). Pero `control/utils/planes.js`
+nunca tuvo el campo en su lista blanca: `normalizarDatosPlan()` no lo
+aceptaba, `crearPlan()`/`actualizarPlan()` no lo escribían, y
+`mapearFila()` ni siquiera lo devolvía a la UI — no había NINGÚN camino,
+en ningún lugar de `/control`, para cambiar su valor. Los 4 planes reales
+que sí aparecen públicamente llegaron a `publicado_sitio=1` por una
+sesión anterior editando la base de datos directo, nunca desde la UI.
+
+**Fix — conecta el interruptor que faltaba, sin tocar el endpoint público
+ni clarvo-Site**:
+- `control/utils/planes.js`: `publicado_sitio` agregado a la lista
+  blanca de `normalizarDatosPlan()`, al `INSERT` de `crearPlan()` (con su
+  valor correspondiente en el array de parámetros — verificado
+  programáticamente que 28 columnas = 28 tokens en `VALUES` = 27 valores
+  bindeados, mismo gotcha de conteo ya documentado en CLAUDE.md) y a
+  `mapearFila()`. `actualizarPlan()` no necesitó cambio — ya aplica
+  dinámicamente cualquier campo presente en la lista blanca.
+- `frontend/control.html`: switch "Publicar en clarvo.mx" en el paso 1
+  del wizard (Información básica), junto a precio/usuarios/disco —
+  independiente, sin regla de dependencia (a diferencia de los módulos
+  de gobierno de funcionalidades, no entra en `validarReglasDependencia`).
+- `frontend/control.js`: elemento `els.planesPublicadoSitio`, reset al
+  abrir el modal, carga del valor real al editar, incluido en el payload
+  de guardar, línea en el resumen del paso 5. Chip "Publicado" (verde,
+  mismo criterio de `--color-positive` no siendo variable real del
+  proyecto — hex directo, CLAUDE.md punto 384) junto al nombre en la
+  lista de planes.
+- `control/test/unit/planes.test.js`: conteo de columnas/params del test
+  de `crearPlan()` actualizado (22→23 "?", 26→27 params) — mismo gotcha
+  ya documentado (N-02, sonar_1.1.html) de tests que hardcodean un
+  conteo de columnas en vez de derivarlo.
+
+**Validado real, no solo con mocks**: 509/509 tests de `control/` sin
+regresión. `node --check` limpio en los 2 archivos. Rebuild real de
+`control`/`frontend` (Docker local) + clic real en navegador (Chrome
+DevTools MCP, admin:admin): creado un plan de prueba
+("ZZZ Prueba Publicar Temporal") con el switch activado desde el wizard
+real → confirmado con chip "Publicado" en la lista → confirmado que
+apareció de inmediato en `GET /api/public/planes` real, sin ningún
+rebuild ni despliegue adicional (justo el comportamiento "publicar sin
+desplegar" del artifact original). Confirmado también el caso negativo:
+un plan ARCHIVADO con `publicado_sitio=1` (probado sin querer con "Plan
+Panadero" durante la sesión, revertido después) NUNCA aparece en el
+endpoint público — el filtro `activo=1 AND publicado_sitio=1` sigue
+intacto. Plan de prueba y el valor accidental de Plan Panadero limpiados
+de la base de datos al terminar.
+
+**Hallazgo de herramienta, no de código**: el checkbox de
+`.control-switch` (mismo componente usado en 3+ lugares del wizard) dio
+timeout con el clic sintético normal de Chrome DevTools MCP — mismo
+gotcha ya documentado en CLAUDE.md (punto 438, "el clic sintético de la
+extensión de Chrome... es limitación de la herramienta, no del código");
+se resolvió con `el.click()` via `evaluate_script`, equivalente a un
+clic real. No requiere ningún cambio de código.
+
+**Addendum, mismo punto (pedido explícito del usuario, en caliente)**:
+obligar a recorrer los 5 pasos del wizard completo solo para prender/
+apagar este switch era fricción innecesaria — se agregó autoguardado:
+al cambiar el switch mientras se EDITA un plan ya existente
+(`planEditandoId` presente), `frontend/control.js` dispara de inmediato
+un `PUT /api/control/planes/:id` con solo `{ publicado_sitio }` (el
+backend ya lo soporta — `actualizarPlan()` acepta updates parciales por
+diseño) y cierra el modal apenas confirma éxito, sin pasar por el resto
+del wizard. Para un plan NUEVO (sin id todavía) no aplica — sigue
+viajando dentro del payload normal de "Guardar plan" del wizard
+completo, no hay a qué URL mandar un PATCH antes de que el plan exista.
+Mismo criterio ya establecido en el proyecto para pestañas
+independientes del form general (Identidad visual/Suscripción, ver
+gotcha de CLAUDE.md): un control que puede cambiar de estado sin
+depender del resto del formulario se guarda solo, con su propio
+endpoint — nunca se mete al submit compartido. Orden
+cerrar-modal-antes-que-toast respetado (punto 434). Validado real:
+clic real en navegador sobre "Plan Panadero" (editando, con el modal ya
+abierto) → autoguardado disparado, modal cerrado solo, lista
+refrescada con el chip "Publicado" visible sin ninguna otra acción —
+confirmado también en la base de datos real (`publicado_sitio` pasó a 1)
+antes de revertir el estado de prueba. 509/509 tests de `control/` sin
+regresión tras el cambio.
+
+**Confirmado con el usuario (preguntó directo): este cambio NO toca
+`clarvo-Site`.** El endpoint público `GET /api/public/planes` (el único
+que consume `PricingSection.astro`, vía
+`fetch(`${publicEnv.apiBaseUrl}/api/public/planes`)`) nunca se tocó en
+este punto — solo se modificó `control/utils/planes.js` (el CRUD interno
+del wizard de `/control`), y ese endpoint público nunca devuelve
+`publicado_sitio` como campo, solo lo usa como filtro `WHERE`. Confirmado
+grepeando el fetch real en `clarvo-Site/src/components/site/PricingSection.astro`
+antes de responder — cero cambio de código, cero commit, cero deploy
+necesario en ese repo para este punto.
+
+Archivos: `control/utils/planes.js`, `frontend/control.html`,
+`frontend/control.js`, `control/test/unit/planes.test.js`,
+`PROJECT_STATE.md` (este punto).

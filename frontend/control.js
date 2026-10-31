@@ -319,6 +319,7 @@
     planesPrecioAnual: document.getElementById('planes-precio-anual'),
     planesMaxUsuarios: document.getElementById('planes-max-usuarios'),
     planesDiscoCuota: document.getElementById('planes-disco-cuota'),
+    planesPublicadoSitio: document.getElementById('planes-publicado-sitio'),
     planesModalError: document.getElementById('planes-modal-error'),
     btnPlanesCancelar: document.getElementById('btn-planes-cancelar'),
     btnPlanesGuardar: document.getElementById('btn-planes-guardar'),
@@ -2956,9 +2957,10 @@
 
     planes.forEach((p) => {
       const tr = document.createElement('tr');
+      const chipPublicado = p.publicado_sitio ? ' <span class="planes-chip-publicado">Publicado</span>' : '';
       const nombreHtml = p.activo
-        ? `<strong>${escapeHtml(p.nombre)}</strong>`
-        : `<strong>${escapeHtml(p.nombre)}</strong> <span class="planes-chip-archivado">Archivado</span>`;
+        ? `<strong>${escapeHtml(p.nombre)}</strong>${chipPublicado}`
+        : `<strong>${escapeHtml(p.nombre)}</strong> <span class="planes-chip-archivado">Archivado</span>${chipPublicado}`;
       const descripcionHtml = p.descripcion ? `<br><span class="field-hint" style="margin:0">${escapeHtml(p.descripcion)}</span>` : '';
       tr.innerHTML = `
         <td data-label="Plan">${nombreHtml}${descripcionHtml}</td>
@@ -3376,6 +3378,7 @@
       return `<tr class="nivel2"><td class="nombre">${nombre}</td><td><span class="planes-chip${on ? '' : ' is-apagado'}">${on ? 'Incluido' : 'Oculto'}</span></td></tr>`;
     }
     let html = '';
+    html += fila('Publicado en clarvo.mx', els.planesPublicadoSitio.checked);
     html += fila('Gestión de facturas', planWizardState.facturacion_habilitada);
     html += fila('Ventas', planWizardState.ventas_habilitado);
     html += filaN2('Cuentas por cobrar', planWizardState.cxc_habilitado);
@@ -3423,6 +3426,7 @@
     els.planesPrecioAnual.value = '';
     els.planesMaxUsuarios.value = '';
     els.planesDiscoCuota.value = '';
+    els.planesPublicadoSitio.checked = false;
     els.planesModalOverlay.hidden = false;
     renderPlanWizardTodo();
 
@@ -3442,6 +3446,7 @@
         els.planesPrecioAnual.value = p.precio_anual ?? '';
         els.planesMaxUsuarios.value = p.max_usuarios ?? '';
         els.planesDiscoCuota.value = p.disco_cuota_mb ?? '';
+        els.planesPublicadoSitio.checked = Boolean(p.publicado_sitio);
         planWizardState = {
           facturacion_habilitada: Boolean(p.facturacion_habilitada),
           ventas_habilitado: Boolean(p.ventas_habilitado),
@@ -3474,6 +3479,46 @@
     els.planesModalOverlay.hidden = true;
     planEditandoId = null;
   }
+
+  // Autoguardado de "Publicar en clarvo.mx" (pedido explícito del
+  // usuario, 2026-10-31): al EDITAR un plan ya existente, no tiene
+  // sentido obligar a recorrer los 5 pasos del wizard solo para prender/
+  // apagar este switch — se guarda solo, al instante, y cierra la
+  // ventana. Solo aplica editando (planEditandoId presente): un plan
+  // NUEVO todavía no existe en la BD, no hay a qué URL mandar el PATCH
+  // hasta que el wizard completo lo cree — ahí sigue viajando dentro del
+  // payload normal de "Guardar plan", sin cambios.
+  els.planesPublicadoSitio.addEventListener('change', async () => {
+    if (!planEditandoId) return;
+    const valor = els.planesPublicadoSitio.checked;
+    els.planesPublicadoSitio.disabled = true;
+    try {
+      const authHeader = getAuthHeader();
+      const res = await fetch(`${API_BASE}/planes/${planEditandoId}`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicado_sitio: valor }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.planesModalError.textContent = data.error || 'No se pudo guardar el cambio.';
+        els.planesPublicadoSitio.checked = !valor;
+        return;
+      }
+      // Cerrar PRIMERO, toast DESPUÉS (punto 434) — el toast nace dentro
+      // del contenedor activo, que con el modal abierto es el modal
+      // mismo; mostrarlo antes de cerrar lo oculta sin que nadie lo vea.
+      const mensaje = valor ? 'Plan publicado en clarvo.mx.' : 'Plan retirado de clarvo.mx.';
+      cerrarPlanModal();
+      showToast(mensaje);
+      cargarPlanes();
+    } catch (err) {
+      els.planesModalError.textContent = 'No se pudo conectar con el servidor.';
+      els.planesPublicadoSitio.checked = !valor;
+    } finally {
+      els.planesPublicadoSitio.disabled = false;
+    }
+  });
 
   els.btnPlanesNuevo.addEventListener('click', () => abrirPlanModal(null));
   if (els.btnPlanesEmptyNuevo) els.btnPlanesEmptyNuevo.addEventListener('click', () => abrirPlanModal(null));
@@ -3516,6 +3561,7 @@
       precio_anual: els.planesPrecioAnual.value === '' ? null : Number(els.planesPrecioAnual.value),
       max_usuarios: els.planesMaxUsuarios.value === '' ? null : Number(els.planesMaxUsuarios.value),
       disco_cuota_mb: els.planesDiscoCuota.value === '' ? null : Number(els.planesDiscoCuota.value),
+      publicado_sitio: els.planesPublicadoSitio.checked,
       ...planWizardState,
     };
 

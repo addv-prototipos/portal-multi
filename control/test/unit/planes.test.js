@@ -121,10 +121,10 @@ describe('utils/planes.js (punto 347)', () => {
       expect(plan.id).toBe(7);
       const [sqlInsert, params] = db.query.mock.calls[0];
       expect(sqlInsert).toMatch(/INSERT INTO planes/);
-      // 23 "?" (campos normales, incluido ticket_impresion_habilitado) + 1
-      // literal + 3 "?" (orden/creado_en/actualizado_en).
-      expect(sqlInsert).toMatch(/VALUES \((?:\?, ){22}\?, 1, \?, \?, \?\)/);
-      expect(params).toHaveLength(26);
+      // 24 "?" (campos normales, incluidos ticket_impresion_habilitado y
+      // publicado_sitio) + 1 literal + 3 "?" (orden/creado_en/actualizado_en).
+      expect(sqlInsert).toMatch(/VALUES \((?:\?, ){23}\?, 1, \?, \?, \?\)/);
+      expect(params).toHaveLength(27);
       expect(params[0]).toBe('Pro');
       expect(params[4]).toBe(15); // max_usuarios
       expect(params[6]).toBe(1); // facturacion_habilitada normalizado a 1
