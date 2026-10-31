@@ -5374,6 +5374,18 @@ async function esAdminRaiz(req) {
   return !!(filas[0] && filas[0].es_cuenta_raiz);
 }
 
+// Gate de Términos y Condiciones (punto en curso, Propuesta 1 — scroll
+// obligatorio): a diferencia de esAdminRaiz() de arriba, aquí
+// `admin_users` (staff de Clarvo con acceso de soporte a un tenant) NO
+// cuenta como raíz — el documento lo acepta la cuenta raíz REAL del
+// cliente, nunca el equipo de Clarvo en su nombre. Solo `perfil_bd` con
+// `es_cuenta_raiz=1` pasa este candado.
+async function esRaizClienteReal(req) {
+  if (req.adminMecanismo !== 'perfil_bd') return false;
+  const [filas] = await pool.query('SELECT es_cuenta_raiz FROM usuarios WHERE rfc = ? LIMIT 1', [req.adminUser]);
+  return !!(filas[0] && filas[0].es_cuenta_raiz);
+}
+
 app.get(
   '/api/admin/mi-cuenta/upscale/disponible',
   adminApiLimiter,
@@ -5422,6 +5434,53 @@ app.post(
     // refleje la cuota nueva de inmediato, nunca solo cuando no se cobró.
     invalidarCacheTenant(req.tenant.slug);
     res.json(data);
+  })
+);
+
+// ---------- Términos y Condiciones: gate post-onboarding, solo cuenta raíz (Propuesta 1) ----------
+// Mismo proxy backend->control que el upscale de arriba. A diferencia de
+// ese y de Cancelar suscripción, SÍ aplica al sitio base (sin tenant) —
+// slug null, control lo guarda bajo el sentinel `__base__`. Si el
+// visitante no es la cuenta raíz real (ver esRaizClienteReal), nunca hay
+// nada que aceptar — el gate no le pide nada ni le expone el contenido.
+app.get(
+  '/api/admin/terminos/pendiente',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await esRaizClienteReal(req))) return res.json({ pendiente: false, version: null });
+    const { ok, data } = await llamarControlInterno('/internal/terminos/estado', {
+      slug: req.tenant ? req.tenant.slug : null,
+      usuario: req.adminUser,
+    });
+    if (!ok) return res.json({ pendiente: false, version: null });
+    res.json(data);
+  })
+);
+
+app.post(
+  '/api/admin/terminos/aceptar',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await esRaizClienteReal(req))) return res.status(403).json({ error: 'No aplica a tu cuenta.' });
+    const slug = req.tenant ? req.tenant.slug : null;
+    // La versión que se acepta se resuelve en el servidor, nunca se
+    // confía en un versionId que mande el cliente — evita que alguien
+    // marque como aceptada una versión distinta de la que de verdad está
+    // vigente.
+    const estado = await llamarControlInterno('/internal/terminos/estado', { slug, usuario: req.adminUser });
+    if (!estado.ok || !estado.data.pendiente || !estado.data.version) {
+      return res.status(409).json({ error: 'No hay una versión pendiente de aceptar.' });
+    }
+    const aceptar = await llamarControlInterno('/internal/terminos/aceptar', {
+      slug,
+      usuario: req.adminUser,
+      versionId: estado.data.version.id,
+      ip: req.ip,
+    });
+    if (!aceptar.ok) return res.status(aceptar.status).json({ error: aceptar.data.error || 'No se pudo registrar tu aceptación.' });
+    res.json({ ok: true });
   })
 );
 
@@ -10093,6 +10152,32 @@ function sanitizarLimpiezaMezcla(crudo) {
   return limpio;
 }
 
+// Una importación "ejecutando" cuyo progreso no se actualiza en
+// IMPORT_EJECUCION_TIMEOUT_MS significa que el proceso que la corría murió
+// (reinicio/crash del backend, p. ej. a mitad de un catálogo grande) sin
+// que la fila se entere — se queda en 'ejecutando' PARA SIEMPRE: bloquea
+// cualquier importación nueva (candado "una a la vez") y deja la barra de
+// progreso del admin congelada en el navegador sin ninguna explicación
+// (el síntoma que describe el usuario como "ya no carga"). Se detecta en
+// los 2 únicos puntos donde el código lee ese estado — nunca se asume que
+// "ejecutando" sigue vivo sin revisar cuánto hace que se actualizó.
+const IMPORT_EJECUCION_TIMEOUT_MS = 10 * 60 * 1000;
+
+function importacionEjecucionAbandonada(fila) {
+  if (!fila || fila.estado !== 'ejecutando') return false;
+  const actualizadoEn = new Date(fila.actualizado_en).getTime();
+  return Number.isFinite(actualizadoEn) && Date.now() - actualizadoEn > IMPORT_EJECUCION_TIMEOUT_MS;
+}
+
+async function liberarImportacionAbandonadaSiAplica(fila) {
+  if (!importacionEjecucionAbandonada(fila)) return fila;
+  await pool.query(
+    "UPDATE imp_importaciones SET estado = 'error', actualizado_en = ? WHERE id = ? AND estado = 'ejecutando'",
+    [new Date(), fila.id]
+  );
+  return { ...fila, estado: 'error' };
+}
+
 async function obtenerImportacionOResponder(id, res) {
   const importacionId = Number(id);
   if (!Number.isInteger(importacionId)) {
@@ -10104,7 +10189,7 @@ async function obtenerImportacionOResponder(id, res) {
     res.status(404).json({ error: 'Importación no encontrada.' });
     return null;
   }
-  return filas[0];
+  return liberarImportacionAbandonadaSiAplica(filas[0]);
 }
 
 function serializarImportacion(fila) {
@@ -11731,10 +11816,17 @@ app.post(
         // Solo una importación EJECUTÁNDOSE a la vez por tenant (§34.9) — el
         // riesgo real de concurrencia está en la fase de escritura masiva,
         // no en subir/previsualizar un archivo nuevo mientras otro sigue en
-        // borrador sin ejecutar.
-        const [enCurso] = await pool.query("SELECT id FROM imp_importaciones WHERE estado = 'ejecutando' LIMIT 1");
+        // borrador sin ejecutar. Si la fila "ejecutando" quedó abandonada
+        // (el proceso que la corría murió a mitad de camino) se libera sola
+        // aquí — sin esto, un crash del servidor deja el candado cerrado
+        // para siempre y nadie puede volver a importar nunca.
+        const [enCurso] = await pool.query("SELECT id, actualizado_en FROM imp_importaciones WHERE estado = 'ejecutando' LIMIT 1");
         if (enCurso.length > 0) {
-          return res.status(409).json({ error: 'INV_IMPORTACION_EN_CURSO', mensaje: 'Ya hay una importación ejecutándose; espera a que termine antes de iniciar otra.' });
+          const fila = { ...enCurso[0], estado: 'ejecutando' };
+          const actualizada = await liberarImportacionAbandonadaSiAplica(fila);
+          if (actualizada.estado === 'ejecutando') {
+            return res.status(409).json({ error: 'INV_IMPORTACION_EN_CURSO', mensaje: 'Ya hay una importación en proceso. Espera a que termine (puede tomar varios minutos con archivos grandes) antes de iniciar otra.' });
+          }
         }
 
         const maxMb = Number(await obtenerValorConfig('inv_import_max_mb'));

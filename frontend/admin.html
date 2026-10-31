@@ -5362,6 +5362,35 @@
     </div>
   </div>
 
+  <!-- Gate de Términos y Condiciones (punto en curso, Propuesta 1 — scroll
+       obligatorio): la cuenta raíz debe desplazar el documento hasta el
+       final antes de poder marcar la casilla y aceptar — sin botón de
+       cerrar, mismo criterio que config-fiscal-faltante-overlay de abajo.
+       Tiene PRIORIDAD sobre el tour/aviso fiscal/aviso de suscripción —
+       ver terminosGateAbierta en admin.js. -->
+  <div class="modal-overlay" id="terminos-gate-overlay" hidden>
+    <div class="modal terminos-gate-modal" role="alertdialog" aria-modal="true" aria-labelledby="terminos-gate-title">
+      <div class="terminos-gate-head">
+        <span class="terminos-gate-eyebrow">Términos y condiciones <span class="terminos-gate-ver-chip" id="terminos-gate-version"></span></span>
+        <h2 id="terminos-gate-title">Antes de continuar, léelos completos</h2>
+        <p class="panel-subtitle">Desliza hasta el final del documento para habilitar la aceptación.</p>
+        <div class="terminos-gate-progress-rail"><div class="terminos-gate-progress-fill" id="terminos-gate-fill"></div></div>
+        <span class="terminos-gate-pct" id="terminos-gate-pct">0% leído</span>
+      </div>
+      <div class="terminos-gate-scroll" id="terminos-gate-scroll"></div>
+      <div class="terminos-gate-foot">
+        <p class="field-error" id="terminos-gate-error" role="alert"></p>
+        <label class="terminos-gate-accept-row">
+          <input type="checkbox" id="terminos-gate-chk" disabled />
+          He llegado al final y acepto estos Términos y Condiciones en nombre de mi empresa.
+        </label>
+        <div class="btn-row">
+          <button type="button" class="btn btn-primary" id="terminos-gate-btn" disabled>Entrar a mi administración</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Aviso al iniciar sesión: faltan los datos fiscales de la compañía -->
   <div class="modal-overlay" id="config-fiscal-faltante-overlay" hidden>
     <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="config-fiscal-faltante-title">

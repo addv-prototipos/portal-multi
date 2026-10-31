@@ -1712,6 +1712,55 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   (nginx resuelve el tenant por el PATH, igual que en el navegador).
   Antes de asumir que Basic Auth "no funciona" contra una ruta de
   `/admin`, verificar primero el formato real de la URL.
+- **Tests de `control/` con `jest.resetModules()` + `require('../../server')`
+  en frío: timeout default de Jest (5000ms) es frágil, no un hang real**
+  (punto 459, 2026-10-30): el patrón ya documentado arriba
+  (`docsEnabled.test.js`/credenciales compartidas) tiene un segundo
+  gotcha independiente — requerir `control/server.js` desde cero tras
+  `jest.resetModules()` (recompila regex, rate limiters, swagger spec,
+  etc.) ya tardaba ~2.5s en baseline, antes de que este archivo creciera;
+  cualquier sesión que agregue rutas/comentarios a `control/server.js`
+  puede empujar ese cold-start justo sobre el límite default de Jest en
+  los 1-2 tests que usan ese patrón exacto
+  (`docsEnabled.test.js`/`usuariosAdminControl.test.js`, confirmados
+  reales: pasan limpio con `--testTimeout=20000` o con timeout explícito
+  por test). Antes de investigar un "hang" en uno de estos tests,
+  re-correr con timeout más alto primero — si pasa, es este gotcha, no
+  un bug nuevo; el fix es agregar el tercer argumento de `test(...)`
+  (`}, 10000);`) solo a los tests afectados, nunca subir el timeout
+  global del proyecto por esto.
+- **Todo fetch nuevo en `frontend/admin.js` DEBE usar `getAuthHeader()` +
+  `${API_BASE}/...` — `fetch(url, { credentials:'include' })` es un
+  patrón de `control.js`/`portal.js`, no de `admin.js`** (punto 459,
+  2026-10-30, bug real encontrado solo con clics reales, ni `node --check`
+  ni Jest lo atrapan): `admin.js` autentica con
+  `Authorization: Bearer <token>` (token en `sessionStorage`, via
+  `getAuthHeader()`) y `API_BASE` ya trae el prefijo de tenant
+  (`/<slug>/api` o `/api` en sitio base) — nunca una ruta pelada
+  `/api/admin/...`. 2 endpoints nuevos escritos con
+  `fetch('/api/admin/...', {credentials:'include'})` (sin header, sin
+  prefijo) respondían 401 siempre, en silencio (atrapado por un `catch`
+  genérico) — el síntoma en pantalla fue "la función simplemente nunca
+  hace nada", no un error visible. Antes de dar por buena una llamada
+  `fetch` nueva en `admin.js`, copiar el patrón real de una función
+  cercana que ya funcione (ej. `cargarConfigGlobal`), nunca inventar uno
+  nuevo con `credentials:'include'`.
+- **Un gate/overlay bloqueante nuevo que se dispara en `showDashboard()`
+  puede perder la carrera contra el tour de bienvenida/aviso fiscal si su
+  verificación es async** (punto 459, 2026-10-30, bug real reproducido en
+  navegador: el tour se mostró ENCIMA de donde debía aparecer el gate,
+  en la primera corrida real): los 3 avisos existentes
+  (`construirYMostrarTour`/`mostrarAvisoFiscalSiFalta`/
+  `evaluarAvisoSuscripcionPorVencer`) ya se diferían entre sí revisando
+  si el overlay del otro estaba abierto (`!els.onboardingTourOverlay.hidden`,
+  etc.) — pero esa revisión solo cubre "ya está abierto", no "se está
+  decidiendo si abrir" mientras un fetch real sigue en vuelo. Cualquier
+  gate nuevo cuya condición de mostrarse dependa de una llamada de red
+  necesita una bandera de "verificando" aparte de la de "abierto"
+  (`terminosGateVerificando` además de `terminosGateAbierta`), y los
+  guards de los demás avisos deben revisar AMBAS — de lo contrario un
+  aviso síncrono/más rápido puede colarse mientras el fetch del gate
+  nuevo sigue resolviendo.
 
 ## Stack
 

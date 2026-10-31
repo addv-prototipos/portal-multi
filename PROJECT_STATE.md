@@ -26559,3 +26559,248 @@ corriendo.
 
 Archivos: `backend/package.json`, `control/package.json`,
 `frontend/admin.html`, `PROJECT_STATE.md` (este punto).
+
+## Punto 458 — Importador de inventarios: importación "ejecutando" huérfana para siempre si el backend muere a mitad de proceso (30 oct 2026, CERRADO)
+
+El usuario reportó que el importador masivo, que ya había quedado
+resuelto antes (punto 399), "ya no carga" — pidió correr pruebas
+completas con los archivos reales de prueba del escritorio
+(`inventario.xlsx`, `inventario.xls`) y que, pase lo que pase, al usuario
+SIEMPRE se le notifique qué ocurrió (pensado para gente no técnica).
+
+**Validación end-to-end con archivos reales contra Docker/MySQL real**
+(tenant `test-sa-de-cv`, 9 tenants locales con `inventariosHabilitado=1`
+revisados, todos con el esquema de `imp_importaciones` sincronizado — el
+gotcha del punto 399 NO está reproducido en ningún tenant local hoy):
+subida → vista previa → mapeo → validación → ejecución completas sin
+error con AMBOS formatos, 11,552 filas, 11,551 productos creados. El
+motor de importación en sí funciona correctamente — el reporte del
+usuario no es reproducible ahí.
+
+**Causa raíz real, encontrada auditando el código (nunca asumida del
+mensaje del usuario — mismo criterio del punto 399)**: la ejecución en
+segundo plano (`backend/server.js`, >500 filas) corre dentro del proceso
+Node — si el backend se reinicia o truena a mitad de un catálogo grande
+(reinicio de contenedor, deploy, OOM, cualquiera de los incidentes reales
+de esta semana — puntos 454/455), la fila de `imp_importaciones` se queda
+en `estado='ejecutando'` PARA SIEMPRE: nada la libera nunca. Dos síntomas
+combinados, ambos silenciosos:
+1. El candado "una importación a la vez" (§34.9) bloquea CUALQUIER
+   importación nueva con 409 para siempre — no hay manera de que un
+   operador (ni siquiera uno técnico) lo destrabe desde la UI.
+2. Si el navegador seguía con el polling abierto, la barra se queda
+   congelada en "Procesando… X%" indefinidamente — exactamente el
+   síntoma "ya no carga" reportado.
+
+Y si de verdad terminaba en error, el mensaje mostrado era
+`"La importación terminó con un error inesperado. Revisa el registro del
+servidor."` — le pide a un dueño de tienda no técnico que revise logs de
+servidor, algo que no puede hacer. Violación directa de la regla de copy
+de `/impeccable clarify` (qué falló / cómo recuperarse, nunca exponer
+detalle técnico como mensaje principal).
+
+**Fix — sin tocar esquema** (evita reproducir el mismo gotcha de
+`ensureSchema()`/tenants ya aprovisionados que causó el punto 399):
+`importacionEjecucionAbandonada(fila)` + `liberarImportacionAbandonadaSiAplica(fila)`
+en `backend/server.js` — cualquier fila `estado='ejecutando'` cuyo
+`actualizado_en` tenga más de `IMPORT_EJECUCION_TIMEOUT_MS` (10 min,
+holgado sobre los ~4m30s reales que tardó el archivo de 11,552 filas) se
+reclasifica sola a `estado='error'`, sin intervención manual. Aplicado en
+los 2 únicos puntos que leen ese estado: el candado de "una a la vez"
+antes de subir (`POST /importaciones`) y `obtenerImportacionOResponder()`
+(usada por el polling `GET /importaciones/:id` Y por
+mapeo/ejecutar/errores.csv). Cubre tanto el job en segundo plano como una
+importación síncrona (≤500 filas) que truene a mitad de
+`ejecutarFilasImportacion()` — mismo bug-shape, misma fila huérfana.
+
+**Frontend (`frontend/admin.js`)**: `pollImportacionEjecucion()` ya no
+muestra el mensaje técnico — ante cualquier estado terminal que no sea
+`completada`, regresa al usuario al paso 4 (Validación, nunca pierde el
+archivo ni el mapeo ya armado) con
+`"La importación se interrumpió antes de terminar — no se perdió tu
+archivo ni la configuración que ya hiciste. Presiona 'Validar archivo'
+para intentarlo de nuevo."` — funciona de verdad porque el estado 'error'
+SÍ permite re-validar (`PUT .../mapeo` solo bloquea 'ejecutando'/
+'completada'). El texto de progreso ahora muestra filas procesadas
+reales (`"63% (7,278 de 11,552 filas)"`) + aviso de que catálogos grandes
+tardan varios minutos, para que la espera legítima no se confunda con el
+bug. El mensaje del candado 409 también se calentó
+("Ya hay una importación en proceso. Espera a que termine (puede tomar
+varios minutos con archivos grandes) antes de iniciar otra.").
+
+**Validado real, no solo con mocks**: 1380/1380 tests unitarios de
+`backend/` sin regresión (1 fallo de timeout en `docsEnabled.test.js`,
+confirmado flaky/no relacionado — pasa solo). `node --check` limpio en
+ambos archivos. Reproducción real contra Docker/MySQL: fila forzada a
+`ejecutando` con `actualizado_en` 20 min atrás → `GET
+/importaciones/:id` la reclasifica sola a `error` (confirmado en BD) →
+una subida nueva ya NO queda bloqueada (201). Candado genuino (
+`actualizado_en = NOW()`) confirmado que SIGUE bloqueando (409) — el
+auto-sanado nunca interfiere con una importación de verdad en curso.
+Clic real en navegador (Chrome DevTools MCP, tenant `test-sa-de-cv`)
+confirma que el mensaje nuevo del candado 409 se pinta correctamente en
+el modal real.
+
+**Fuera de alcance, a propósito**: no se tocó producción (Vultr) — si el
+mismo incidente (reinicio de backend a mitad de una importación) ya
+ocurrió ahí, la fila huérfana sigue bloqueada hasta el próximo deploy con
+este fix (el auto-sanado solo corre código nuevo, no repara datos viejos
+retroactivamente sin que el endpoint se vuelva a llamar — en cuanto se
+despliegue, el primer `GET`/subida sobre esa fila ya la auto-sana, no
+requiere ningún paso manual adicional).
+
+Archivos: `backend/server.js`, `frontend/admin.js`, `PROJECT_STATE.md`
+(este punto).
+
+## Punto 459 — Gate de Términos y Condiciones post-onboarding, solo cuenta raíz (Propuesta 1 — scroll obligatorio) (30 oct 2026, implementado — pendiente validación funcional con clics reales)
+
+Pedido explícito del usuario: al finalizar el onboarding, antes de entrar
+al admin del tenant, la cuenta raíz debe leer y aceptar los Términos y
+Condiciones de Clarvo — bloqueante, sin forma de omitirlo. Versionable
+(cada actualización se vuelve a mostrar y aceptar), con historial
+completo por cliente, todo registrado. Se presentaron 5 propuestas
+visuales vía Artifact (scroll obligatorio / resumen+checklist /
+acordeón+tracker / lectura anotada a 2 columnas / confirmación mínima
+para updates menores) — el usuario eligió la **Propuesta 1**.
+
+**Arquitectura (control/ es dueño del dato, backend/ solo consulta/
+escribe vía /internal, mismo patrón que ajustes_globales y upscale del
+punto 433/440):**
+- `control/scripts/ensureSchema.js:asegurarTablasTerminos()` — 2 tablas
+  nuevas en `control_tenants`: `terminos_versiones` (contenido COMPLETO
+  de cada versión, nunca solo la vigente — historial real, nunca se
+  borra ni se edita) y `terminos_aceptaciones` (tenant_slug + usuario +
+  version_id + fecha + IP). `tenant_slug` usa el sentinel `__base__` para
+  el sitio base — el gate aplica a tenant Y sitio base por igual, mismo
+  criterio default del proyecto.
+- `control/utils/terminosCondiciones.js` — `publicarVersion()` (desactiva
+  la anterior, inserta la nueva, nunca edita una ya publicada),
+  `obtenerEstadoParaTenant()` (¿la cuenta raíz ya aceptó la vigente?),
+  `registrarAceptacion()`, `listarVersiones()`, `listarHistorialTenant()`.
+- `control/server.js` — `GET`/`POST /api/control/terminos` (gestión desde
+  /control, requireAdminAuth) + `GET /api/control/terminos/historial/:slug`
+  + 2 endpoints internos (`POST /internal/terminos/estado` y
+  `/internal/terminos/aceptar`, mismo secreto `X-Internal-Secret` que el
+  resto de `/internal/*`). Publicar una versión nueva registra entrada en
+  `admin_auditoria` (igual que cualquier acción administrativa relevante).
+- `backend/server.js` — `GET /api/admin/terminos/pendiente` +
+  `POST /api/admin/terminos/aceptar`, ambas vía el `llamarControlInterno()`
+  ya existente (punto 433). Candado nuevo, `esRaizClienteReal(req)`:
+  a diferencia de `esAdminRaiz()` ya existente, `admin_users` (staff de
+  Clarvo con acceso de soporte) **NO** cuenta como raíz aquí — el
+  documento lo acepta el cliente real, nunca el equipo de Clarvo en su
+  nombre. El `versionId` que se acepta se re-resuelve en el servidor
+  (nunca se confía en el que mande el cliente).
+- **Frontend `/admin`**: overlay nuevo `#terminos-gate-overlay`
+  (`frontend/admin.html`/`admin.css`/`admin.js`) — mismo criterio sin
+  botón de cerrar que `config-fiscal-faltante-overlay` (punto 447).
+  Barra de progreso real sobre el scroll del documento; el checkbox se
+  habilita solo al llegar al ~99% del scroll, el botón solo con el
+  checkbox marcado. **Tiene PRIORIDAD sobre el tour de bienvenida, el
+  aviso de datos fiscales y el aviso de suscripción por vencer** — se
+  verifica como el PRIMER paso de `showDashboard()`
+  (`verificarGateTerminosYMostrar()`) y los 3 avisos existentes
+  (`construirYMostrarTour()`, `mostrarAvisoFiscalSiFalta()`,
+  `evaluarAvisoSuscripcionPorVencer()`) ganaron un guard idéntico al que
+  ya usaban entre sí (si `terminosGateAbierta`, se diferen con su propia
+  bandera `*PendienteTrasTerminos`) — al aceptar, `reanudarAvisosTrasTerminos()`
+  dispara el que corresponda en el mismo orden de siempre (tour > fiscal
+  > suscripción). Mismo bug-shape que el punto 447/450 (2 overlays de
+  bienvenida compitiendo), resuelto con el mismo mecanismo, un nivel
+  arriba.
+- **`/control`** — vista nueva "Términos y Condiciones" en el sidebar
+  (`frontend/control.html`/`control.js`): tabla de versiones (vigente/
+  anterior, reusa `.estatus-badge.estatus-activo` ya existente — cero CSS
+  nuevo), formulario para publicar una versión nueva (contenido HTML
+  simple, de confianza porque lo escribe el equipo de Clarvo, nunca
+  entrada de un cliente), y buscador de historial de aceptación por slug
+  de tenant.
+
+**Decisiones tomadas sin preguntar, por consistencia con el resto del
+proyecto** (documentadas aquí para que una sesión futura no las
+reabra sin motivo): (1) versión como texto libre (`"1.0"`), sin semver
+forzado — mismo criterio que el versionado de la app; (2) una sola
+versión `activo=1` a la vez; (3) sin versión vigente publicada todavía,
+el gate no bloquea a nadie (`pendiente:false`) — /control debe publicar
+la primera versión antes de que esto tenga efecto en producción.
+
+**Hallazgo colateral durante la verificación (no es un bug de este
+punto, ver nota nueva en CLAUDE.md)**: agrandar `control/server.js`
+empujó el cold-start de 2 tests (`docsEnabled.test.js`,
+`usuariosAdminControl.test.js`, ambos con el patrón
+`jest.resetModules()` + `require('../../server')` fresco) por encima del
+timeout default de Jest (5000ms) — ya eran lentos en baseline (~2.5s),
+confirmado real quitando mis cambios y volviendo a correrlos. Fix: 2
+líneas, timeout explícito de 10000ms en esos 2 tests puntuales, sin
+tocar nada más.
+
+**Validado**: `node --check` limpio en los 9 archivos tocados. Backend
+1380/1380 tests sin regresión. Control 509/509 tests sin regresión (tras
+el fix de timeout de arriba).
+
+**Verificación funcional con clics reales — hecha, contra Docker+MySQL
+reales (Chrome DevTools MCP), no solo mocks.** Rebuild + recreate real de
+`backend`/`control`/`frontend`, confirmado que `asegurarTablasTerminos()`
+crea las 2 tablas en una corrida real. Publicada v1.0 (4 cláusulas) y
+luego v1.1 (12 cláusulas reales, borrador completo del Artifact) desde
+`/control` con clics reales — la tabla de versiones mostró correctamente
+v1.1 "Vigente" / v1.0 "Anterior". Login real como cuenta raíz del tenant
+de prueba `test-sa-de-cv` (perfil `administrador`, `es_cuenta_raiz=1`,
+password reseteada a mano solo para esta prueba) — el gate apareció
+bloqueante de verdad, con el documento completo (1473px de contenido
+contra 398px de viewport), checkbox deshabilitado hasta scrollear. Tras
+aceptar, `terminos_aceptaciones` quedó con 2 filas reales (v1.0 y v1.1,
+usuario `AD`, IP real del contenedor) — confirmado también desde el
+buscador de historial de `/control`. Suite completa sin regresión
+después de los fixes de abajo: backend 1380/1380, control 509/509.
+
+**2 bugs reales encontrados y corregidos solo gracias a la prueba con
+clics reales — ninguno de los dos lo hubiera atrapado `node --check` ni
+Jest con mocks:**
+1. **Carrera entre el gate y el tour de bienvenida**: `verificarGateTerminosYMostrar()`
+   es async (fetch real) pero `construirYMostrarTour()` (disparado poco
+   después en el mismo `showDashboard()`) es síncrono — en la primera
+   prueba real, el tour ganó la carrera y se mostró ENCIMA de donde
+   debía aparecer el gate (reproducido real: "¡Bienvenido! PASO 1 DE 5"
+   en vez del gate). Fix: nueva bandera `terminosGateVerificando` (true
+   desde el primer instante de `showDashboard()` hasta que el fetch
+   resuelve, con o sin versión pendiente) — los 3 guards
+   (`construirYMostrarTour`/`mostrarAvisoFiscalSiFalta`/
+   `evaluarAvisoSuscripcionPorVencer`) ahora respetan
+   `terminosGateAbierta || terminosGateVerificando`, y el `finally` del
+   fetch llama `reanudarAvisosTrasTerminos()` si al final no quedó nada
+   pendiente (libera lo que se haya encolado mientras se verificaba).
+2. **Los 2 fetch nuevos no llevaban autenticación real**: se escribieron
+   con `fetch(url, { credentials:'include' })`, un patrón que NO existe
+   en ningún otro lugar de `admin.js` — el panel autentica con
+   `Authorization: Bearer <token>` vía `getAuthHeader()` +
+   `${API_BASE}/admin/...` (`API_BASE` ya incluye el prefijo
+   `/<slug>/api`). Con el patrón equivocado, ambas rutas respondían 401
+   siempre (confirmado real con un fetch manual desde la consola) — el
+   gate simplemente nunca se mostraba tras el fix del bug 1 (el fetch
+   fallaba en silencio, atrapado por el `catch` genérico). Fix: ambos
+   fetch ahora usan `getAuthHeader()`/`API_BASE` igual que el resto del
+   archivo (ej. `cargarConfigGlobal`).
+
+Ambos bugs están documentados aquí precisamente porque son del tipo que
+"se ve perfecto en el código, pero el flujo real está roto" — la razón
+por la que el protocolo del proyecto exige clics reales, no solo
+`node --check`/mocks, antes de dar un punto por cerrado.
+
+**Pendiente, fuera de alcance de esta sesión**: no se construyeron las
+otras 4 propuestas del Artifact (resumen+checklist, acordeón, lectura
+anotada, confirmación mínima) — quedaron solo como mockups de elección,
+nunca se pidieron implementadas. Tampoco se verificó la reanudación real
+del tour/aviso fiscal tras aceptar (la cuenta de prueba ya tenía
+`tourVisto=true` en localStorage de una corrida anterior del mismo
+navegador) — la lógica quedó revisada por código (mismo mecanismo ya
+probado que usan tour/fiscal/suscripción entre sí), no con un clic real
+adicional.
+
+Archivos: `control/scripts/ensureSchema.js`, `control/server.js`,
+`control/utils/terminosCondiciones.js` (nuevo), `backend/server.js`,
+`frontend/admin.html`, `frontend/admin.css`, `frontend/admin.js`,
+`frontend/control.html`, `frontend/control.js`,
+`control/test/unit/docsEnabled.test.js`,
+`control/test/integration/usuariosAdminControl.test.js`,
+`PROJECT_STATE.md` (este punto).

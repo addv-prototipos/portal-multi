@@ -132,6 +132,11 @@
           <span>Cancelaciones</span>
         </button>
 
+        <button type="button" class="admin-vista-btn" id="btn-vista-control-terminos" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M7 3h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><path d="M9 11h6M9 15h6" stroke-linecap="round" stroke-width="1.8"/></svg>
+          <span>Términos y Condiciones</span>
+        </button>
+
         <div class="control-sidebar-grupo-titulo">Seguridad y sistema</div>
         <button type="button" class="admin-vista-btn" id="btn-vista-control-super" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"/><path d="M20 21a8 8 0 1 0-16 0"/><path d="M12 15v6"/><path d="M9 18h6"/></svg>
@@ -1132,6 +1137,69 @@
             </table>
           </div>
           <p class="admin-empty-state" id="cancelaciones-empty" hidden>Todavía no hay cancelaciones registradas.</p>
+        </div>
+
+        <div id="vista-control-terminos" hidden>
+          <div class="admin-toolbar">
+            <div class="admin-toolbar-title">
+              <h1>Términos y Condiciones</h1>
+              <button type="button" class="campo-ayuda" id="btn-ayuda-vista-terminos" aria-label="Ayuda" data-tooltip="Solo una versión puede estar vigente a la vez. Al publicar una nueva, toda cuenta raíz que no la haya aceptado la ve de nuevo en su siguiente inicio de sesión — bloqueante, no se puede omitir.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Ayuda
+              </button>
+            </div>
+            <div class="admin-toolbar-right">
+              <button type="button" class="btn btn-primary" id="btn-terminos-nuevo">+ Publicar nueva versión</button>
+            </div>
+          </div>
+
+          <p class="field-error" id="terminos-error" role="alert"></p>
+
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>Versión</th><th>Publicada</th><th>Resumen de cambios</th><th>Estado</th></tr></thead>
+              <tbody id="terminos-table-body"></tbody>
+            </table>
+          </div>
+          <p class="admin-empty-state" id="terminos-empty" hidden>Todavía no hay ninguna versión publicada — el gate no bloquea a nadie hasta la primera publicación.</p>
+
+          <div id="terminos-form" class="control-form-grid" style="max-width:720px;margin-top:18px;" hidden>
+            <div class="field">
+              <label for="terminos-version">Número de versión</label>
+              <input type="text" id="terminos-version" maxlength="20" placeholder="Ej. 1.0" autocomplete="off" />
+              <p class="field-error" id="error-terminos-version" role="alert"></p>
+            </div>
+            <div class="field">
+              <label for="terminos-resumen">Resumen de cambios (se muestra a quien ya había aceptado una versión anterior)</label>
+              <input type="text" id="terminos-resumen" maxlength="255" placeholder="Ej. Se agregó el detalle de proveedores externos" autocomplete="off" />
+            </div>
+            <div class="field control-form-grid-full">
+              <label for="terminos-contenido">Contenido (HTML simple: &lt;h4&gt;/&lt;p&gt;)</label>
+              <textarea id="terminos-contenido" rows="12" placeholder="&lt;h4&gt;1. Qué aceptas...&lt;/h4&gt;&lt;p&gt;...&lt;/p&gt;"></textarea>
+              <p class="field-hint">Se muestra tal cual dentro del gate — este contenido es de confianza (lo escribe el equipo de Clarvo), nunca entrada de un cliente.</p>
+            </div>
+            <div class="btn-row control-form-grid-full" style="justify-content:flex-start;">
+              <button type="button" class="btn btn-primary" id="btn-terminos-guardar">Publicar versión</button>
+              <button type="button" class="btn btn-secondary" id="btn-terminos-cancelar">Cancelar</button>
+            </div>
+          </div>
+
+          <h2 class="tema-grupo-titulo" style="margin:28px 0 10px;font-size:15px;">Historial de aceptación por cliente</h2>
+          <div class="control-form-grid" style="max-width:480px;align-items:end;">
+            <div class="field">
+              <label for="terminos-historial-slug">Slug del tenant (vacío = sitio base)</label>
+              <input type="text" id="terminos-historial-slug" maxlength="100" placeholder="Ej. acme-corp" autocomplete="off" />
+            </div>
+            <div class="field">
+              <button type="button" class="btn btn-secondary" id="btn-terminos-historial-buscar">Buscar</button>
+            </div>
+          </div>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>Usuario</th><th>Versión</th><th>Fecha</th><th>IP</th></tr></thead>
+              <tbody id="terminos-historial-table-body"></tbody>
+            </table>
+          </div>
+          <p class="admin-empty-state" id="terminos-historial-empty" hidden>Sin aceptaciones registradas para ese slug.</p>
         </div>
       </main>
     </div>

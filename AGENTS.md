@@ -716,6 +716,14 @@ solo la frase en español de la UI.
     `#suscripcion-por-vencer-overlay`) es un tercer caso del mismo
     bug-shape del punto 447 (2 overlays de bienvenida compiten) - se
     difiere si el tour esta abierto, aparece justo al cerrarlo.
+- **Punto 459 (Termino y Condiciones, gate post-onboarding solo cuenta
+  raiz) - tests de `control/` con `jest.resetModules()` + require en frio
+  de `server.js`**: ese patron ya era lento en baseline (~2.5s) - agrandar
+  `control/server.js` empujo 2 tests (`docsEnabled.test.js`/
+  `usuariosAdminControl.test.js`) sobre el timeout default de Jest
+  (5000ms). No es un hang real - confirmado quitando los cambios y
+  volviendo a correr. Fix minimo: timeout explicito (`}, 10000);`) solo en
+  esos 2 tests, nunca subir el timeout global del proyecto por esto.
 
 ## Stack
 

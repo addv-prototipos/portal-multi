@@ -1286,6 +1286,14 @@
     regimenFiscalCompaniaBox: document.getElementById('regimen-fiscal-compania-box'),
     razonSocialCompaniaBox: document.getElementById('razon-social-compania-box'),
     brandFiscalInfo: document.getElementById('brand-fiscal-info'),
+    terminosGateOverlay: document.getElementById('terminos-gate-overlay'),
+    terminosGateVersion: document.getElementById('terminos-gate-version'),
+    terminosGateScroll: document.getElementById('terminos-gate-scroll'),
+    terminosGateFill: document.getElementById('terminos-gate-fill'),
+    terminosGatePct: document.getElementById('terminos-gate-pct'),
+    terminosGateChk: document.getElementById('terminos-gate-chk'),
+    terminosGateBtn: document.getElementById('terminos-gate-btn'),
+    terminosGateError: document.getElementById('terminos-gate-error'),
     configFiscalFaltanteOverlay: document.getElementById('config-fiscal-faltante-overlay'),
     btnConfigFiscalFaltanteCerrar: document.getElementById('btn-config-fiscal-faltante-cerrar'),
     globalConfigError: document.getElementById('global-config-error'),
@@ -2891,6 +2899,10 @@
   function showDashboard(username, perfil, funciones, imagenMaxMb) {
     usuarioSesionActual = username;
     perfilActual = perfil;
+    // Primero de todo — ver nota de terminosGateAbierta más abajo: si hay
+    // una versión pendiente, el tour/aviso fiscal/aviso de suscripción se
+    // diferirán solos en cuanto intenten abrirse.
+    verificarGateTerminosYMostrar();
     // Punto 349-350-351 (Fase 5): `funciones` llega de GET
     // /api/admin/login — undefined en cualquier llamada vieja a
     // showDashboard que todavía no lo pase (ninguna debería quedar, pero
@@ -4134,9 +4146,131 @@
   // competir con él por encima (bug real: el blur tapaba el globo del
   // tour por completo). Si no hay tour (perfil sin recorrido, ya visto,
   // o vista móvil), se muestra de inmediato como siempre.
+  // Gate de Términos y Condiciones (punto en curso, Propuesta 1 — scroll
+  // obligatorio, solo cuenta raíz real): tiene PRIORIDAD sobre el tour de
+  // bienvenida, el aviso de datos fiscales y el aviso de suscripción por
+  // vencer — esos 3 ya se diferían entre sí (ver avisoFiscalPendienteTrasTour
+  // más abajo); aquí se agrega un nivel encima con el mismo criterio para
+  // que ninguno pueda aparecer MIENTRAS este gate esté abierto.
+  let terminosGateAbierta = false;
+  // La llamada a /api/admin/terminos/pendiente es async (red real) — sin
+  // esta bandera, el tour/aviso fiscal/aviso de suscripción (todos
+  // síncronos o casi) ganaban la carrera y se mostraban ANTES de que el
+  // fetch resolviera, porque en ese instante `terminosGateAbierta` seguía
+  // en `false` (bug real, reproducido en navegador: el tour se abrió en
+  // vez del gate). `terminosGateVerificando` cierra esa ventana — true
+  // desde el primer instante de showDashboard hasta que el fetch resuelve
+  // (con o sin versión pendiente), los 3 guards de abajo la respetan
+  // igual que `terminosGateAbierta`.
+  let terminosGateVerificando = true;
+  let tourPendienteTrasTerminos = false;
+  let fiscalPendienteTrasTerminos = false;
+  let avisoSuscripcionPorVencerTextoPendienteTrasTerminos = null;
+
+  async function verificarGateTerminosYMostrar() {
+    if (!els.terminosGateOverlay) {
+      terminosGateVerificando = false;
+      return;
+    }
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      terminosGateVerificando = false;
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/terminos/pendiente`, { headers: { Authorization: authHeader } });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.pendiente || !data.version) return;
+      els.terminosGateVersion.textContent = `v${data.version.version}`;
+      els.terminosGateScroll.innerHTML = data.version.contenido;
+      els.terminosGateFill.style.width = '0%';
+      els.terminosGatePct.textContent = '0% leído';
+      els.terminosGateChk.checked = false;
+      els.terminosGateChk.disabled = true;
+      els.terminosGateBtn.disabled = true;
+      els.terminosGateError.textContent = '';
+      terminosGateAbierta = true;
+      els.terminosGateOverlay.hidden = false;
+    } catch (_) {
+      // Sin conexión momentánea al revisar el gate: no bloquea el login
+      // por esto — se vuelve a revisar en el siguiente login.
+    } finally {
+      terminosGateVerificando = false;
+      // Si no quedó pendiente ninguna versión, cualquier aviso que se
+      // haya encolado mientras se verificaba se libera aquí — mismo
+      // mecanismo que al aceptar el gate, solo que aquí nunca hubo nada
+      // que aceptar.
+      if (!terminosGateAbierta) reanudarAvisosTrasTerminos();
+    }
+  }
+
+  function reanudarAvisosTrasTerminos() {
+    if (tourPendienteTrasTerminos) {
+      tourPendienteTrasTerminos = false;
+      construirYMostrarTour();
+    } else if (fiscalPendienteTrasTerminos) {
+      fiscalPendienteTrasTerminos = false;
+      mostrarAvisoFiscalSiFalta();
+    } else if (avisoSuscripcionPorVencerTextoPendienteTrasTerminos) {
+      const texto = avisoSuscripcionPorVencerTextoPendienteTrasTerminos;
+      avisoSuscripcionPorVencerTextoPendienteTrasTerminos = null;
+      mostrarAvisoSuscripcionPorVencer(texto);
+    }
+  }
+
+  if (els.terminosGateScroll) {
+    els.terminosGateScroll.addEventListener('scroll', () => {
+      const el = els.terminosGateScroll;
+      const max = el.scrollHeight - el.clientHeight;
+      const pct = max <= 0 ? 100 : Math.min(100, Math.round((el.scrollTop / max) * 100));
+      els.terminosGateFill.style.width = `${pct}%`;
+      els.terminosGatePct.textContent = `${pct}% leído`;
+      if (pct >= 99) els.terminosGateChk.disabled = false;
+    });
+  }
+
+  if (els.terminosGateChk) {
+    els.terminosGateChk.addEventListener('change', () => {
+      els.terminosGateBtn.disabled = !els.terminosGateChk.checked;
+    });
+  }
+
+  if (els.terminosGateBtn) {
+    els.terminosGateBtn.addEventListener('click', async () => {
+      els.terminosGateBtn.disabled = true;
+      els.terminosGateError.textContent = '';
+      const authHeader = getAuthHeader();
+      if (!authHeader) {
+        els.terminosGateError.textContent = 'Tu sesión expiró — vuelve a iniciar sesión.';
+        els.terminosGateBtn.disabled = false;
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/admin/terminos/aceptar`, { method: 'POST', headers: { Authorization: authHeader } });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          els.terminosGateError.textContent = data.error || 'No se pudo registrar tu aceptación — intenta de nuevo.';
+          els.terminosGateBtn.disabled = false;
+          return;
+        }
+        els.terminosGateOverlay.hidden = true;
+        terminosGateAbierta = false;
+        reanudarAvisosTrasTerminos();
+      } catch (_) {
+        els.terminosGateError.textContent = 'Sin conexión — intenta de nuevo.';
+        els.terminosGateBtn.disabled = false;
+      }
+    });
+  }
+
   let avisoFiscalPendienteTrasTour = false;
 
   function mostrarAvisoFiscalSiFalta() {
+    if (terminosGateAbierta || terminosGateVerificando) {
+      fiscalPendienteTrasTerminos = true;
+      return;
+    }
     if (datosFiscalesCompletos !== false) return;
     // Mismo criterio de "Falta configurar..." ya existente: con
     // Facturación apagada, el RFC/Clave SAT de la compañía no tiene para
@@ -9055,6 +9189,10 @@
     const texto = dias === 0
       ? 'Tu suscripción deja de estar activa hoy. Si lo reconsideraste, aún puedes reactivar el cobro con un clic.'
       : `Tu suscripción deja de estar activa en ${dias} día${dias === 1 ? '' : 's'}. Si lo reconsideraste, aún puedes reactivar el cobro con un clic.`;
+    if (terminosGateAbierta || terminosGateVerificando) {
+      avisoSuscripcionPorVencerTextoPendienteTrasTerminos = texto;
+      return;
+    }
     if (els.onboardingTourOverlay && !els.onboardingTourOverlay.hidden) {
       avisoSuscripcionPorVencerTextoPendiente = texto;
       return;
@@ -21690,7 +21828,13 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return;
       if (data.estado === 'ejecutando') {
-        els.invImportProgresoTexto.textContent = `Procesando… ${data.progreso || 0}%`;
+        const porcentaje = data.progreso || 0;
+        const filasProcesadas = data.total_filas
+          ? Math.min(data.total_filas, Math.round((porcentaje / 100) * data.total_filas))
+          : null;
+        els.invImportProgresoTexto.textContent = filasProcesadas
+          ? `Procesando… ${porcentaje}% (${filasProcesadas.toLocaleString('es-MX')} de ${data.total_filas.toLocaleString('es-MX')} filas). Los catálogos grandes pueden tardar varios minutos — puedes esperar aquí sin cerrar esta ventana.`
+          : `Procesando… ${porcentaje}%`;
         return;
       }
       clearInterval(estadoImport.polling);
@@ -21698,9 +21842,15 @@
       if (data.estado === 'completada') {
         mostrarResultadoFinalImport(data);
       } else {
-        mostrarErrorImport('La importación terminó con un error inesperado. Revisa el registro del servidor.');
-        els.btnInvImportSiguiente.disabled = false;
-        els.btnInvImportSiguiente.textContent = 'Ejecutar importación';
+        // estado 'error' (o cualquier otro no esperado): la importación no
+        // terminó, pero el archivo y el mapeo que el usuario ya armó siguen
+        // guardados — regresarlo a Validación (paso 4) en vez de dejarlo
+        // varado en un paso 5 sin salida. Nunca mencionar "servidor" ni
+        // ningún detalle técnico: quien usa esto no es técnico.
+        estadoImport.validado = false;
+        estadoImport.validacionAbortada = false;
+        irAPasoImport(4);
+        mostrarErrorImport('La importación se interrumpió antes de terminar — no se perdió tu archivo ni la configuración que ya hiciste. Presiona "Validar archivo" para intentarlo de nuevo.');
       }
     } catch (err) {
       // Un fallo transitorio de red al hacer polling no cancela el job en
@@ -22601,6 +22751,10 @@
   // vida de la cuenta) y el botón manual "Ver el recorrido de nuevo" del
   // Centro de conocimiento (Fase 7 UX, 2026-09-04).
   function construirYMostrarTour() {
+    if (terminosGateAbierta || terminosGateVerificando) {
+      tourPendienteTrasTerminos = true;
+      return false;
+    }
     expandirTodosLosGruposSidebarParaTour();
     const pasos = ONBOARDING_TOUR_PASOS[perfilActual]
       .map((p) => ({ ...p, el: document.querySelector(p.selector) }))

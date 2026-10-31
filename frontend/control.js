@@ -226,6 +226,23 @@
     btnVistaRecordatorios: document.getElementById('btn-vista-control-recordatorios'),
     btnVistaCupones: document.getElementById('btn-vista-control-cupones'),
     btnVistaCancelaciones: document.getElementById('btn-vista-control-cancelaciones'),
+    btnVistaTerminos: document.getElementById('btn-vista-control-terminos'),
+    vistaTerminos: document.getElementById('vista-control-terminos'),
+    terminosError: document.getElementById('terminos-error'),
+    terminosTableBody: document.getElementById('terminos-table-body'),
+    terminosEmpty: document.getElementById('terminos-empty'),
+    terminosForm: document.getElementById('terminos-form'),
+    terminosVersion: document.getElementById('terminos-version'),
+    errorTerminosVersion: document.getElementById('error-terminos-version'),
+    terminosResumen: document.getElementById('terminos-resumen'),
+    terminosContenido: document.getElementById('terminos-contenido'),
+    btnTerminosNuevo: document.getElementById('btn-terminos-nuevo'),
+    btnTerminosGuardar: document.getElementById('btn-terminos-guardar'),
+    btnTerminosCancelar: document.getElementById('btn-terminos-cancelar'),
+    terminosHistorialSlug: document.getElementById('terminos-historial-slug'),
+    btnTerminosHistorialBuscar: document.getElementById('btn-terminos-historial-buscar'),
+    terminosHistorialTableBody: document.getElementById('terminos-historial-table-body'),
+    terminosHistorialEmpty: document.getElementById('terminos-historial-empty'),
     vistaEmpresas: document.getElementById('vista-control-empresas'),
     vistaPlanes: document.getElementById('vista-control-planes'),
     vistaPapelera: document.getElementById('vista-control-papelera'),
@@ -3582,6 +3599,10 @@
       els.btnVistaCancelaciones.classList.toggle('is-active', vista === 'cancelaciones');
       els.btnVistaCancelaciones.setAttribute('aria-selected', String(vista === 'cancelaciones'));
     }
+    if (els.btnVistaTerminos) {
+      els.btnVistaTerminos.classList.toggle('is-active', vista === 'terminos');
+      els.btnVistaTerminos.setAttribute('aria-selected', String(vista === 'terminos'));
+    }
     els.vistaEmpresas.hidden = vista !== 'empresas';
     if (els.vistaPlanes) els.vistaPlanes.hidden = vista !== 'planes';
     els.vistaPapelera.hidden = vista !== 'papelera';
@@ -3593,6 +3614,7 @@
     if (els.vistaRecordatorios) els.vistaRecordatorios.hidden = vista !== 'recordatorios';
     if (els.vistaCupones) els.vistaCupones.hidden = vista !== 'cupones';
     if (els.vistaCancelaciones) els.vistaCancelaciones.hidden = vista !== 'cancelaciones';
+    if (els.vistaTerminos) els.vistaTerminos.hidden = vista !== 'terminos';
     if (vista === 'planes') cargarPlanes();
     if (vista === 'papelera') cargarPapelera();
     if (vista === 'sucursales') cargarSucursales();
@@ -3611,6 +3633,7 @@
     if (vista === 'recordatorios') cargarRecordatorios();
     if (vista === 'cupones') cargarReporteCupones();
     if (vista === 'cancelaciones') cargarReporteCancelaciones();
+    if (vista === 'terminos') cargarTerminos();
   }
 
   els.btnVistaEmpresas.addEventListener('click', () => cambiarVistaPrincipalControl('empresas'));
@@ -3625,6 +3648,7 @@
   if (els.btnVistaRecordatorios) els.btnVistaRecordatorios.addEventListener('click', () => cambiarVistaPrincipalControl('recordatorios'));
   if (els.btnVistaCupones) els.btnVistaCupones.addEventListener('click', () => cambiarVistaPrincipalControl('cupones'));
   if (els.btnVistaCancelaciones) els.btnVistaCancelaciones.addEventListener('click', () => cambiarVistaPrincipalControl('cancelaciones'));
+  if (els.btnVistaTerminos) els.btnVistaTerminos.addEventListener('click', () => cambiarVistaPrincipalControl('terminos'));
   els.menuMovil.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-vista]');
     if (btn) cambiarVistaPrincipalControl(btn.dataset.vista);
@@ -4156,6 +4180,116 @@
       <td>$${i.ingreso.toLocaleString('es-MX')}</td>
       <td>${escapeHtml(i.fuenteTop)}</td>
     </tr>`).join('');
+  }
+
+  // ---------- Punto en curso: Términos y Condiciones (gate post-onboarding, solo cuenta raíz) ----------
+  let terminosEditandoAbierto = false;
+
+  function formatearFechaHoraMx(fechaIso) {
+    if (!fechaIso) return '—';
+    try {
+      return new Date(fechaIso.replace(' ', 'T') + 'Z').toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+    } catch {
+      return fechaIso;
+    }
+  }
+
+  async function cargarTerminos() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    els.terminosError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/terminos`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) { clearSession(); showLogin(); return; }
+      const data = await res.json();
+      renderTerminos(data.items || []);
+    } catch {
+      els.terminosError.textContent = 'No se pudo cargar el historial de versiones.';
+    }
+  }
+
+  function renderTerminos(items) {
+    els.terminosEmpty.hidden = items.length > 0;
+    els.terminosTableBody.innerHTML = items.map((v) => `<tr>
+      <td>v${escapeHtml(v.version)}</td>
+      <td>${formatearFechaHoraMx(v.creado_en)}</td>
+      <td>${v.resumen_cambios ? escapeHtml(v.resumen_cambios) : '—'}</td>
+      <td>${v.activo ? '<span class="estatus-badge estatus-activo">Vigente</span>' : '<span class="estatus-badge estatus-vence-na">Anterior</span>'}</td>
+    </tr>`).join('');
+  }
+
+  function abrirTerminosForm() {
+    terminosEditandoAbierto = true;
+    els.terminosForm.hidden = false;
+    els.terminosVersion.value = '';
+    els.terminosResumen.value = '';
+    els.terminosContenido.value = '';
+    els.errorTerminosVersion.textContent = '';
+    els.terminosVersion.focus();
+  }
+
+  function cerrarTerminosForm() {
+    terminosEditandoAbierto = false;
+    els.terminosForm.hidden = true;
+  }
+
+  if (els.btnTerminosNuevo) els.btnTerminosNuevo.addEventListener('click', abrirTerminosForm);
+  if (els.btnTerminosCancelar) els.btnTerminosCancelar.addEventListener('click', cerrarTerminosForm);
+
+  if (els.btnTerminosGuardar) {
+    els.btnTerminosGuardar.addEventListener('click', async () => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) { showLogin(); return; }
+      els.errorTerminosVersion.textContent = '';
+      els.terminosError.textContent = '';
+      const version = els.terminosVersion.value.trim();
+      const contenido = els.terminosContenido.value.trim();
+      if (!version) { els.errorTerminosVersion.textContent = 'La versión es obligatoria.'; return; }
+      if (!contenido) { els.terminosError.textContent = 'El contenido no puede estar vacío.'; return; }
+      els.btnTerminosGuardar.disabled = true;
+      try {
+        const res = await fetch(`${API_BASE}/terminos`, {
+          method: 'POST',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ version, contenido, resumenCambios: els.terminosResumen.value.trim() }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          els.terminosError.textContent = data.error || 'No se pudo publicar la versión.';
+          return;
+        }
+        cerrarTerminosForm();
+        showToast(`Versión v${version} publicada — las cuentas raíz pendientes la verán en su siguiente inicio de sesión.`);
+        cargarTerminos();
+      } catch {
+        els.terminosError.textContent = 'Sin conexión — intenta de nuevo.';
+      } finally {
+        els.btnTerminosGuardar.disabled = false;
+      }
+    });
+  }
+
+  if (els.btnTerminosHistorialBuscar) {
+    els.btnTerminosHistorialBuscar.addEventListener('click', async () => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) { showLogin(); return; }
+      const slug = els.terminosHistorialSlug.value.trim() || '__base__';
+      try {
+        const res = await fetch(`${API_BASE}/terminos/historial/${encodeURIComponent(slug)}`, { headers: { Authorization: authHeader } });
+        if (res.status === 401) { clearSession(); showLogin(); return; }
+        const data = await res.json();
+        const items = data.items || [];
+        els.terminosHistorialEmpty.hidden = items.length > 0;
+        els.terminosHistorialTableBody.innerHTML = items.map((h) => `<tr>
+          <td>${escapeHtml(h.usuario)}</td>
+          <td>v${escapeHtml(h.version)}</td>
+          <td>${formatearFechaHoraMx(h.aceptado_en)}</td>
+          <td>${h.ip ? escapeHtml(h.ip) : '—'}</td>
+        </tr>`).join('');
+      } catch {
+        showToast('No se pudo cargar el historial de ese cliente.', true);
+      }
+    });
   }
 
   // ---------- Sección E (propuesta E1): reporte de cancelaciones ----------

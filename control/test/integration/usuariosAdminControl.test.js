@@ -50,6 +50,9 @@ describe('GET /api/control/tenants/:slug/usuarios-admin', () => {
     jest.resetModules();
   });
 
+  // Timeout explícito (10000ms, no infra) — mismo motivo que
+  // docsEnabled.test.js: require() en frío de server.js tras
+  // jest.resetModules() ya era lento en baseline (~2.5s).
   test('401 sin credenciales', async () => {
     jest.resetModules();
     mockearDependencias();
@@ -59,7 +62,7 @@ describe('GET /api/control/tenants/:slug/usuarios-admin', () => {
     const res = await request(app).get('/api/control/tenants/cliente1/usuarios-admin');
     expect(res.status).toBe(401);
     expect(listarUsuariosAdminTenant).not.toHaveBeenCalled();
-  });
+  }, 10000);
 
   test('responde 200 con la lista de administradores del tenant', async () => {
     jest.resetModules();

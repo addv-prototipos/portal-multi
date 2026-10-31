@@ -10392,6 +10392,47 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   background: var(--color-accent); color: #fff; padding: 2px 8px; border-radius: 999px;
 }
 
+/* ---------- Gate de Términos y Condiciones (punto en curso, Propuesta 1
+   — scroll obligatorio). Head/foot fijos, solo .terminos-gate-scroll
+   scrollea — mismo recipe que .ver-md-contenido, aplicado aquí a un
+   modal bloqueante sin botón de cerrar (mismo criterio que
+   config-fiscal-faltante-overlay). ---------- */
+.terminos-gate-modal {
+  max-width: 640px; width: 100%; padding: 0; display: flex; flex-direction: column;
+  max-height: min(86vh, 680px); overflow: hidden;
+}
+.terminos-gate-head { padding: 24px 28px 16px; border-bottom: 1px solid var(--color-border); }
+.terminos-gate-head h2 { margin: 6px 0 4px; font-size: 18px; }
+.terminos-gate-head .panel-subtitle { margin-bottom: 14px; }
+.terminos-gate-eyebrow {
+  display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 800;
+  letter-spacing: .07em; text-transform: uppercase; color: var(--color-accent);
+}
+.terminos-gate-ver-chip {
+  font-variant-numeric: tabular-nums; background: var(--color-accent); color: #fff;
+  border-radius: 999px; padding: 2px 9px; font-size: 10px; letter-spacing: normal;
+}
+.terminos-gate-progress-rail { height: 4px; background: var(--color-border); border-radius: 2px; overflow: hidden; }
+.terminos-gate-progress-fill { height: 100%; width: 0%; background: var(--color-accent); transition: width .1s linear; }
+.terminos-gate-pct {
+  display: block; margin-top: 6px; font-size: 11px; color: var(--color-ink-soft); font-variant-numeric: tabular-nums;
+}
+.terminos-gate-scroll {
+  padding: 18px 28px; overflow-y: auto; flex: 1; font-size: 13.5px; line-height: 1.65; color: var(--color-ink-soft);
+}
+.terminos-gate-scroll h4 { margin: 18px 0 4px; font-size: 13.5px; font-weight: 750; color: var(--color-ink); }
+.terminos-gate-scroll h4:first-child { margin-top: 0; }
+.terminos-gate-scroll p { margin: 0 0 4px; max-width: 70ch; }
+.terminos-gate-foot { padding: 16px 28px 24px; border-top: 1px solid var(--color-border); }
+.terminos-gate-accept-row {
+  display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--color-ink-soft);
+  margin-bottom: 14px; cursor: pointer;
+}
+.terminos-gate-accept-row input {
+  margin-top: 3px; width: 17px; height: 17px; accent-color: var(--color-accent); flex-shrink: 0;
+}
+.terminos-gate-accept-row input:disabled { cursor: not-allowed; opacity: .6; }
+
 .upscale-billing-box {
   display: flex;
   gap: 10px;

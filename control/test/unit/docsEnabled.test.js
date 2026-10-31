@@ -37,6 +37,10 @@ describe('DOCS_ENABLED (M-17 — Swagger/docs opt-out, /control)', () => {
     jest.resetModules();
   });
 
+  // Timeout explícito (10000ms, no infra): el require() en frío de
+  // server.js tras jest.resetModules() ya tomaba ~2.5s en baseline — el
+  // default de 5000ms de Jest se queda corto a veces, no es un hang real
+  // (punto en curso, Términos y Condiciones, archivo más grande).
   test('sin configurar: /api/control/docs.json responde 404 (opt-in, apagado por defecto)', async () => {
     jest.resetModules();
     delete process.env.DOCS_ENABLED;
@@ -44,7 +48,7 @@ describe('DOCS_ENABLED (M-17 — Swagger/docs opt-out, /control)', () => {
 
     const res = await request(app).get('/api/control/docs.json');
     expect(res.status).toBe(404);
-  });
+  }, 10000);
 
   test('DOCS_ENABLED=false: /api/control/docs.json responde 404, nunca 403', async () => {
     jest.resetModules();

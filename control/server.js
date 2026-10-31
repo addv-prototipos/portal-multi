@@ -110,6 +110,13 @@ const { listarReporteCancelaciones } = require('./utils/reporteCancelaciones');
 const { verificarTurnstile } = require('./utils/turnstile');
 const { hashPasswordAdmin, validarPasswordAdmin, derivarNombreUsuario } = require('./utils/credencialesAdmin');
 const { isValidEmail } = require('./utils/validateFiscal');
+const {
+  listarVersiones: listarVersionesTerminos,
+  publicarVersion,
+  registrarAceptacion: registrarAceptacionTerminos,
+  obtenerEstadoParaTenant,
+  listarHistorialTenant,
+} = require('./utils/terminosCondiciones');
 
 const PORT = Number(process.env.PORT || 4001);
 // Auditoría 2026-09-03 (hallazgo #9, mismo criterio que backend/server.js):
@@ -1854,6 +1861,83 @@ app.post('/internal/suscripcion/subir-plan', asyncHandler(async (req, res) => {
   }
 }));
 
+// ---------- Términos y Condiciones: gate post-onboarding, solo cuenta raíz (Propuesta 1) ----------
+// Gestión de versiones desde /control (requireAdminAuth, mismo criterio
+// que el resto de catálogos de plataforma) + 2 endpoints internos para
+// que backend/ consulte/registre sin tener acceso directo a
+// control_tenants (mismo patrón que /internal/suscripcion/* arriba).
+app.get(
+  '/api/control/terminos',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const items = await listarVersionesTerminos();
+    res.json({ items });
+  })
+);
+
+app.post(
+  '/api/control/terminos',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const { version, contenido, resumenCambios } = req.body || {};
+    try {
+      const id = await publicarVersion({ version, contenido, resumenCambios, publicadoPor: req.adminUser || null });
+      await registrarAccesoAdmin({
+        actor: req.adminUser || 'desconocido',
+        mecanismo: req.adminMecanismo,
+        perfil: req.adminPerfil,
+        tenantSlug: null,
+        metodo: 'POST',
+        ruta: '/api/control/terminos',
+        estatus: 201,
+        ip: req.ip,
+      });
+      res.status(201).json({ ok: true, id });
+    } catch (err) {
+      if (err.message === 'La versión es obligatoria.' || err.message === 'El contenido no puede estar vacío.') {
+        return res.status(400).json({ error: err.message });
+      }
+      if (err.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ error: 'Ya existe una versión publicada con ese número.' });
+      }
+      throw err;
+    }
+  })
+);
+
+app.get(
+  '/api/control/terminos/historial/:slug',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const items = await listarHistorialTenant(req.params.slug);
+    res.json({ items });
+  })
+);
+
+// El admin raíz del tenant está autenticado en backend/, nunca en
+// control/ — mismo mecanismo exacto que /internal/suscripcion/* (secreto
+// compartido, nunca credenciales de /control).
+app.post('/internal/terminos/estado', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug, usuario } = req.body || {};
+  if (!usuario) return res.status(400).json({ error: 'usuario es obligatorio.' });
+  res.json({ ok: true, ...(await obtenerEstadoParaTenant({ tenantSlug: slug || null, usuario })) });
+}));
+
+app.post('/internal/terminos/aceptar', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug, usuario, versionId, ip } = req.body || {};
+  if (!usuario || !versionId) return res.status(400).json({ error: 'usuario y versionId son obligatorios.' });
+  await registrarAceptacionTerminos({ tenantSlug: slug || null, usuario, versionId, ip });
+  res.json({ ok: true });
+}));
+
 // SMTP default de la plataforma: backend/ (tenants y sitio base sin
 // configuración propia) llama aquí vía llamarControlInterno() para
 // obtener el default DESCIFRADO — mismo secreto compartido que el resto
@@ -2278,7 +2362,7 @@ app.use((req, res) => {
 
 async function iniciar() {
   await asegurarTablaAuditoria();
-  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores, asegurarTablaStripeEventos, asegurarTablaUpscale, asegurarTablaUpscaleActivos, asegurarTablaCancelacionesEncuesta } = require('./scripts/ensureSchema');
+  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores, asegurarTablaStripeEventos, asegurarTablaUpscale, asegurarTablaUpscaleActivos, asegurarTablaCancelacionesEncuesta, asegurarTablasTerminos } = require('./scripts/ensureSchema');
   // asegurarTablasSucursales() debe correr ANTES de
   // asegurarColumnasCicloVidaTenant(): esta última hace un UPDATE sobre
   // `tenants.grupo_sucursal_id`, columna que crea asegurarTablasSucursales
@@ -2296,6 +2380,7 @@ async function iniciar() {
   await asegurarTablaUpscale(obtenerPool());
   await asegurarTablaUpscaleActivos(obtenerPool());
   await asegurarTablaCancelacionesEncuesta(obtenerPool());
+  await asegurarTablasTerminos(obtenerPool());
 
   app.listen(PORT, () => {
     console.log(`Control escuchando en el puerto ${PORT}`);

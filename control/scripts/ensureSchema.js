@@ -811,6 +811,45 @@ async function asegurarTablaCancelacionesEncuesta(db) {
   }
 }
 
+// Gate de Términos y Condiciones al final del onboarding (solo cuenta
+// raíz, Propuesta 1 — scroll obligatorio). `terminos_versiones` guarda el
+// contenido COMPLETO de cada versión publicada, nunca solo la vigente —
+// igual que `cancelaciones_encuesta`, es un historial que nunca se borra
+// (control_app no tiene DELETE, ver nota de `grupos_sucursal` arriba).
+// Solo una fila puede tener `activo=1` a la vez; publicar una versión
+// nueva desactiva la anterior en la misma transacción lógica (ver
+// control/utils/terminosCondiciones.js:publicarVersion). `tenant_slug` en
+// `terminos_aceptaciones` usa el sentinel `__base__` para el sitio base
+// (sin tenant) — mismo criterio que "aplica a tenant y sitio base por
+// igual" ya establecido en el resto del proyecto.
+async function asegurarTablasTerminos(db) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS terminos_versiones (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      version VARCHAR(20) NOT NULL,
+      contenido LONGTEXT NOT NULL,
+      resumen_cambios TEXT NULL,
+      activo TINYINT(1) NOT NULL DEFAULT 0,
+      publicado_por VARCHAR(200) NULL,
+      creado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_terminos_versiones_version (version),
+      KEY idx_terminos_versiones_activo (activo)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS terminos_aceptaciones (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenant_slug VARCHAR(100) NOT NULL,
+      usuario VARCHAR(200) NOT NULL,
+      version_id INT NOT NULL,
+      aceptado_en DATETIME NOT NULL,
+      ip VARCHAR(64) NULL,
+      KEY idx_terminos_aceptaciones_tenant (tenant_slug),
+      KEY idx_terminos_aceptaciones_version (version_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
 module.exports = {
   asegurarColumnasCicloVidaTenant,
   asegurarTablaApiCredenciales,
@@ -822,6 +861,7 @@ module.exports = {
   asegurarTablaUpscale,
   asegurarTablaUpscaleActivos,
   asegurarTablaCancelacionesEncuesta,
+  asegurarTablasTerminos,
   // Exportadas solo para que test/unit/ensureSchema.test.js derive sus
   // fixtures y conteos esperados de la fuente real, en vez de mantener una
   // copia a mano que se desincroniza cada vez que se agrega una columna
