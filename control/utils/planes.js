@@ -178,6 +178,7 @@ function mapearFila(fila) {
     promociones_habilitado: Boolean(fila.promociones_habilitado),
     ticket_impresion_habilitado: Boolean(fila.ticket_impresion_habilitado),
     publicado_sitio: Boolean(fila.publicado_sitio),
+    destacado: Boolean(fila.destacado),
     disco_cuota_mb: fila.disco_cuota_mb === null ? null : Number(fila.disco_cuota_mb),
     activo: Boolean(fila.activo),
     orden: fila.orden,
@@ -287,6 +288,24 @@ async function actualizarPlan(id, datos = {}, db = obtenerPool()) {
   return obtenerPlan(id, db);
 }
 
+// "Plan más elegido" de la isla pública — exclusivo, mismo patrón ya
+// usado para usuarios.es_cuenta_raiz (backend/server.js): desmarca
+// cualquier otro ANTES de marcar el nuevo, en el mismo endpoint, nunca
+// vía normalizarDatosPlan() (ese es para campos independientes — este
+// necesita el efecto secundario de apagar a los demás). Apagar
+// (`destacado=false`) nunca enciende ningún otro — "ninguno destacado"
+// es un estado válido, no fuerza a elegir reemplazo.
+async function marcarPlanDestacado(id, destacado, db = obtenerPool()) {
+  const [existentes] = await db.query('SELECT id FROM planes WHERE id = ?', [id]);
+  if (existentes.length === 0) throw new ErrorPlan('El plan no existe.', 'no_encontrado');
+  const valor = destacado ? 1 : 0;
+  if (valor === 1) {
+    await db.query('UPDATE planes SET destacado = 0 WHERE destacado = 1');
+  }
+  await db.query('UPDATE planes SET destacado = ?, actualizado_en = ? WHERE id = ?', [valor, new Date(), id]);
+  return obtenerPlan(id, db);
+}
+
 // Archivar/reactivar: nunca DELETE — ver nota de cabecera. Archivar un
 // plan con tenants asignados es válido a propósito (deja de ofrecerse
 // para asignaciones NUEVAS, los tenants ya asignados no se tocan).
@@ -332,6 +351,7 @@ module.exports = {
   obtenerPlan,
   crearPlan,
   actualizarPlan,
+  marcarPlanDestacado,
   archivarPlan,
   reactivarPlan,
   eliminarPlan,

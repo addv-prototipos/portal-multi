@@ -209,13 +209,13 @@ describe('scripts/ensureSchema.js', () => {
       await asegurarTablaPlanes(db);
 
       // 1 CREATE TABLE + 1 SELECT columnas + un ALTER por cada entrada de
-      // COLUMNAS_PLANES_NUEVAS (ninguna existía) + 1 UPDATE (backfill de
-      // ticket_impresion_habilitado, que nace en esta misma corrida) +
-      // 1 SELECT COUNT + 1 INSERT (semilla vieja Básico/Pro/Enterprise) +
-      // 1 SELECT COUNT totalReal + 1 INSERT (catálogo real de 4 planes,
-      // punto 391/392) — 2 pares SELECT+INSERT independientes, nunca un
-      // número a mano (N-02).
-      const totalEsperado = 2 + COLUMNAS_PLANES_NUEVAS_NOMBRES.length + 1 + 2 + 2;
+      // COLUMNAS_PLANES_NUEVAS (ninguna existía) + 2 UPDATE de backfill
+      // (ticket_impresion_habilitado y destacado, punto 461/462, ambas
+      // nacen en esta misma corrida) + 1 SELECT COUNT + 1 INSERT (semilla
+      // vieja Básico/Pro/Enterprise) + 1 SELECT COUNT totalReal + 1 INSERT
+      // (catálogo real de 4 planes, punto 391/392) — 2 pares SELECT+INSERT
+      // independientes, nunca un número a mano (N-02).
+      const totalEsperado = 2 + COLUMNAS_PLANES_NUEVAS_NOMBRES.length + 2 + 2 + 2;
       expect(db.query).toHaveBeenCalledTimes(totalEsperado);
       expect(db.query.mock.calls[0][0]).toMatch(/CREATE TABLE IF NOT EXISTS planes/);
       expect(db.query.mock.calls[1][0]).toMatch(/SELECT COLUMN_NAME FROM INFORMATION_SCHEMA\.COLUMNS/);
@@ -226,7 +226,7 @@ describe('scripts/ensureSchema.js', () => {
       expect(db.query.mock.calls.some(([sql]) =>
         /UPDATE planes SET ticket_impresion_habilitado = marca_lookfeel_habilitado/.test(sql)
       )).toBe(true);
-      const idxCount = 2 + COLUMNAS_PLANES_NUEVAS_NOMBRES.length + 1;
+      const idxCount = 2 + COLUMNAS_PLANES_NUEVAS_NOMBRES.length + 2;
       expect(db.query.mock.calls[idxCount][0]).toMatch(/SELECT COUNT\(\*\) AS total FROM planes/);
       const [sqlInsert, params] = db.query.mock.calls[idxCount + 1];
       expect(sqlInsert).toMatch(/INSERT INTO planes/);

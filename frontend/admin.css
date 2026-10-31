@@ -7763,6 +7763,12 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 700;
   padding: 3px 10px; border-radius: 999px; background: #E4F6ED; color: #1FAE6B;
 }
+.planes-chip-destacado {
+  display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 700;
+  padding: 3px 10px; border-radius: 999px; background: #FEF3C7; color: #B45309;
+}
+.btn-icono-accion.is-destacado { color: #B45309; border-color: #FDE68A; }
+.btn-icono-accion.is-destacado:hover { background: #FEF3C7; }
 
 /* ---------- Punto 349-350-351: asistente de 4 pasos del modal de Planes
    ---------- (ver stitch/gobierno-funcionalidades/NOTAS.md — 12 reglas de

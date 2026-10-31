@@ -26985,3 +26985,158 @@ necesario en ese repo para este punto.
 Archivos: `control/utils/planes.js`, `frontend/control.html`,
 `frontend/control.js`, `control/test/unit/planes.test.js`,
 `PROJECT_STATE.md` (este punto).
+
+## Punto 462
+
+Pestaña "Extras" en el modal "Ampliar tu plan" (Mi Cuenta) + lista de
+extras comprados en la tarjeta "Plan de suscripción" — pedido explícito
+del usuario con 2 capturas (modal actual con solo 3 pestañas; tarjeta sin
+ningún rastro de lo comprado).
+
+**Hallazgo al analizar**: `funcionalidades_upscale` ya soporta
+`recurso_tipo='ninguno'` (features sin disco/usuarios asociado, punto
+en curso anterior) desde el CRUD de `/control` → Upscale y Stripe, pero
+el flujo de compra completo (`backend/server.js` + `control/utils/
+tenantUpscaleCompra.js`) solo aceptaba `tipo` 'disco'/'usuarios' — un
+extra creado en el catálogo no tenía ninguna forma de comprarse. Esta es
+la pieza que faltaba, no un catálogo nuevo.
+
+**Backend (`control/utils/tenantUpscaleCompra.js`)**: nuevas funciones
+`listarExtrasDisponibles`/`obtenerExtraPorId`/`calcularResumenExtra`/
+`confirmarCompraExtra`/`listarExtrasActivos`, todas sobre
+`funcionalidades_upscale WHERE disco_mb IS NULL AND usuarios_otorgados
+IS NULL`. A diferencia de disco/usuarios (una sola fila comprable, con
+cantidad variable), un extra es una feature binaria — se listan TODAS
+las activas, cada una con su propio id, y `exigirExtraNoActivo()`
+bloquea recompra (evita 2 Subscription Items o 2 Checkouts para la
+misma feature). Reusa `cobrarUpscaleRecurrenteViaSubscription()` y
+`obtenerOCrearProductoStripe()` tal cual (ninguna de las 2 dependía de
+`RECURSOS[tipo]`) — cero duplicación del cobro real a Stripe.
+`tenant_upscales_activos` ya soportaba esto sin tocar esquema
+(`disco_mb_otorgado`/`usuarios_otorgados` ambos NULL para un extra).
+`confirmarUpscalePagado()` (webhook, rama 'unico') gana un branch para
+`tipo_recurso==='extra'` que desvía a `aplicarExtra()` en vez de
+`aplicarUpscale()` (esa exige un tipo de `RECURSOS` válido, no aplica).
+
+**Rutas nuevas**: `control/server.js` → `/internal/upscale/extras/
+disponibles|comprar|activos` (mismo patrón `secretoInternoValido` que el
+resto de `/internal/*`). `backend/server.js` → `GET /api/admin/mi-cuenta/
+upscale/extras` + `POST .../extras/comprar` (mismo candado de perfil
+administrador/super + tenant que disco/usuarios). `GET /api/admin/
+mi-cuenta` ahora pide también `/internal/upscale/extras/activos` dentro
+del mismo bloque de suscripción (falla silencioso a `[]`, no bloquea el
+resto de la tarjeta) y expone `empresa.suscripcion.extras`.
+
+**Frontend**: 4ª pestaña "Extras" en `#upscale-tabs`
+(`frontend/admin.html`) con su propio panel `#upscale-panel-extras` —
+lista de cards (reusa `.upscale-plan-card`, mismo componente que "Subir
+de plan"), cada una con botón "Comprar" o badge verde "Comprado" si
+`yaActivo`. Tarjeta "Plan de suscripción": bloque nuevo `#micuenta-
+extras-wrap` (oculto si no hay extras activos) con chips
+`.micuenta-extras-chip` bajo el medidor de almacenamiento, mismo
+lenguaje visual que `.micuenta-estatus-badge` (navy + punto cian).
+`frontend/admin.js`: `cargarExtrasDisponibles()`/`confirmarCompraExtra()`
+(mismo patrón que `cargarOpcionesPlan()`/`confirmarSubirPlan()`),
+`aplicarExtrasMiCuenta()` llamada desde `aplicarEstadoSuscripcionMiCuenta()`.
+
+**Verificado**: `node --check` limpio en los 4 archivos `.js` tocados.
+399/399 tests de `control/` sin regresión. 1379/1380 tests de `backend/`
+— el único rojo es `docsEnabled.test.js`, timeout de Jest ya documentado
+en CLAUDE.md (punto 459, cold-start de `require('../../server')` crece
+con cada ruta nueva) — no relacionado a esta lógica, no reproducido
+contra código roto.
+
+**Pendiente, fuera de alcance de esta sesión**: no hay todavía ningún
+extra real en el catálogo (`recurso_tipo='ninguno'`) para probarlo en
+vivo — crear uno desde `/control` → Upscale y Stripe y correr el flujo
+completo con clics reales en navegador (Playwright/Docker+MySQL reales,
+piso no negociable del protocolo) antes de dar esto por probado en
+producción. Tampoco hay forma de dar de baja un extra ya comprado desde
+Mi Cuenta (el chip es solo lectura) — no se pidió.
+
+Archivos: `control/utils/tenantUpscaleCompra.js`, `control/server.js`,
+`backend/server.js`, `frontend/admin.html`, `frontend/admin.js`,
+`frontend/admin.css`, `PROJECT_STATE.md` (este punto).
+
+## Punto 463 — Isla de precios pública: orden por precio ascendente + "Plan más elegido" ya no es hardcodeado, viene de una estrella real en /control (31 oct 2026, CERRADO)
+
+El usuario, publicando por primera vez un plan nuevo desde el punto 461
+("Plan Panadero"), notó que la isla pública no lo mostraba en orden de
+precio (aparecía primero, pese a costar más que otros 3) y preguntó
+cómo se decide "Plan más elegido" (la insignia de `PricingSection.astro`).
+
+**Orden por precio**: `GET /api/public/planes` (`control/server.js`)
+ordenaba por la columna `orden` de `/control` (pensada para el orden
+MANUAL de la lista interna, no para el precio) — un plan nuevo con
+`orden` en su valor default aparecía fuera de secuencia. Cambiado a
+`ORDER BY (precio_mensual IS NULL), precio_mensual ASC` — precio real
+ascendente siempre, "a cotizar" (NULL) al final, nunca la columna
+`orden`. Validado real: `CLARVO Solicita($199) → Controla($599) →
+Crece($799) → Plan Panadero($850) → Domina($999)`, tanto en el JSON del
+endpoint como visualmente en `localhost:8090` real.
+
+**"Plan más elegido" — antes 100% hardcodeado en código, ahora un campo
+real**: `clarvo-Site/src/components/site/PricingSection.astro` tenía
+literal `const destacado = clave === "controla";` — ningún dato lo
+alimentaba, cambiarlo exigía editar código y desplegar el sitio. Fix
+igual al patrón ya establecido para `usuarios.es_cuenta_raiz`
+(`backend/server.js`) — exclusivo, nunca más de uno a la vez:
+- Columna nueva `planes.destacado` (`control/scripts/ensureSchema.js`,
+  TINYINT(1) DEFAULT 0) con **backfill de continuidad**: si la columna
+  se acaba de crear, marca `destacado=1` en el plan cuyo nombre
+  contenga "Controla" — para que el sitio no pierda la insignia el día
+  del deploy (mismo criterio que el backfill de `ticket_impresion_habilitado`
+  ya existente en este archivo). Confirmado real: tras el rebuild local,
+  "CLARVO Controla" quedó destacado=1 sola, sin ningún paso manual.
+- `control/utils/planes.js:marcarPlanDestacado(id, destacado)` — función
+  dedicada (nunca en la lista blanca genérica de `normalizarDatosPlan()`,
+  porque necesita el efecto secundario de apagar a los demás): si
+  `destacado=true`, primero `UPDATE planes SET destacado=0 WHERE
+  destacado=1`, luego marca el nuevo. Apagar nunca enciende ningún otro
+  ("ninguno destacado" es estado válido).
+- Ruta nueva `PUT /api/control/planes/:id/destacado` (`control/server.js`).
+- `mapearFila()` expone `destacado`; el `SELECT` explícito de
+  `GET /api/public/planes` ahora incluye la columna (antes era privada
+  por diseño — "cualquier columna nueva queda oculta hasta que alguien
+  decida a propósito agregarla aquí").
+- `frontend/control.js`/`admin.css`: botón de estrella (ícono feather,
+  `SVG_ESTRELLA_PATH`) en cada fila de la lista de planes — rellena en
+  dorado (`#B45309`/`#FEF3C7`) si es el destacado, outline si no. Solo
+  visible en planes ACTIVOS (mismo criterio que "Publicar en clarvo.mx":
+  uno archivado nunca aparece en el sitio, no tiene sentido ofrecer
+  marcarlo). Autoguardado inmediato (mismo patrón ya usado para
+  publicar) — clic → `PUT .../destacado` → toast → refresca la lista,
+  sin modal.
+- `clarvo-Site/src/components/site/PricingSection.astro`: `PlanApi`
+  gana `destacado: number`; `destacado = Number(plan.destacado) === 1`
+  reemplaza el hardcode. `npm run build` limpio (sin errores de TS/JSX).
+
+**Confirmado con el usuario el alcance real, no asumido**: este cambio
+SÍ toca `clarvo-Site` (a diferencia del punto 461/"Publicar en
+clarvo.mx", que no lo tocaba) — la insignia vivía en código de ese repo,
+no solo en datos. Verificado grepeando el archivo real antes de tocar
+nada.
+
+**Validado real, no solo con mocks**: 509/509 tests de `control/` sin
+regresión (2 conteos hardcodeados en `ensureSchema.test.js` tuvieron que
+actualizarse por el segundo backfill — mismo gotcha ya documentado,
+N-02). `node --check` limpio en los archivos de `control/`+`backend`
+(no aplica a `.astro`, verificado con `npm run build` en su lugar).
+Clic real en navegador (Chrome DevTools MCP, admin:admin): estrella de
+"Plan Panadero" → confirmado que "CLARVO Controla" pierde la insignia
+en el mismo instante (exclusividad real, no solo a nivel de API) →
+revertido a Controla al terminar la prueba, sin dejar estado de prueba
+en la base de datos real.
+
+**Pendiente, mencionado al usuario, no cerrado todavía**: el candado de
+UX para el switch "Publicar en clarvo.mx" sobre un plan ARCHIVADO (deja
+encenderlo sin avisar que no tendrá ningún efecto — descubierto en el
+punto 461 cuando el usuario confundió "Plan Panadero" archivado con
+"ya publicado") sigue sin corregir — el usuario lo calificó como su
+propio error y no se retomó todavía en esta sesión.
+
+Archivos: `control/scripts/ensureSchema.js`, `control/server.js`,
+`control/utils/planes.js`, `control/test/unit/ensureSchema.test.js`,
+`frontend/control.js`, `frontend/admin.css`,
+`clarvo-Site/src/components/site/PricingSection.astro`,
+`PROJECT_STATE.md` (este punto).

@@ -67,6 +67,7 @@ const {
   obtenerPlan,
   crearPlan,
   actualizarPlan,
+  marcarPlanDestacado,
   archivarPlan,
   reactivarPlan,
   eliminarPlan,
@@ -424,19 +425,28 @@ app.post(
 // Lista de columnas explícita (nunca SELECT *): esta ruta no tiene auth,
 // cualquier columna nueva de `planes` queda privada hasta que alguien
 // decida a propósito agregarla aquí.
+// Orden (punto 461, pedido explícito del usuario): precio ascendente,
+// NO la columna `orden` de /control (esa sigue siendo el orden manual
+// de la lista interna, pero la isla pública siempre se lee por precio —
+// un plan nuevo con `orden` default aparecería fuera de secuencia si se
+// usara esa columna aquí, como pasó con "Plan Panadero" el mismo día
+// que se conectó el switch de publicar). Precio NULL ("a cotizar") va
+// al final, nunca intercalado entre precios reales.
 app.get(
   '/api/public/planes',
   onboardingPublicLimiter,
   asyncHandler(async (req, res) => {
     const [filas] = await obtenerPool().query(
       `SELECT nombre, descripcion, precio_mensual, precio_anual, max_usuarios, disco_cuota_mb,
+              destacado,
               facturacion_habilitada, ventas_habilitado, gastos_habilitado, cxc_habilitado,
               inventarios_habilitado, auditoria_habilitado, portal_clientes_habilitado,
               sucursales_habilitado, marca_lookfeel_habilitado, promociones_habilitado,
               reportes_por_reporte_habilitado, reportes_cortes_habilitado,
               reportes_eliminados_habilitado, reportes_estado_inventario_habilitado,
               reportes_estado_tickets_habilitado
-         FROM planes WHERE publicado_sitio = 1 AND activo = 1 ORDER BY orden`
+         FROM planes WHERE publicado_sitio = 1 AND activo = 1
+         ORDER BY (precio_mensual IS NULL), precio_mensual ASC`
     );
     res.json({ planes: filas });
   })
@@ -1552,6 +1562,24 @@ app.put(
   asyncHandler(async (req, res) => {
     try {
       const plan = await actualizarPlan(Number(req.params.id), req.body || {});
+      res.json({ ok: true, plan });
+    } catch (err) {
+      if (err instanceof ErrorPlan) return res.status(mapearErrorPlan(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+// "Plan más elegido" (estrella) — exclusivo, nunca más de uno a la vez
+// (marcarPlanDestacado() desmarca cualquier otro antes de marcar este).
+app.put(
+  '/api/control/planes/:id/destacado',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const plan = await marcarPlanDestacado(Number(req.params.id), Boolean(req.body && req.body.destacado));
       res.json({ ok: true, plan });
     } catch (err) {
       if (err instanceof ErrorPlan) return res.status(mapearErrorPlan(err)).json({ error: err.message });

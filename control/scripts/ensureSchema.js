@@ -399,6 +399,13 @@ const COLUMNAS_PLANES_NUEVAS = [
   // publica solo porque exista la columna. El operador lo activa a
   // propósito desde /control.
   { nombre: 'publicado_sitio', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  // Punto en curso (2026-10-31): "Plan más elegido" en la isla pública —
+  // ANTES vivía hardcodeado en clarvo-Site (`clave === "controla"`), sin
+  // ningún campo real. DEFAULT 0, exclusivo (nunca más de un plan en 1 a
+  // la vez — se aplica en control/utils/planes.js:marcarPlanDestacado(),
+  // mismo patrón de "desmarca la anterior en el mismo endpoint" ya usado
+  // para usuarios.es_cuenta_raiz, backend/server.js).
+  { nombre: 'destacado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   // Punto en curso (2026-10-27): segundo soft-delete de esta tabla, ver
   // cabecera de control/utils/planes.js — NULL = vivo (filtrado por
   // listarPlanes/obtenerPlan), con fecha = eliminado para siempre. DEFAULT
@@ -438,14 +445,25 @@ async function asegurarTablaPlanes(db) {
   );
   const nombresPlanes = columnasPlanes.map((c) => c.COLUMN_NAME);
   let ticketImpresionPlanesReciénAgregada = false;
+  let destacadoPlanesReciénAgregada = false;
   for (const { nombre, definicion } of COLUMNAS_PLANES_NUEVAS) {
     if (!nombresPlanes.includes(nombre)) {
       await db.query(`ALTER TABLE planes ADD COLUMN ${nombre} ${definicion}`);
       if (nombre === 'ticket_impresion_habilitado') ticketImpresionPlanesReciénAgregada = true;
+      if (nombre === 'destacado') destacadoPlanesReciénAgregada = true;
     }
   }
   if (ticketImpresionPlanesReciénAgregada) {
     await db.query('UPDATE planes SET ticket_impresion_habilitado = marca_lookfeel_habilitado');
+  }
+  if (destacadoPlanesReciénAgregada) {
+    // Continuidad visual: hasta este punto "Plan más elegido" en la isla
+    // pública estaba hardcodeado a la clave "controla" — este backfill de
+    // una sola vez mantiene exactamente ese mismo resultado en cuanto la
+    // columna real toma el control, para que el sitio no pierda la
+    // insignia el día del deploy. `LIMIT 1`: si por error hay más de un
+    // "Controla", nunca marca dos a la vez.
+    await db.query("UPDATE planes SET destacado = 1 WHERE nombre LIKE '%Controla%' ORDER BY id LIMIT 1");
   }
 
   // Semilla de arranque — solo si el catálogo está vacío (primera

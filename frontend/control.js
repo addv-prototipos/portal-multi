@@ -2950,6 +2950,35 @@
     }
   }
 
+  const SVG_ESTRELLA_PATH = 'M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z';
+
+  // "Plan más elegido" de la isla pública — exclusivo, se guarda solo
+  // (mismo criterio de autoguardado ya usado para "Publicar en
+  // clarvo.mx"): no tiene sentido abrir el wizard completo para esto.
+  async function alternarPlanDestacado(id, destacado) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/planes/${id}/destacado`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ destacado }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo cambiar el plan más elegido.', true);
+        return;
+      }
+      showToast(destacado ? `"${data.plan.nombre}" ahora es el plan más elegido.` : 'Ya no es el plan más elegido.');
+      cargarPlanes();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
   function renderPlanes(planes) {
     els.planesCount.textContent = `${planes.length} plan${planes.length === 1 ? '' : 'es'}`;
     els.planesTableBody.innerHTML = '';
@@ -2958,9 +2987,10 @@
     planes.forEach((p) => {
       const tr = document.createElement('tr');
       const chipPublicado = p.publicado_sitio ? ' <span class="planes-chip-publicado">Publicado</span>' : '';
+      const chipDestacado = p.destacado ? ' <span class="planes-chip-destacado">Plan más elegido</span>' : '';
       const nombreHtml = p.activo
-        ? `<strong>${escapeHtml(p.nombre)}</strong>${chipPublicado}`
-        : `<strong>${escapeHtml(p.nombre)}</strong> <span class="planes-chip-archivado">Archivado</span>${chipPublicado}`;
+        ? `<strong>${escapeHtml(p.nombre)}</strong>${chipPublicado}${chipDestacado}`
+        : `<strong>${escapeHtml(p.nombre)}</strong> <span class="planes-chip-archivado">Archivado</span>${chipPublicado}${chipDestacado}`;
       const descripcionHtml = p.descripcion ? `<br><span class="field-hint" style="margin:0">${escapeHtml(p.descripcion)}</span>` : '';
       tr.innerHTML = `
         <td data-label="Plan">${nombreHtml}${descripcionHtml}</td>
@@ -2972,6 +3002,19 @@
       const celdaAcciones = tr.lastElementChild;
       const contenedorAcciones = document.createElement('div');
       contenedorAcciones.className = 'admin-row-actions';
+      // Solo planes activos — uno archivado nunca aparece en el sitio
+      // (mismo criterio que "Publicar en clarvo.mx"), marcarlo de
+      // favorito no tendría ningún efecto visible.
+      if (p.activo) {
+        const btnEstrella = crearBotonAccion(
+          `btn-icono-accion${p.destacado ? ' is-destacado' : ''}`,
+          p.destacado ? 'Quitar de "Plan más elegido"' : 'Marcar como "Plan más elegido"',
+          SVG_ESTRELLA_PATH,
+          () => alternarPlanDestacado(p.id, !p.destacado)
+        );
+        if (p.destacado) btnEstrella.querySelector('svg').setAttribute('fill', 'currentColor');
+        contenedorAcciones.appendChild(btnEstrella);
+      }
       contenedorAcciones.appendChild(
         crearBotonAccion(
           'btn-icono-accion',
