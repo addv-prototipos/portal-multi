@@ -1761,6 +1761,28 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   guards de los demás avisos deben revisar AMBAS — de lo contrario un
   aviso síncrono/más rápido puede colarse mientras el fetch del gate
   nuevo sigue resolviendo.
+- **Cualquier job largo en segundo plano que viva DENTRO del proceso de
+  Node (no una cola externa) necesita autosanado por staleness, no solo
+  un estado "en progreso"** (punto 458, 2026-10-30, patrón ya aplicado al
+  importador de inventarios — `backend/server.js`): una fila marcada
+  `estado='ejecutando'` que el propio proceso debía actualizar al
+  terminar se queda así PARA SIEMPRE si el proceso muere a mitad de
+  camino (reinicio de contenedor, deploy, OOM — no hipotético, pasó
+  real esta semana, puntos 454/455). Si ese mismo estado también
+  alimenta un candado de "una operación a la vez", el candado queda
+  cerrado para siempre sin que nadie pueda destrabarlo desde la UI; si
+  además el navegador seguía haciendo polling, la UI se congela sin
+  ningún mensaje — exactamente el síntoma que un usuario no técnico
+  describe como "ya no carga". Patrón correcto, replicar en cualquier
+  job futuro con esta forma: comparar `actualizado_en` contra un umbral
+  generoso (varias veces la duración real observada del caso más lento,
+  nunca un número inventado) en TODOS los puntos que leen ese estado —
+  nunca solo uno — y reclasificar sola la fila abandonada sin
+  intervención manual. El mensaje de error terminal mostrado al usuario
+  nunca debe pedirle revisar logs de servidor ni ningún detalle técnico
+  — explicar que no se perdió su trabajo y cómo reintentar (regla de
+  `/impeccable clarify`, ver también memoria de task-observer
+  `0008-async-job-needs-staleness-recovery.md`).
 
 ## Stack
 
