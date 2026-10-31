@@ -26804,3 +26804,77 @@ Archivos: `control/scripts/ensureSchema.js`, `control/server.js`,
 `control/test/unit/docsEnabled.test.js`,
 `control/test/integration/usuariosAdminControl.test.js`,
 `PROJECT_STATE.md` (este punto).
+
+## Punto 460 — Despliegue a producción real (Vultr) de los puntos 458-459: gate de Términos y Condiciones + autosanado del importador de inventarios, en clarvo-app; clarvo-Site también resincronizado (30-31 oct 2026, CERRADO)
+
+Despliegue pedido explícito del usuario tras el commit `2613545`
+(push a `origin/main`): "despliega a producción clarvo-site y clarvo-app,
+sube todo a vultr y haz rebuild".
+
+**clarvo-app (portalFac) — Vultr/clarvo.mx, Docker Swarm:**
+
+1. Backup de MySQL (primario + control) ANTES de tocar código, como
+   manda el runbook. **Bug real encontrado en el propio runbook al
+   correrlo**: el comando documentado en `VULTR/README-VULTR.md` usaba
+   `$MYSQL_CONTROL_ROOT_PASSWORD` para el backup de `mysql-control` — esa
+   variable solo existe así nombrada en `/opt/clarvo/.env` del HOST; el
+   CONTENEDOR `mysql-control` (igual que `mysql-primary`) solo conoce su
+   propia variable como `MYSQL_ROOT_PASSWORD` (confirmado con `docker
+   exec ... env`). El comando viejo producía un `.sql` de **0 bytes** sin
+   ningún error visible de bash (`mysqldump` sí corre, solo falla la
+   auth con "Access denied ... using password: NO") — un backup de
+   control que se veía exitoso en los logs de 3 corridas previas de esta
+   semana (puntos 451/455/457) probablemente nunca sirvió para nada. Fix
+   aplicado en `VULTR/README-VULTR.md` (gitignored, no en git): ambos
+   `docker exec` usan `$MYSQL_ROOT_PASSWORD` (mismo nombre, cada
+   contenedor resuelve su propio valor), vía un `backup.sh` subido por
+   `scp` en vez de pelear con 3 capas de escapado de comillas por SSH.
+   Backup real confirmado con tamaño > 0 en ambos archivos
+   (`primary-20261031-000814.sql` 3,943,976 bytes,
+   `control-20261031-000814.sql` 3,918,871 bytes) antes de continuar.
+2. `tar` de `backend/control/frontend/docker` (excluye `node_modules`/
+   `.git`) → `scp` → reemplazo completo de esas 4 carpetas en
+   `/opt/clarvo/` → **verificado con `md5sum`** (lección del incidente
+   del punto 455: nunca confiar en que el `tar` "debió" funcionar) sobre
+   5 archivos clave, los 5 coinciden exacto con el local.
+3. `docker build` de las 3 imágenes (`clrv-backend`, `clrv-control`,
+   `clrv-frontend`) + `docker service update --force` en las 3 — sin
+   tocar `docker-stack.yml` (no cambió esta ronda, mismo criterio que el
+   punto 457: evita el riesgo del incidente 455, que solo aplica cuando
+   el YAML del stack cambia). `frontend` se reinició una segunda vez tras
+   `backend` (gotcha conocido: nginx puede cachear la IP vieja del
+   contenedor `backend`).
+4. Verificado real: los 8 servicios en 1/1 (o 0/1 donde corresponde,
+   `garage-init`/`mysql-replica`), `curl` 200 en `/`, `/api/health`,
+   `/control`; versión `1.0.01` confirmada dentro del contenedor
+   (`require('./package.json').version`); el código nuevo de AMBOS
+   puntos confirmado presente en el `server.js` real del contenedor
+   corriendo (`grep -c` sobre `importacionEjecucionAbandonada` y
+   `terminos`, no solo sobre la imagen construida).
+
+**clarvo-Site — Vultr/clarvo.mx, Docker Compose (stack separado,
+stateless):** repo local `D:\srv\clarvo-Site`, working tree limpio y al
+día con `origin/sitioOficial` (nada que commitear ahí). `tar` del repo
+completo excluyendo `node_modules`/`.git`/`dist`/`.astro`/`.env*`/
+carpetas de tooling de agentes (`.claude`, `.codex`, etc.) → `scp` →
+extracción SOBRE el directorio existente en `/opt/clarvo-site/` (nunca
+`rm -rf` esa carpeta — a diferencia de clarvo-app, aquí `.env` vive
+suelto en la raíz del propio directorio que se está reemplazando, no en
+un padre separado; confirmado que `.env` conservó su fecha de
+modificación original tras la extracción). Verificado con `md5sum` sobre
+6 archivos (incluidos los 3 tocados por los últimos commits: aviso de
+privacidad LFPDPPP + banner de cookies, y el fix del link "ADDV" del
+footer) — los 6 coinciden exacto. Reconstruido y recreado con
+`./actualizar.sh` (script ya existente en el repo, nunca reinventado) —
+"✔ Actualización aplicada — /health responde OK." Verificado real por
+HTTPS: `https://clarvo.mx/` 200, `https://clarvo.mx/privacidad` 200
+(página nueva), y el link "ADDV" del footer apuntando a
+`https://www.addv.mx/` confirmado presente en el HTML real servido.
+
+**Fuera de alcance, a propósito**: no se tocó Hostinger
+(`yt.addv.com.mx`, servidor de pruebas) — este despliegue fue
+específicamente a Vultr/producción real, pedido explícito del usuario.
+
+Archivos: `VULTR/README-VULTR.md` (corrección del bug de backup,
+gitignored — no entra a git), `PROJECT_STATE.md` (este punto). Ningún
+archivo de código tocado — este punto es 100% operación de despliegue.
