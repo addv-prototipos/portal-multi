@@ -27140,3 +27140,84 @@ Archivos: `control/scripts/ensureSchema.js`, `control/server.js`,
 `frontend/control.js`, `frontend/admin.css`,
 `clarvo-Site/src/components/site/PricingSection.astro`,
 `PROJECT_STATE.md` (este punto).
+
+## Punto 464 — Versión 1.1.01 (backend+control) + versionado visible en /control + despliegue completo a producción (Vultr) de los puntos 458/461/463 (31 oct - 3 nov 2026, CERRADO)
+
+Pedido explícito del usuario: version bump a 1.1.01 (literal, mismo
+criterio no-semver que el punto 457), versión visible en el pie del
+sidebar de `/control` (antes solo el backend la mostraba, dentro de
+Configuraciones), sección de versionado en `README.md`, nota en los
+commits, y despliegue de todo a Vultr/producción.
+
+**Versión 1.1.01**: `backend/package.json` y `control/package.json`
+bumped. Texto visible actualizado en `frontend/admin.html` (dentro de
+Configuraciones, ya existía) y agregado por primera vez en
+`frontend/control.html` (`.admin-sidebar-version`, nuevo, debajo de
+"Cerrar sesión" — con su propio tratamiento de sidebar colapsado en
+`admin.css`, mismo criterio que el resto del footer). `README.md` gana
+sección "Versionado" con tabla componente/versión/cambios.
+
+**Bug real encontrado y corregido en el runbook de despliegue — nunca
+desplegar el working tree directo**: al armar el paquete con el `tar`
+de siempre, el working tree local tenía cambios SIN commitear de OTRA
+sesión en curso en paralelo (catálogo "Extras" de upscale,
+`control/utils/tenantUpscaleCompra.js` + rutas nuevas en
+`control/server.js`/`backend/server.js`) — desplegar eso a producción
+habría subido código no probado ni aprobado para ese trabajo ajeno.
+Corregido usando `git archive HEAD` en vez de `tar` del working tree —
+empaqueta exactamente lo commiteado, nunca más. Runbook actualizado en
+`VULTR/README-VULTR.md` con este criterio para ambos repos
+(`portalFac` y `clarvo-Site`).
+
+**Segundo bug real, encontrado al verificar con `md5sum`**: `git
+archive` en Windows convierte LF→CRLF al empaquetar (`core.autocrlf`
+de esta máquina) — el contenido es idéntico y Node lo ejecuta sin
+problema, pero cada checksum de verificación post-deploy salía
+"distinto" del esperado, pareciendo una subida corrupta. Confirmado con
+`diff --strip-trailing-cr` (sin diferencias reales) antes de descartar
+que fuera un problema de contenido. Fix: `git -c core.autocrlf=false
+archive HEAD`. Documentado en el runbook para que la próxima sesión no
+repita el mismo susto.
+
+**Desplegado real a Vultr/clarvo.mx, con los 2 fixes de runbook ya
+aplicados**:
+- Backup de MySQL real primero (`primary`/`control`, ambos > 0 bytes).
+- `clarvo-app` (backend/control/frontend): código subido desde HEAD,
+  verificado con `md5sum` exacto contra `git show HEAD:<ruta>` en 10
+  archivos clave — los 10 coinciden. 3 imágenes reconstruidas,
+  `docker service update --force` en las 3 (`docker-stack.yml` sin
+  cambios). `frontend` reiniciado una segunda vez (gotcha conocido de
+  IP cacheada). Verificado real: `/`, `/api/health`, `/control` → 200;
+  `require('./package.json').version` → `1.1.01` dentro de AMBOS
+  contenedores (backend y control); código de los puntos 458/461/463
+  confirmado presente (`grep -c`) en el `server.js` real corriendo, no
+  solo en la imagen construida.
+- `clarvo-Site`: working tree limpio, nada que commitear. Mismo método
+  `git archive` (sin excludes manuales — `git archive` ya solo exporta
+  lo trackeado, nunca `node_modules`/`.claude`/etc., más seguro que el
+  `--exclude` manual de antes). `.env` de producción confirmado
+  apuntando a `https://clarvo.mx` (no localhost) antes de empaquetar.
+  `.env` del servidor confirmado intacto tras extraer (misma fecha de
+  modificación). `./actualizar.sh` → "✔ Actualización aplicada —
+  /health responde OK."
+
+**Validado real por HTTPS, con navegador real (no solo `curl`)** —
+`PricingSection.astro` renderiza del lado del cliente (fetch, no HTML
+estático), así que `curl` nunca ve el resultado; verificado con Chrome
+DevTools MCP contra `https://clarvo.mx/#planes` real: los 4 planes
+reales de producción en orden de precio ascendente
+($199→$599→$799→$999), insignia "Plan más elegido" sobre "CLARVO
+Controla". No se intentó verificar visualmente la versión dentro de
+`/control` en producción — no hay credenciales reales de ese entorno en
+esta sesión (solo las de desarrollo local) y no se van a forzar; el
+`md5sum` exacto del `control.html` subido (coincide con HEAD, que
+contiene la línea de versión) es evidencia suficiente sin necesitar
+login real.
+
+Archivos: `backend/package.json`, `control/package.json`,
+`frontend/admin.html`, `frontend/control.html`, `frontend/admin.css`,
+`README.md`, `VULTR/README-VULTR.md` (gitignored, no entra a git),
+`PROJECT_STATE.md` (este punto). Ningún archivo ajeno (el trabajo en
+curso de "Extras" de upscale de otra sesión) se tocó, commiteó ni
+desplegó — queda intacto en el working tree local, pendiente de esa
+sesión.
