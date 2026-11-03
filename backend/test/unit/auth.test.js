@@ -845,5 +845,36 @@ describe('auth.js', () => {
       finalizarAutenticacionAdmin(req, res, next);
       expect(next).toHaveBeenCalledTimes(1);
     });
+
+    // Punto en curso (archivado automático de trial vencido sin pago):
+    // sin esta excepción, el propio botón "pagar para desbloquear" nunca
+    // podría llamarse a sí mismo — un candado sin llave.
+    test('ruta exenta (/api/admin/mi-cuenta/suscripcion/checkout) pasa aunque la suscripción esté bloqueada', () => {
+      const req = {
+        adminMecanismo: 'perfil_bd',
+        adminPerfil: 'administrador',
+        path: '/api/admin/mi-cuenta/suscripcion/checkout',
+        tenant: { slug: 't1', suscripcionBloqueo: { bloqueada: true, motivo: 'vencida', titulo: 'x', mensaje: 'y' } },
+      };
+      const res = mockRes();
+      const next = jest.fn();
+      finalizarAutenticacionAdmin(req, res, next);
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(res.status).not.toHaveBeenCalled();
+    });
+
+    test('cualquier otra ruta de /api/admin (no exenta) SÍ se bloquea normal', () => {
+      const req = {
+        adminMecanismo: 'perfil_bd',
+        adminPerfil: 'administrador',
+        path: '/api/admin/mi-cuenta',
+        tenant: { slug: 't1', suscripcionBloqueo: { bloqueada: true, motivo: 'vencida', titulo: 'x', mensaje: 'y' } },
+      };
+      const res = mockRes();
+      const next = jest.fn();
+      finalizarAutenticacionAdmin(req, res, next);
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(402);
+    });
   });
 });

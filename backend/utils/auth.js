@@ -345,8 +345,18 @@ async function verificarUsuarioAdministrativo(usuarioIngresado, password) {
 // ramas de requireAdminAuth, que protege exclusivamente /api/admin/* —
 // requireUserAuth (sesión de cliente) es un middleware completamente
 // aparte que nunca pasa por aquí.
+// Único escape real del muro de suscripción: la ruta que cobra para
+// quitarlo (punto en curso, "exige tarjeta o archiva" — reemplaza el
+// stub del punto 416). Bloquearla también sería un candado sin llave —
+// el usuario nunca podría pagar para des-bloquearse solo. Lista
+// explícita y corta a propósito, nunca un patrón/prefijo amplio.
+const RUTAS_EXENTAS_BLOQUEO_SUSCRIPCION = new Set(['/api/admin/mi-cuenta/suscripcion/checkout']);
+
 function finalizarAutenticacionAdmin(req, res, next) {
   if (req.adminMecanismo === 'admin_users') {
+    return next();
+  }
+  if (RUTAS_EXENTAS_BLOQUEO_SUSCRIPCION.has(req.path)) {
     return next();
   }
   const bloqueo = req.tenant && req.tenant.suscripcionBloqueo;

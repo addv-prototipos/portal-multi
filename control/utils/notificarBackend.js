@@ -265,14 +265,14 @@ async function reasignarRaizTenant(slug, id) {
 // debe tumbar el barrido del scheduler (ver recordatorios.js, que ya
 // envuelve cada llamada en try/catch de todas formas — esto es defensa
 // en profundidad, no el único candado).
-async function enviarCorreoBase({ destinatario, asunto, cuerpo }) {
+async function enviarCorreoBase({ destinatario, asunto, cuerpo, html }) {
   const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
   const secreto = process.env.INTERNAL_CACHE_SECRET;
 
   const res = await fetch(`${url}/internal/enviar-correo-base`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Internal-Secret': secreto || '' },
-    body: JSON.stringify({ destinatario, asunto, cuerpo }),
+    body: JSON.stringify({ destinatario, asunto, cuerpo, ...(html ? { html } : {}) }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

@@ -203,6 +203,8 @@ async function getDiscoAlertaEnviadaEn() {
 }
 
 module.exports = {
+  getValorTexto,
+  setValorTexto,
   CLAVE_IMAGEN_MAX_MB,
   IMAGEN_MAX_MB_DEFAULT,
   IMAGEN_MAX_MB_MIN,

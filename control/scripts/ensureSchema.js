@@ -216,6 +216,16 @@ const COLUMNAS_NUEVAS = [
   { nombre: 'suscripcion_cancelar_al_corte', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'suscripcion_descuento_retencion_usado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'stripe_subscription_id', definicion: 'VARCHAR(255) NULL' },
+  // Punto en curso (archivado automático de trial vencido sin pago):
+  // NULL = baja manual del operador (sigue aplicando DIAS_RETENCION_BAJA,
+  // 30 días, en purgarBajasVencidas()) — un valor no-NULL identifica una
+  // causa específica con SU PROPIO umbral de retención, sin tocar el
+  // global. Nunca se usa para nada más que elegir cuántos días esperar
+  // antes de purgar; el mensaje real que ve el cliente vive en el correo
+  // enviado al momento de archivar, no aquí. Agregada al FINAL del
+  // array a propósito (nunca en medio) — un test existente asume
+  // posiciones fijas para columnas ya presentes (ver ensureSchema.test.js).
+  { nombre: 'baja_motivo', definicion: 'VARCHAR(50) NULL' },
 ];
 
 async function asegurarColumnasCicloVidaTenant(db) {
@@ -791,6 +801,32 @@ async function asegurarTablaStripeEventos(db) {
   `);
 }
 
+// Punto en curso (archivado automático de trial vencido sin pago): el
+// link de "tienes 15 días para cambiar de opinión" que se manda por
+// correo cuando se archiva un tenant NUNCA puede pasar por /admin ni por
+// el candado anti-enumeración de slugs (ver CLAUDE.md, punto 422) — un
+// tenant en estado='baja' responde 404 genérico ahí a propósito. Mismo
+// patrón que `onboarding_borradores` (token aleatorio de 48 hex,
+// sin FK — control_app no tiene REFERENCES) pero mucho más simple: solo
+// necesita identificar el tenant y expirar. `usado_en` NULL = el link
+// sigue vigente; se llena al completar el pago (nunca se borra la fila,
+// mismo criterio de "nunca DELETE real" del resto de esta BD — un token
+// ya usado simplemente deja de ser válido de nuevo, ver validarToken()).
+async function asegurarTablaReactivacionTokens(db) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS reactivacion_tokens (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenant_id INT NOT NULL,
+      token VARCHAR(64) NOT NULL,
+      expira_en DATETIME NOT NULL,
+      usado_en DATETIME NULL,
+      creado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_reactivacion_tokens_token (token),
+      KEY idx_reactivacion_tokens_tenant (tenant_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
 // Encuesta de salida (propuesta C1, siempre antes de confirmar la
 // cancelación — ver control/utils/cancelacionSuscripcion.js). tenant_id
 // SIN FK (mismo motivo que el resto de esta BD: control_app no tiene
@@ -880,6 +916,7 @@ module.exports = {
   asegurarTablaUpscaleActivos,
   asegurarTablaCancelacionesEncuesta,
   asegurarTablasTerminos,
+  asegurarTablaReactivacionTokens,
   // Exportadas solo para que test/unit/ensureSchema.test.js derive sus
   // fixtures y conteos esperados de la fuente real, en vez de mantener una
   // copia a mano que se desincroniza cada vez que se agrega una columna

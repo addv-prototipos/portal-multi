@@ -337,9 +337,17 @@
     upscaleTabs: document.getElementById('upscale-tabs'),
     upscaleTabDisco: document.getElementById('upscale-tab-disco'),
     upscaleTabUsuarios: document.getElementById('upscale-tab-usuarios'),
+    upscaleTabExtras: document.getElementById('upscale-tab-extras'),
     upscaleTabPlan: document.getElementById('upscale-tab-plan'),
     upscalePanelRecurso: document.getElementById('upscale-panel-recurso'),
+    upscalePanelExtras: document.getElementById('upscale-panel-extras'),
     upscalePanelPlan: document.getElementById('upscale-panel-plan'),
+    upscaleExtrasCargando: document.getElementById('upscale-extras-cargando'),
+    upscaleExtrasLista: document.getElementById('upscale-extras-lista'),
+    upscaleExtrasError: document.getElementById('upscale-extras-error'),
+    btnUpscaleExtrasCerrar: document.getElementById('btn-upscale-extras-cerrar'),
+    micuentaExtrasWrap: document.getElementById('micuenta-extras-wrap'),
+    micuentaExtrasLista: document.getElementById('micuenta-extras-lista'),
     upscaleModalCargando: document.getElementById('upscale-modal-cargando'),
     upscaleModalContenido: document.getElementById('upscale-modal-contenido'),
     upscaleModalPaquete: document.getElementById('upscale-modal-paquete'),
@@ -400,10 +408,6 @@
     metodoPagoPlanNombre: document.getElementById('metodo-pago-plan-nombre'),
     metodoPagoPlanPrecio: document.getElementById('metodo-pago-plan-precio'),
     metodoPagoProximoCobro: document.getElementById('metodo-pago-proximo-cobro'),
-    metodoPagoNumero: document.getElementById('metodo-pago-numero'),
-    metodoPagoVencimiento: document.getElementById('metodo-pago-vencimiento'),
-    metodoPagoCvc: document.getElementById('metodo-pago-cvc'),
-    metodoPagoTitular: document.getElementById('metodo-pago-titular'),
     btnMetodoPagoGuardar: document.getElementById('btn-metodo-pago-guardar'),
     // Modal "Configuraciones" (antes vista de página, ver
     // PROJECT_STATE.md): barra lateral + buscador + panel de contenido.
@@ -1615,13 +1619,48 @@
   }
 
   if (els.btnSuscripcionActualizarPago) {
-    els.btnSuscripcionActualizarPago.addEventListener('click', () => {
-      // Honesto a propósito: Stripe todavía no está integrado de verdad
-      // (confirmado con el usuario, punto 416 — "por ahora usa solo
-      // mocks, al final integramos"). Nunca se simula un redirect que no
-      // pasa nada — el mensaje dice la verdad y da un camino real.
-      showToast('La integración con Stripe para pagar en línea está pendiente. Contacta a soporte para regularizar tu suscripción mientras tanto.', true);
+    els.btnSuscripcionActualizarPago.addEventListener('click', async () => {
+      await iniciarCheckoutSuscripcion(els.btnSuscripcionActualizarPago);
     });
+  }
+
+  // Checkout real de Stripe (reemplaza el stub del punto 416) — usado
+  // tanto por el botón del muro como por "Actualizar método de pago" en
+  // Mi Cuenta. El endpoint ya está exento del bloqueo de suscripción del
+  // lado del backend (es precisamente la vía para quitarlo) — aquí solo
+  // se necesita un token de sesión válido, que el usuario conserva aunque
+  // esté bloqueado (el bloqueo nunca cierra la sesión, ver el filtro de
+  // 402 más arriba).
+  async function iniciarCheckoutSuscripcion(boton) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    const textoOriginal = boton ? boton.textContent : null;
+    if (boton) {
+      boton.disabled = true;
+      boton.textContent = 'Conectando con Stripe…';
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/suscripcion/checkout`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.checkoutUrl) {
+        showToast(data.error || 'No se pudo iniciar el cobro. Intenta de nuevo o contacta a soporte.', true);
+        return;
+      }
+      window.location.href = data.checkoutUrl;
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    } finally {
+      if (boton) {
+        boton.disabled = false;
+        if (textoOriginal) boton.textContent = textoOriginal;
+      }
+    }
   }
   if (els.btnSuscripcionCerrarSesion) {
     els.btnSuscripcionCerrarSesion.addEventListener('click', () => {
@@ -8989,6 +9028,7 @@
       els.micuentaSuscripcionVenceWrap.hidden = true;
       els.micuentaSuscripcionNota.innerHTML = 'Este es el sitio base de administración de Clarvo (ADDV) — sin plan ni ciclo de cobro, eso solo aplica a los tenants.';
       els.micuentaSuscripcionMaster.hidden = true;
+      if (els.micuentaExtrasWrap) els.micuentaExtrasWrap.hidden = true;
       return;
     }
 
@@ -9014,6 +9054,26 @@
     } else {
       els.micuentaSuscripcionMaster.hidden = true;
     }
+
+    aplicarExtrasMiCuenta(suscripcion.extras);
+  }
+
+  // Extras comprados (ver "Ampliar mi plan" → pestaña Extras) — chips
+  // simples, sin acciones (dar de baja un extra no está en alcance hoy).
+  function aplicarExtrasMiCuenta(extras) {
+    if (!els.micuentaExtrasWrap || !els.micuentaExtrasLista) return;
+    if (!extras || extras.length === 0) {
+      els.micuentaExtrasWrap.hidden = true;
+      els.micuentaExtrasLista.innerHTML = '';
+      return;
+    }
+    els.micuentaExtrasWrap.hidden = false;
+    els.micuentaExtrasLista.innerHTML = extras.map((extra) => `
+      <span class="micuenta-extras-chip">
+        <span class="micuenta-extras-chip-dot" aria-hidden="true"></span>
+        ${extra.nombre}
+      </span>
+    `).join('');
   }
 
   function formatearMbOGb(mb) {
@@ -9231,15 +9291,19 @@
   function seleccionarTabUpscale(tipo) {
     upscaleTipoActivo = tipo;
     const esPlan = tipo === 'plan';
-    els.upscalePanelRecurso.hidden = esPlan;
+    const esExtras = tipo === 'extras';
+    els.upscalePanelRecurso.hidden = esPlan || esExtras;
+    els.upscalePanelExtras.hidden = !esExtras;
     els.upscalePanelPlan.hidden = !esPlan;
-    [['disco', els.upscaleTabDisco], ['usuarios', els.upscaleTabUsuarios], ['plan', els.upscaleTabPlan]].forEach(([t, el]) => {
+    [['disco', els.upscaleTabDisco], ['usuarios', els.upscaleTabUsuarios], ['extras', els.upscaleTabExtras], ['plan', els.upscaleTabPlan]].forEach(([t, el]) => {
       if (!el) return;
       el.classList.toggle('is-activa', t === tipo);
       el.setAttribute('aria-selected', String(t === tipo));
     });
     if (esPlan) {
       cargarOpcionesPlan();
+    } else if (esExtras) {
+      cargarExtrasDisponibles();
     } else {
       cargarResumenUpscale(tipo);
     }
@@ -9379,14 +9443,75 @@
     }
   }
 
+  // Extras: lista completa (no un solo "disponible" como disco/usuarios)
+  // — cada card trae su propio botón "Comprar"; yaActivo lo reemplaza por
+  // un badge "Comprado" (feature binaria, nunca recompra).
+  async function cargarExtrasDisponibles() {
+    els.upscaleExtrasCargando.hidden = false;
+    els.upscaleExtrasLista.innerHTML = '';
+    els.upscaleExtrasError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/upscale/extras`, {
+        headers: { Authorization: getAuthHeader() },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudieron calcular los extras disponibles.');
+      els.upscaleExtrasCargando.hidden = true;
+      if (!data.extras || data.extras.length === 0) {
+        els.upscaleExtrasLista.innerHTML = '<p class="upscale-modal-paquete">No hay extras disponibles por ahora.</p>';
+        return;
+      }
+      data.extras.forEach((extra) => {
+        const precioTexto = extra.precio == null
+          ? 'Sin precio configurado'
+          : `${formatearMoneda(extra.precio)} MXN${extra.ciclo ? ` / ${extra.ciclo === 'anual' ? 'año' : 'mes'}` : ''}`;
+        const card = document.createElement('div');
+        card.className = 'upscale-plan-card';
+        card.innerHTML = `
+          <div>
+            <p class="upscale-plan-card-nombre">${extra.nombre}${extra.yaActivo ? '<span class="upscale-plan-card-tag upscale-plan-card-tag-activo">Comprado</span>' : ''}</p>
+            <p class="upscale-plan-card-precio">${precioTexto}</p>
+          </div>
+          ${extra.yaActivo ? '' : `<button type="button" class="btn btn-primary" data-extra-id="${extra.id}" ${extra.precio == null ? 'disabled' : ''}>Comprar</button>`}
+        `;
+        const boton = card.querySelector('button');
+        if (boton) boton.addEventListener('click', () => confirmarCompraExtra(extra.id, extra.nombre));
+        els.upscaleExtrasLista.appendChild(card);
+      });
+    } catch (err) {
+      els.upscaleExtrasCargando.hidden = true;
+      els.upscaleExtrasError.textContent = err.message || 'No se pudieron calcular los extras disponibles.';
+    }
+  }
+
+  async function confirmarCompraExtra(funcionalidadId, nombreExtra) {
+    els.upscaleExtrasError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/upscale/extras/comprar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: getAuthHeader() },
+        body: JSON.stringify({ funcionalidadId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo procesar la compra.');
+      cerrarModalUpscale();
+      mostrarCompraConfirmada(`"${nombreExtra}" activado — ya se cobró a tu suscripción.`);
+      cargarMiCuenta();
+    } catch (err) {
+      els.upscaleExtrasError.textContent = err.message || 'No se pudo procesar la compra.';
+    }
+  }
+
   if (els.btnMicuentaDiscoComprar) els.btnMicuentaDiscoComprar.addEventListener('click', () => abrirModalUpscale('disco'));
   if (els.btnMicuentaUsuariosComprar) els.btnMicuentaUsuariosComprar.addEventListener('click', () => abrirModalUpscale('usuarios'));
   if (els.btnMicuentaVerUpscale) els.btnMicuentaVerUpscale.addEventListener('click', () => abrirModalUpscale('disco'));
   if (els.btnUpscaleCancelar) els.btnUpscaleCancelar.addEventListener('click', cerrarModalUpscale);
   if (els.btnUpscalePlanCerrar) els.btnUpscalePlanCerrar.addEventListener('click', cerrarModalUpscale);
+  if (els.btnUpscaleExtrasCerrar) els.btnUpscaleExtrasCerrar.addEventListener('click', cerrarModalUpscale);
   if (els.btnUpscaleConfirmar) els.btnUpscaleConfirmar.addEventListener('click', confirmarCompraUpscale);
   if (els.upscaleTabDisco) els.upscaleTabDisco.addEventListener('click', () => seleccionarTabUpscale('disco'));
   if (els.upscaleTabUsuarios) els.upscaleTabUsuarios.addEventListener('click', () => seleccionarTabUpscale('usuarios'));
+  if (els.upscaleTabExtras) els.upscaleTabExtras.addEventListener('click', () => seleccionarTabUpscale('extras'));
   if (els.upscaleTabPlan) els.upscaleTabPlan.addEventListener('click', () => seleccionarTabUpscale('plan'));
   if (els.upscaleModalOverlay) {
     els.upscaleModalOverlay.addEventListener('click', (ev) => {
@@ -9642,10 +9767,6 @@
   // vez de inventar un monto.
   function cargarVistaMetodoPago() {
     const s = ultimaSuscripcionMiCuenta;
-    els.metodoPagoNumero.value = '';
-    els.metodoPagoVencimiento.value = '';
-    els.metodoPagoCvc.value = '';
-    els.metodoPagoTitular.value = '';
     if (!s || s.ilimitada) {
       els.metodoPagoPlanNombre.textContent = 'Ilimitada';
       els.metodoPagoPlanPrecio.textContent = '—';
@@ -9665,10 +9786,8 @@
   els.btnMetodoPagoVolver.addEventListener('click', () => {
     cambiarVistaPrincipal('mi-cuenta');
   });
-  els.btnMetodoPagoGuardar.addEventListener('click', () => {
-    // Mismo mensaje honesto que el botón del muro de suscripción (ver
-    // mostrarMuroSuscripcion) — nunca se simula un guardado exitoso.
-    showToast('La integración con Stripe para pagar en línea está pendiente. Contacta a soporte para regularizar tu suscripción mientras tanto.', true);
+  els.btnMetodoPagoGuardar.addEventListener('click', async () => {
+    await iniciarCheckoutSuscripcion(els.btnMetodoPagoGuardar);
   });
 
   els.btnSuscripcionDarAltaMaster.addEventListener('click', () => {

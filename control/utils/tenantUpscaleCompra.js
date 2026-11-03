@@ -368,6 +368,16 @@ async function confirmarUpscalePagado(session, db = obtenerPool()) {
     return;
   }
 
+  // 'extra' (ver bloque "Extras" más abajo) no tiene columna de cuota en
+  // `tenants` que actualizar — aplicarUpscale() exige un tipo de RECURSOS
+  // válido, así que se desvía a aplicarExtra() antes de llegar ahí.
+  if (tipo === 'extra') {
+    const resumenExtra = { monto: Number(meta.monto), ciclo: meta.ciclo === 'anual' ? 'anual' : 'mensual' };
+    await aplicarExtra(tenant, funcionalidad, resumenExtra, { estado: 'cobrado_hoy', stripeCheckoutSessionId: session.id }, db);
+    console.log(`Extra aplicado tras pago confirmado: tenant "${slug}", funcionalidad "${funcionalidad.nombre}".`);
+    return;
+  }
+
   const resumen = {
     cantidadOtorgada: Number(meta.cantidad_otorgada),
     monto: Number(meta.monto),
@@ -378,6 +388,183 @@ async function confirmarUpscalePagado(session, db = obtenerPool()) {
   console.log(`Upscale (${tipo}) aplicado tras pago confirmado: tenant "${slug}", +${resumen.cantidadOtorgada}.`);
 }
 
+// ---------- Extras (punto en curso): funcionalidades del catálogo
+// `funcionalidades_upscale` sin recurso asociado (recurso_tipo='ninguno'
+// — disco_mb y usuarios_otorgados ambos NULL). A diferencia de
+// disco/usuarios no hay "la única comprable" ni cantidad variable: son
+// features binarias, se listan TODAS las activas y cada una se compra
+// por separado, una sola vez (yaActivo bloquea recompra — evita crear 2
+// Subscription Items o 2 Checkouts para la misma feature). Reusa
+// cobrarUpscaleRecurrenteViaSubscription()/obtenerOCrearProductoStripe()
+// tal cual (ninguna de las 2 depende de RECURSOS[tipo]).
+async function listarExtrasDisponibles(slug, db = obtenerPool()) {
+  const tenant = await cargarTenantPorSlug(slug, db);
+  if (!tenant || tenant.estado === 'baja') {
+    throw new ErrorUpscaleCompra('Empresa no encontrada.', 'no_encontrado');
+  }
+  const [filas] = await db.query(
+    `SELECT * FROM funcionalidades_upscale
+      WHERE activo = 1 AND disco_mb IS NULL AND usuarios_otorgados IS NULL
+      ORDER BY orden, id`
+  );
+  const [activos] = await db.query(
+    `SELECT funcionalidad_id FROM tenant_upscales_activos WHERE tenant_id = ? AND activo = 1`,
+    [tenant.id]
+  );
+  const idsActivos = new Set(activos.map((f) => f.funcionalidad_id));
+  const ciclo = tenant.suscripcion_ciclo === 'anual' ? 'anual' : 'mensual';
+  return filas.map((f) => {
+    const precio = f.tipo_cobro === 'unico'
+      ? (f.precio_unico != null ? Number(f.precio_unico) : null)
+      : (ciclo === 'anual' ? (f.precio_anual ?? f.precio_mensual) : (f.precio_mensual ?? f.precio_anual));
+    return {
+      id: f.id,
+      nombre: f.nombre,
+      descripcion: f.descripcion,
+      tipoCobro: f.tipo_cobro,
+      precio: precio != null ? Number(precio) : null,
+      ciclo: f.tipo_cobro === 'unico' ? null : ciclo,
+      yaActivo: idsActivos.has(f.id),
+    };
+  });
+}
+
+async function obtenerExtraPorId(id, db) {
+  const [filas] = await db.query(
+    `SELECT * FROM funcionalidades_upscale
+      WHERE id = ? AND activo = 1 AND disco_mb IS NULL AND usuarios_otorgados IS NULL`,
+    [id]
+  );
+  return filas[0] || null;
+}
+
+function calcularResumenExtra(tenant, funcionalidad) {
+  const ciclo = tenant.suscripcion_ciclo === 'anual' ? 'anual' : 'mensual';
+  const precioUnitario = funcionalidad.tipo_cobro === 'unico'
+    ? funcionalidad.precio_unico
+    : (ciclo === 'anual' ? (funcionalidad.precio_anual ?? funcionalidad.precio_mensual) : (funcionalidad.precio_mensual ?? funcionalidad.precio_anual));
+  if (precioUnitario == null) {
+    throw new ErrorUpscaleCompra('Esta funcionalidad todavía no tiene un precio configurado.', 'sin_catalogo');
+  }
+  const expiraEn = tenant.suscripcion_expira_en ? String(tenant.suscripcion_expira_en).slice(0, 10) : null;
+  const diasRestantes = expiraEn ? diasEntre(hoyYYYYMMDD(), expiraEn) : null;
+  const cobroInmediato = diasRestantes === null ? true : diasRestantes > DIAS_UMBRAL_COBRO_INMEDIATO;
+  return {
+    funcionalidadId: funcionalidad.id,
+    funcionalidadNombre: funcionalidad.nombre,
+    monto: Number(precioUnitario),
+    ciclo: funcionalidad.tipo_cobro === 'unico' ? null : ciclo,
+    diasRestantes,
+    cobroInmediato,
+    fechaCorte: expiraEn,
+    tipoCobro: funcionalidad.tipo_cobro,
+  };
+}
+
+async function cargarTenantYExtra(slug, funcionalidadId, db) {
+  const tenant = await cargarTenantPorSlug(slug, db);
+  if (!tenant || tenant.estado === 'baja') {
+    throw new ErrorUpscaleCompra('Empresa no encontrada.', 'no_encontrado');
+  }
+  const funcionalidad = await obtenerExtraPorId(funcionalidadId, db);
+  if (!funcionalidad) {
+    throw new ErrorUpscaleCompra('Este extra ya no está disponible.', 'sin_catalogo');
+  }
+  return { tenant, funcionalidad };
+}
+
+async function exigirExtraNoActivo(tenantId, funcionalidadId, db) {
+  const [filas] = await db.query(
+    `SELECT id FROM tenant_upscales_activos WHERE tenant_id = ? AND funcionalidad_id = ? AND activo = 1 LIMIT 1`,
+    [tenantId, funcionalidadId]
+  );
+  if (filas.length > 0) {
+    throw new ErrorUpscaleCompra('Ya tienes este extra activo en tu cuenta.', 'validacion');
+  }
+}
+
+async function simularCompraExtra(slug, funcionalidadId, db = obtenerPool()) {
+  const { tenant, funcionalidad } = await cargarTenantYExtra(slug, funcionalidadId, db);
+  await exigirExtraNoActivo(tenant.id, funcionalidad.id, db);
+  return calcularResumenExtra(tenant, funcionalidad);
+}
+
+async function aplicarExtra(tenant, funcionalidad, resumen, { estado, stripeCheckoutSessionId = null, stripeSubscriptionItemId = null }, db) {
+  const ahora = new Date();
+  await db.query(
+    `INSERT INTO tenant_upscales_activos
+       (tenant_id, funcionalidad_id, cantidad, disco_mb_otorgado, usuarios_otorgados, monto_recurrente, ciclo, primer_cobro_estado, stripe_checkout_session_id, stripe_subscription_item_id, creado_en, actualizado_en)
+     VALUES (?, ?, 1, NULL, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+    [tenant.id, funcionalidad.id, resumen.monto, resumen.ciclo || 'mensual', estado, stripeCheckoutSessionId, stripeSubscriptionItemId, ahora, ahora]
+  );
+  notificarInvalidacionCache(tenant.slug).catch((err) => {
+    console.error(`No se pudo invalidar la caché del backend tras el extra de "${tenant.slug}":`, err.message);
+  });
+}
+
+async function confirmarCompraExtra(slug, funcionalidadId, { successUrl, cancelUrl } = {}, db = obtenerPool()) {
+  const { tenant, funcionalidad } = await cargarTenantYExtra(slug, funcionalidadId, db);
+  await exigirExtraNoActivo(tenant.id, funcionalidad.id, db);
+  const resumen = calcularResumenExtra(tenant, funcionalidad);
+
+  if (funcionalidad.tipo_cobro === 'unico') {
+    if (!successUrl || !cancelUrl) {
+      throw new ErrorUpscaleCompra('successUrl y cancelUrl son obligatorios para una compra de cobro único.', 'validacion');
+    }
+    const { obtenerStripe, montoCentavos } = require('./stripePagos');
+    const stripe = obtenerStripe();
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: 'mxn',
+            unit_amount: montoCentavos(resumen.monto),
+            product_data: { name: `Clarvo — ${funcionalidad.nombre}` },
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        tipo: 'upscale',
+        tipo_recurso: 'extra',
+        tenant_slug: slug,
+        funcionalidad_id: String(funcionalidad.id),
+        monto: String(resumen.monto),
+        ciclo: resumen.ciclo || 'mensual',
+      },
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+    });
+    return { ok: true, cobroInmediato: true, checkoutUrl: session.url, resumen };
+  }
+
+  const item = await cobrarUpscaleRecurrenteViaSubscription('extra', tenant, funcionalidad, { ...resumen, cantidad: 1 }, db);
+  await aplicarExtra(tenant, funcionalidad, resumen, { estado: 'cobrado_hoy', stripeSubscriptionItemId: item.id }, db);
+  return { ok: true, cobroInmediato: true, cobradoViaSuscripcion: true, resumen };
+}
+
+// Mi Cuenta ("Plan de suscripción"): extras ya comprados y activos de
+// este tenant, para pintarlos como lista aparte de disco/usuarios.
+async function listarExtrasActivos(slug, db = obtenerPool()) {
+  const tenant = await cargarTenantPorSlug(slug, db);
+  if (!tenant) return [];
+  const [filas] = await db.query(
+    `SELECT f.nombre, t.monto_recurrente, t.ciclo, f.tipo_cobro
+       FROM tenant_upscales_activos t
+       JOIN funcionalidades_upscale f ON f.id = t.funcionalidad_id
+      WHERE t.tenant_id = ? AND t.activo = 1 AND f.disco_mb IS NULL AND f.usuarios_otorgados IS NULL
+      ORDER BY t.creado_en`,
+    [tenant.id]
+  );
+  return filas.map((f) => ({
+    nombre: f.nombre,
+    monto: Number(f.monto_recurrente),
+    ciclo: f.ciclo,
+    tipoCobro: f.tipo_cobro,
+  }));
+}
+
 module.exports = {
   ErrorUpscaleCompra,
   DIAS_UMBRAL_COBRO_INMEDIATO,
@@ -386,4 +573,8 @@ module.exports = {
   simularCompraUpscale,
   confirmarCompraUpscale,
   confirmarUpscalePagado,
+  listarExtrasDisponibles,
+  simularCompraExtra,
+  confirmarCompraExtra,
+  listarExtrasActivos,
 };

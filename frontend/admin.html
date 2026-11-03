@@ -4533,6 +4533,12 @@
                   <span id="micuenta-disco-medidor-texto">Almacenamiento</span>
                   <div class="micuenta-disco-medidor-track"><div class="micuenta-disco-medidor-fill" id="micuenta-disco-medidor-fill"></div></div>
                 </div>
+                <!-- Extras comprados (ver "Ampliar mi plan" → pestaña
+                     Extras) — oculto si el tenant no tiene ninguno activo. -->
+                <div class="micuenta-extras-wrap" id="micuenta-extras-wrap" hidden>
+                  <span class="micuenta-empresa-label">Extras</span>
+                  <div class="micuenta-extras-lista" id="micuenta-extras-lista"></div>
+                </div>
                 <p class="micuenta-suscripcion-texto" id="micuenta-suscripcion-cancelar-al-corte-aviso" hidden></p>
                 <!-- Cuenta raíz únicamente (puedeGestionarSuscripcion,
                      mismo candado que "Datos de pago") — cancelar/pausar
@@ -4642,10 +4648,6 @@
             Volver a Mi Cuenta
           </button>
         </div>
-        <div class="metodo-pago-banner">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
-          <p>Vista previa del flujo real — la integración con Stripe todavía está pendiente. "Guardar método" no cobra ni cambia tu tarjeta de verdad. Si necesitas regularizar tu suscripción ahora, contacta a soporte.</p>
-        </div>
         <div class="metodo-pago-split">
           <div class="micuenta-card micuenta-card-navy metodo-pago-plan">
             <h2 class="micuenta-card-titulo micuenta-card-titulo-navy">Tu plan</h2>
@@ -4665,31 +4667,14 @@
             </div>
           </div>
           <div class="micuenta-card metodo-pago-form">
-            <h2 class="micuenta-card-titulo">Nueva tarjeta</h2>
-            <div class="field">
-              <label for="metodo-pago-numero">Número de tarjeta</label>
-              <input type="text" id="metodo-pago-numero" placeholder="•••• •••• •••• ••••" autocomplete="off" inputmode="numeric" maxlength="19" />
-            </div>
-            <div class="metodo-pago-fila-doble">
-              <div class="field">
-                <label for="metodo-pago-vencimiento">Vencimiento</label>
-                <input type="text" id="metodo-pago-vencimiento" placeholder="MM / AA" autocomplete="off" inputmode="numeric" maxlength="7" />
-              </div>
-              <div class="field">
-                <label for="metodo-pago-cvc">CVC</label>
-                <input type="text" id="metodo-pago-cvc" placeholder="•••" autocomplete="off" inputmode="numeric" maxlength="4" />
-              </div>
-            </div>
-            <div class="field">
-              <label for="metodo-pago-titular">Nombre del titular</label>
-              <input type="text" id="metodo-pago-titular" placeholder="Como aparece en la tarjeta" autocomplete="off" />
-            </div>
+            <h2 class="micuenta-card-titulo">Pagar con tarjeta</h2>
+            <p class="field-hint">Te llevamos a la página segura de Stripe para capturar tu tarjeta — nunca pedimos ni guardamos ese dato en los servidores de Clarvo.</p>
             <p class="metodo-pago-trust">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              Procesado de forma segura por Stripe — el número de tarjeta nunca se guarda en los servidores de Clarvo.
+              Procesado de forma segura por Stripe.
             </p>
             <div class="btn-row">
-              <button type="button" class="btn btn-primary" id="btn-metodo-pago-guardar">Guardar método</button>
+              <button type="button" class="btn btn-primary" id="btn-metodo-pago-guardar">Ir a pagar con Stripe</button>
             </div>
           </div>
         </div>
@@ -5157,6 +5142,7 @@
       <div class="upscale-tabs" id="upscale-tabs" role="tablist">
         <button type="button" class="upscale-tab is-activa" id="upscale-tab-disco" data-tipo="disco" role="tab" aria-selected="true">Almacenamiento</button>
         <button type="button" class="upscale-tab" id="upscale-tab-usuarios" data-tipo="usuarios" role="tab" aria-selected="false">Usuarios</button>
+        <button type="button" class="upscale-tab" id="upscale-tab-extras" data-tipo="extras" role="tab" aria-selected="false">Extras</button>
         <button type="button" class="upscale-tab" id="upscale-tab-plan" data-tipo="plan" role="tab" aria-selected="false">Subir de plan</button>
       </div>
 
@@ -5176,6 +5162,19 @@
         <div class="btn-row">
           <button type="button" class="btn btn-secondary" id="btn-upscale-cancelar">Cancelar</button>
           <button type="button" class="btn btn-primary" id="btn-upscale-confirmar" disabled>Confirmar compra</button>
+        </div>
+      </div>
+
+      <!-- Extras: funcionalidades del catálogo sin recurso asociado
+           (disco/usuarios) — lista completa, cada una con su propio
+           botón de compra (feature binaria, nunca cantidad variable).
+           Mismo cobro inmediato con proración que disco/usuarios. -->
+      <div id="upscale-panel-extras" hidden>
+        <div id="upscale-extras-cargando">Cargando extras disponibles…</div>
+        <div id="upscale-extras-lista"></div>
+        <p class="field-error" id="upscale-extras-error" role="alert"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="btn-upscale-extras-cerrar">Cerrar</button>
         </div>
       </div>
 

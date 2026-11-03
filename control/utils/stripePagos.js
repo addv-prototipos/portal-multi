@@ -217,6 +217,11 @@ async function enrutarPagoConfirmado(session, db) {
     await confirmarUpscalePagado(session, db);
     return;
   }
+  if (session.metadata && session.metadata.tipo === 'reactivacion') {
+    const { manejarReactivacionConfirmada } = require('./reactivacionTenant');
+    await manejarReactivacionConfirmada(session, db);
+    return;
+  }
   await manejarPagoConfirmado(session, db);
 }
 

@@ -23,6 +23,13 @@ const { registrarAccesoAdmin } = require('./adminAuditoria');
 // del frontend al dar de baja ("tienes 30 días para reactivar").
 const DIAS_RETENCION_BAJA = 30;
 
+// Punto en curso (archivado automático de trial vencido sin pago): ventana
+// de retención propia, más corta que la baja manual — confirmado
+// explícitamente con el usuario (15 días, no los 30 de siempre). Nunca
+// cambia DIAS_RETENCION_BAJA, que sigue aplicando a cualquier otra baja.
+const DIAS_RETENCION_BAJA_TRIAL_VENCIDO = 15;
+const MOTIVO_BAJA_TRIAL_VENCIDO = 'trial_vencido_sin_pago';
+
 // Error tipado para que la capa de rutas distinga "el tenant no existe"
 // (404) de "el tenant existe pero no está en un estado válido para esta
 // transición" (409) sin tener que volver a consultar la fila.
@@ -62,7 +69,7 @@ async function listarTenants({ estado, q } = {}, db = obtenerPool()) {
   }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
   const [filas] = await db.query(
-    `SELECT t.id, t.slug, t.nombre_empresa, t.estado, t.contacto_email, t.creado_en, t.activado_en, t.suspendido_en, t.baja_en,
+    `SELECT t.id, t.slug, t.nombre_empresa, t.estado, t.contacto_email, t.creado_en, t.activado_en, t.suspendido_en, t.baja_en, t.baja_motivo,
             t.marca, t.marca_logo_url, t.tema_json,
             t.marca_lookfeel_habilitado, t.max_usuarios,
             t.plan_id, t.plan_actualizado_en, p.nombre AS plan_nombre,
@@ -100,10 +107,17 @@ async function obtenerTenantPorSlug(slug, db = obtenerPool()) {
 // el peor caso, la caché de tenant del backend tarda su TTL normal
 // (hasta 45s) en corregirse sola, degradando con gracia en vez de
 // tumbar una transición que sí se aplicó.
-async function aplicarTransicion(db, { slug, estadosOrigen, estadoDestino, columnaTimestamp, tipoEvento, actor }) {
+// `camposExtra` (opcional): columnas adicionales a setear en el MISMO
+// UPDATE atómico — ej. baja_motivo al archivar por trial vencido sin
+// pago. Nunca una segunda query separada: evita una ventana donde el
+// estado ya cambió pero el motivo todavía no, visible a una lectura
+// concurrente justo en medio.
+async function aplicarTransicion(db, { slug, estadosOrigen, estadoDestino, columnaTimestamp, tipoEvento, actor, camposExtra = {} }) {
+  const nombresExtra = Object.keys(camposExtra);
+  const asignacionesExtra = nombresExtra.map((c) => `${c} = ?`).join(', ');
   const [resultado] = await db.query(
-    `UPDATE tenants SET estado = ?, ${columnaTimestamp} = NOW() WHERE slug = ? AND estado IN (${estadosOrigen.map(() => '?').join(',')})`,
-    [estadoDestino, slug, ...estadosOrigen]
+    `UPDATE tenants SET estado = ?, ${columnaTimestamp} = NOW()${asignacionesExtra ? ', ' + asignacionesExtra : ''} WHERE slug = ? AND estado IN (${estadosOrigen.map(() => '?').join(',')})`,
+    [estadoDestino, ...nombresExtra.map((c) => camposExtra[c]), slug, ...estadosOrigen]
   );
 
   if (resultado.affectedRows === 0) {
@@ -185,10 +199,20 @@ async function reactivarTenant(slug, { actor } = {}, db = obtenerPool()) {
     columnaTimestamp: 'activado_en',
     tipoEvento: 'reactivacion',
     actor,
+    // Limpia baja_motivo siempre (inofensivo si ya era NULL) — sin esto,
+    // un tenant reactivado desde el pago del link de 15 días quedaría con
+    // baja_motivo='trial_vencido_sin_pago' residual, y si algún día vuelve
+    // a archivarse MANUALMENTE (operador, sin motivo explícito) heredaría
+    // por accidente el umbral corto de 15 días en vez del global de 30.
+    camposExtra: { baja_motivo: null },
   });
 }
 
-async function darDeBajaTenant(slug, { actor } = {}, db = obtenerPool()) {
+// `motivo` (opcional): NULL/omitido = baja manual del operador desde
+// /control (sigue aplicando DIAS_RETENCION_BAJA, 30 días). Un motivo
+// explícito identifica una causa automática con su propio umbral de
+// retención — ver purgarBajasVencidas() más abajo, nunca toca el global.
+async function darDeBajaTenant(slug, { actor, motivo = null } = {}, db = obtenerPool()) {
   // No-destructivo por diseño: solo cambia "estado" — NUNCA borra la base
   // de datos tenant_<slug> ni su prefijo en MinIO. Mismo espíritu que
   // cutover-tenant-piloto.js, que tampoco toca nunca los datos origen.
@@ -199,6 +223,7 @@ async function darDeBajaTenant(slug, { actor } = {}, db = obtenerPool()) {
     columnaTimestamp: 'baja_en',
     tipoEvento: 'baja',
     actor,
+    camposExtra: motivo ? { baja_motivo: motivo } : {},
   });
 }
 
@@ -280,8 +305,14 @@ async function vaciarPapelera({ actor } = {}, db = obtenerPool()) {
 async function purgarBajasVencidas(db = obtenerPool()) {
   const ACTOR_PURGA = 'sistema:purga-automatica-30d';
   const enBaja = await listarTenants({ estado: 'baja' }, db);
-  const limiteMs = DIAS_RETENCION_BAJA * 24 * 60 * 60 * 1000;
   const ahora = Date.now();
+  // Umbral por motivo (punto en curso): trial vencido sin pago se purga a
+  // los DIAS_RETENCION_BAJA_TRIAL_VENCIDO (15) días — cualquier otro
+  // motivo (incluido NULL, la baja manual del operador de siempre) sigue
+  // en DIAS_RETENCION_BAJA (30), sin tocar esa constante global.
+  const limiteMsPara = (t) =>
+    (t.baja_motivo === MOTIVO_BAJA_TRIAL_VENCIDO ? DIAS_RETENCION_BAJA_TRIAL_VENCIDO : DIAS_RETENCION_BAJA) *
+    24 * 60 * 60 * 1000;
   // baja_en llega como 'YYYY-MM-DD HH:MM:SS' (dateStrings:true, guardado
   // en UTC, sin indicador de zona en el texto) — `new Date()` a secas lo
   // interpretaría como hora LOCAL del proceso, no UTC. En este contenedor
@@ -292,7 +323,7 @@ async function purgarBajasVencidas(db = obtenerPool()) {
     const texto = String(fechaHora);
     return new Date(texto.endsWith('Z') ? texto : `${texto.replace(' ', 'T')}Z`);
   };
-  const vencidos = enBaja.filter((t) => t.baja_en && ahora - instanteUtc(t.baja_en).getTime() >= limiteMs);
+  const vencidos = enBaja.filter((t) => t.baja_en && ahora - instanteUtc(t.baja_en).getTime() >= limiteMsPara(t));
 
   const eliminados = [];
   const fallidos = [];
@@ -355,6 +386,8 @@ module.exports = {
   vaciarPapelera,
   purgarBajasVencidas,
   DIAS_RETENCION_BAJA,
+  DIAS_RETENCION_BAJA_TRIAL_VENCIDO,
+  MOTIVO_BAJA_TRIAL_VENCIDO,
   recalcularUsoDisco,
   ErrorCalculoDisco,
 };

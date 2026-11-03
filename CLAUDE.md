@@ -1133,6 +1133,28 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   directamente (no vía Checkout), aplicar el mismo patrón desde el
   inicio — `product_data` ahí truena con
   `Received unknown parameter: ... [price_data][product_data]`.
+- **Tercer caso confirmado, ya sin tocar Subscription Items a mano**
+  (punto 462, 2026-10-30, "Extras" en el modal de upscale):
+  `cobrarUpscaleRecurrenteViaSubscription()`/`obtenerOCrearProductoStripe()`
+  (`control/utils/tenantUpscaleCompra.js`) nunca dependían de
+  `RECURSOS[tipo]` (el mapa que sí exige 'disco'/'usuarios') — se
+  reusaron tal cual pasándoles `tipo='extra'`, cero código de cobro
+  duplicado. Al agregar un CUARTO tipo de upscale comprable en el
+  futuro, reusar esas 2 funciones primero (son genéricas por diseño) en
+  vez de escribir un tercer camino de cobro a Stripe desde cero.
+- **`funcionalidades_upscale` con `recurso_tipo='ninguno'` (features
+  binarias sin disco/usuarios asociado) existía en el catálogo de
+  `/control` desde antes, pero el flujo de COMPRA completo (`backend/
+  server.js` + `tenantUpscaleCompra.js`) solo aceptaba `tipo`
+  'disco'/'usuarios' hasta el punto 462** — un extra creado en el
+  catálogo no tenía ninguna forma de comprarse (mismo bug-shape que el
+  punto 433, "un campo preparado pero nunca conectado"). Ahora tiene su
+  propio flujo ("Extras", pestaña 4 del modal "Ampliar tu plan") —
+  `exigirExtraNoActivo()` bloquea recompra de la misma feature (a
+  diferencia de disco/usuarios, un extra es binario, no tiene cantidad
+  variable). Antes de dar por "no implementada" una feature del catálogo
+  de upscale, revisar si ya tiene flujo de compra real o solo existe en
+  el CRUD de `/control`.
 - **Una acción de retención/upsell nunca tiene sentido en la fila de un
   tenant que YA cancela, si esa acción no toca `cancel_at_period_end`**
   (punto 440, encontrado por el usuario revisando el reporte, no por mí):

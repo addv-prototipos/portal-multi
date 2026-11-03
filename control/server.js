@@ -87,7 +87,10 @@ const { ErrorUpscale, listarUpscale, crearUpscale, editarUpscale, archivarUpscal
 const { getConfigMsi, setConfigMsi, metodosPagoInfo, listarCodigosDescuento, crearCodigoDescuento, desactivarCodigoDescuento, activarCodigoDescuento, eliminarCodigoDescuento, reemplazarCodigoDescuento } = require('./utils/stripeConfig');
 const { getConfigRecordatorios, setConfigRecordatorios, listarEnSeguimiento, procesarRecordatoriosPendientes } = require('./utils/recordatorios');
 const { calcularResumenCapacidad } = require('./utils/discoCapacidad');
-const { ErrorUpscaleCompra, simularCompraUpscale, confirmarCompraUpscale } = require('./utils/tenantUpscaleCompra');
+const {
+  ErrorUpscaleCompra, simularCompraUpscale, confirmarCompraUpscale,
+  listarExtrasDisponibles, confirmarCompraExtra, listarExtrasActivos,
+} = require('./utils/tenantUpscaleCompra');
 const {
   ErrorCancelacion,
   obtenerEstadoCancelacion,
@@ -452,6 +455,34 @@ app.get(
   })
 );
 
+// Link de "15 días para cambiar de opinión" (correo de trial vencido sin
+// pago) — público a propósito, nunca pasa por requireAdminAuth ni por el
+// candado anti-enumeración de slugs (CLAUDE.md, punto 422: un tenant en
+// estado='baja' responde 404 genérico en cualquier ruta normal). Un
+// token inválido/usado/vencido nunca revela si el tenant existe o no —
+// mismo mensaje genérico en los 3 casos. Éxito = redirect 303 directo a
+// Stripe, sin página intermedia propia (menos superficie nueva).
+app.get(
+  '/api/public/reactivacion/:token',
+  onboardingPublicLimiter,
+  asyncHandler(async (req, res) => {
+    const { crearCheckoutSessionDesdeToken } = require('./utils/reactivacionTenant');
+    try {
+      const { checkoutUrl } = await crearCheckoutSessionDesdeToken(req.params.token);
+      res.redirect(303, checkoutUrl);
+    } catch (err) {
+      res.status(400).send(`<!doctype html><html lang="es"><head><meta charset="utf-8">
+<title>Clarvo — Link no disponible</title>
+<style>body{font-family:-apple-system,sans-serif;background:#0B1320;color:#ECEEF4;display:flex;
+align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center}
+.caja{max-width:420px}h1{font-size:20px;margin:0 0 12px}p{color:#9BA6B8;line-height:1.6}</style>
+</head><body><div class="caja"><h1>Este link ya no está disponible</h1>
+<p>Puede que ya se haya usado, haya vencido, o no sea válido. Si crees que esto es un error, contáctanos.</p>
+</div></body></html>`);
+    }
+  })
+);
+
 app.get(
   '/api/public/onboarding/borrador/:token',
   onboardingPublicLimiter,
@@ -568,19 +599,37 @@ app.get(
 // exacto para validar esa firma.
 app.post('/api/control/webhooks/stripe', async (req, res) => {
   const stripeKey = process.env.STRIPE_SECRET_KEY;
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!stripeKey || !webhookSecret) {
+  if (!stripeKey) {
     // Fail-closed, mismo criterio que turnstile.js: sin configurar, nunca
     // procesa un evento sin poder verificar de verdad que viene de Stripe.
     return res.status(503).json({ error: 'Webhook de Stripe no configurado.' });
   }
   const Stripe = require('stripe');
   const stripe = new Stripe(stripeKey);
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(req.rawBody, req.get('stripe-signature'), webhookSecret);
-  } catch (err) {
-    console.error('Firma de webhook de Stripe inválida:', err.message);
+  // Incidente real (punto en curso): un `.env` desactualizado en el host
+  // nunca debe volver a bloquear un pago real — se intenta primero con
+  // STRIPE_WEBHOOK_SECRET del proceso vivo y, si la firma no valida, con
+  // el último secreto que stripeWebhookHealth.js haya guardado en
+  // `ajustes_globales` (puede ser el mismo, o uno más nuevo si el
+  // self-healing creó el endpoint de nuevo sin que nadie haya
+  // redesplegado todavía). Ver el diseño completo en ese archivo.
+  const { secretosCandidatos } = require('./utils/stripeWebhookHealth');
+  const candidatos = await secretosCandidatos();
+  if (candidatos.length === 0) {
+    return res.status(503).json({ error: 'Webhook de Stripe no configurado.' });
+  }
+  let event = null;
+  let ultimoError = null;
+  for (const secreto of candidatos) {
+    try {
+      event = stripe.webhooks.constructEvent(req.rawBody, req.get('stripe-signature'), secreto);
+      break;
+    } catch (err) {
+      ultimoError = err;
+    }
+  }
+  if (!event) {
+    console.error('Firma de webhook de Stripe inválida (probados', candidatos.length, 'secreto(s)):', ultimoError && ultimoError.message);
     return res.status(400).json({ error: 'Firma inválida.' });
   }
 
@@ -596,6 +645,41 @@ app.post('/api/control/webhooks/stripe', async (req, res) => {
     console.error(`Error procesando evento de Stripe "${event.type}" (${event.id}):`, err);
   }
 });
+
+// Health-check bajo demanda (pensado para monitoreo externo — uptime
+// checker, panel de /control, o simplemente un operador verificando a
+// mano después de un deploy). Mismo candado que el resto de /api/control
+// (admin autenticado) — no público, a diferencia del webhook de arriba.
+// Nunca repara en este GET (autoReparar:false) para que consultar el
+// estado sea inocuo; la reparación real ocurre sola en el job de cada
+// hora (ver iniciarVerificacionWebhookStripeAutomatica) o se dispara
+// explícitamente con el POST de abajo.
+app.get(
+  '/api/control/health/stripe-webhook',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const { verificarYRepararWebhook, estadoGuardado } = require('./utils/stripeWebhookHealth');
+    const [verificacion, guardado] = await Promise.all([
+      verificarYRepararWebhook({ autoReparar: false }),
+      estadoGuardado(),
+    ]);
+    res.json({ verificacion, ultimaCorridaAutomatica: guardado });
+  })
+);
+
+app.post(
+  '/api/control/health/stripe-webhook/reparar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const { verificarYRepararWebhook } = require('./utils/stripeWebhookHealth');
+    const resultado = await verificarYRepararWebhook({ autoReparar: true });
+    res.json(resultado);
+  })
+);
 
 app.get(
   '/api/control/tenants',
@@ -1776,6 +1860,50 @@ app.post('/internal/upscale/confirmar', asyncHandler(async (req, res) => {
   }
 }));
 
+// ---------- Extras (punto en curso): funcionalidades del catálogo sin
+// recurso asociado — ver el bloque "Extras" en tenantUpscaleCompra.js.
+// Mismo patrón backend->control que /internal/upscale/* de arriba. ----------
+app.post('/internal/upscale/extras/disponibles', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
+  try {
+    const extras = await listarExtrasDisponibles(slug);
+    res.json({ ok: true, extras });
+  } catch (err) {
+    if (err instanceof ErrorUpscaleCompra) {
+      const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'sin_catalogo' ? 409 : 400;
+      return res.status(estatus).json({ error: err.message, codigo: err.codigo });
+    }
+    throw err;
+  }
+}));
+
+app.post('/internal/upscale/extras/comprar', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug, funcionalidadId, successUrl, cancelUrl } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
+  if (!funcionalidadId) return res.status(400).json({ error: 'funcionalidadId es obligatorio.' });
+  try {
+    const resultado = await confirmarCompraExtra(slug, Number(funcionalidadId), { successUrl, cancelUrl });
+    res.json(resultado);
+  } catch (err) {
+    if (err instanceof ErrorUpscaleCompra) {
+      const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'sin_catalogo' ? 409 : 400;
+      return res.status(estatus).json({ error: err.message, codigo: err.codigo });
+    }
+    throw err;
+  }
+}));
+
+app.post('/internal/upscale/extras/activos', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
+  const extras = await listarExtrasActivos(slug);
+  res.json({ ok: true, extras });
+}));
+
 // ---------- Cancelación de suscripción con retención (A2+A1) + encuesta de salida (C1) ----------
 // Mismo patrón backend->control que /internal/upscale/* arriba — el
 // admin raíz está autenticado en backend/, pero stripe_subscription_id,
@@ -1790,6 +1918,28 @@ function manejarErrorCancelacion(err, res) {
   }
   throw err;
 }
+
+// Checkout real de Stripe para activar/reactivar la suscripción de un
+// tenant ya existente — mismo mecanismo tanto desde el muro de
+// suscripción (tenant todavía 'activo' pero bloqueado) como desde el
+// link público de 15 días (tenant ya en 'baja'), ver reactivacionTenant.js.
+app.post('/internal/reactivacion/checkout', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
+  const { crearCheckoutSessionReactivacion, ErrorReactivacion } = require('./utils/reactivacionTenant');
+  try {
+    const [filas] = await obtenerPool().query('SELECT id FROM tenants WHERE slug = ?', [slug]);
+    if (!filas[0]) return res.status(404).json({ error: 'Empresa no encontrada.' });
+    res.json({ ok: true, ...(await crearCheckoutSessionReactivacion(filas[0].id)) });
+  } catch (err) {
+    if (err instanceof ErrorReactivacion) {
+      const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'validacion' ? 400 : 400;
+      return res.status(estatus).json({ error: err.message, codigo: err.codigo });
+    }
+    throw err;
+  }
+}));
 
 app.post('/internal/suscripcion/estado-cancelacion', asyncHandler(async (req, res) => {
   if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
@@ -2390,7 +2540,7 @@ app.use((req, res) => {
 
 async function iniciar() {
   await asegurarTablaAuditoria();
-  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores, asegurarTablaStripeEventos, asegurarTablaUpscale, asegurarTablaUpscaleActivos, asegurarTablaCancelacionesEncuesta, asegurarTablasTerminos } = require('./scripts/ensureSchema');
+  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores, asegurarTablaStripeEventos, asegurarTablaUpscale, asegurarTablaUpscaleActivos, asegurarTablaCancelacionesEncuesta, asegurarTablasTerminos, asegurarTablaReactivacionTokens } = require('./scripts/ensureSchema');
   // asegurarTablasSucursales() debe correr ANTES de
   // asegurarColumnasCicloVidaTenant(): esta última hace un UPDATE sobre
   // `tenants.grupo_sucursal_id`, columna que crea asegurarTablasSucursales
@@ -2409,6 +2559,7 @@ async function iniciar() {
   await asegurarTablaUpscaleActivos(obtenerPool());
   await asegurarTablaCancelacionesEncuesta(obtenerPool());
   await asegurarTablasTerminos(obtenerPool());
+  await asegurarTablaReactivacionTokens(obtenerPool());
 
   app.listen(PORT, () => {
     console.log(`Control escuchando en el puerto ${PORT}`);
@@ -2417,6 +2568,8 @@ async function iniciar() {
   iniciarPurgaAutomatica();
   iniciarRecordatoriosAutomaticos();
   iniciarAlertaCapacidadDiscoAutomatica();
+  iniciarArchivadoTrialsAutomatico();
+  iniciarVerificacionWebhookStripeAutomatica();
 }
 
 // Temporizador propio dentro del proceso de control/ (mecanismo elegido
@@ -2508,6 +2661,68 @@ function iniciarAlertaCapacidadDiscoAutomatica() {
 
   setTimeout(ejecutar, 60 * 1000);
   setInterval(ejecutar, INTERVALO_DISCO_CAPACIDAD_MS);
+}
+
+// Archivado automático de trial manual vencido sin pago (pedido explícito
+// del usuario): mismo criterio de fondo que el resto de este bloque —
+// cada hora alcanza para que "el mismo día que vence" sea real sin
+// necesitar cron externo. Un tenant que falla no detiene al resto del
+// barrido (mismo criterio que purgarBajasVencidas/recordatorios).
+const INTERVALO_ARCHIVADO_TRIALS_MS = 60 * 60 * 1000;
+let archivadoTrialsEnCurso = false;
+
+function iniciarArchivadoTrialsAutomatico() {
+  const ejecutar = async () => {
+    if (archivadoTrialsEnCurso) return;
+    archivadoTrialsEnCurso = true;
+    try {
+      const { archivarTrialsVencidosSinPago } = require('./utils/reactivacionTenant');
+      const { archivados, total } = await archivarTrialsVencidosSinPago();
+      if (archivados || total) {
+        console.log(`Archivado automático de trials vencidos sin pago: ${archivados}/${total} archivado(s).`);
+      }
+    } catch (err) {
+      console.error('Error corriendo el archivado automático de trials vencidos:', err.message);
+    } finally {
+      archivadoTrialsEnCurso = false;
+    }
+  };
+
+  setTimeout(ejecutar, 50 * 1000);
+  setInterval(ejecutar, INTERVALO_ARCHIVADO_TRIALS_MS);
+}
+
+// Health-check/self-healing del webhook de Stripe (punto en curso,
+// incidente real — ver control/utils/stripeWebhookHealth.js para el
+// diseño completo). Corre al arrancar (cubre "se acaba de desplegar
+// control por primera vez, o tras rotar llaves") y cada hora después
+// (cubre "Stripe deshabilitó el endpoint por fallos repetidos" sin
+// esperar a que alguien note un tenant atorado). Un fallo de red hacia
+// Stripe no debe tumbar el resto de los jobs de este bloque.
+const INTERVALO_WEBHOOK_STRIPE_MS = 60 * 60 * 1000;
+let webhookStripeEnCurso = false;
+
+function iniciarVerificacionWebhookStripeAutomatica() {
+  const ejecutar = async () => {
+    if (webhookStripeEnCurso) return;
+    webhookStripeEnCurso = true;
+    try {
+      const { verificarYRepararWebhook } = require('./utils/stripeWebhookHealth');
+      const resultado = await verificarYRepararWebhook({ autoReparar: true });
+      if (!resultado.ok) {
+        console.error(`ALERTA: webhook de Stripe (${resultado.modo || 'modo desconocido'}) sin reparar — ${resultado.error}`);
+      } else if (resultado.accion !== 'ninguna') {
+        console.log(`Webhook de Stripe (${resultado.modo}): acción "${resultado.accion}" aplicada (endpoint ${resultado.endpointId}).`);
+      }
+    } catch (err) {
+      console.error('Error verificando el webhook de Stripe:', err.message);
+    } finally {
+      webhookStripeEnCurso = false;
+    }
+  };
+
+  setTimeout(ejecutar, 15 * 1000);
+  setInterval(ejecutar, INTERVALO_WEBHOOK_STRIPE_MS);
 }
 
 // Igual que backend/server.js: solo arranca si este archivo se ejecuta

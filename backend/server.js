@@ -1171,12 +1171,12 @@ app.post('/internal/enviar-correo-base', async (req, res) => {
   if (!secretoInternoValido(req)) {
     return res.status(403).json({ error: 'No autorizado.' });
   }
-  const { destinatario, asunto, cuerpo } = req.body || {};
+  const { destinatario, asunto, cuerpo, html } = req.body || {};
   if (!destinatario || !isValidEmail(destinatario) || !asunto || !cuerpo) {
     return res.status(400).json({ error: 'destinatario, asunto y cuerpo son obligatorios.' });
   }
   try {
-    await enviarCorreo({ destinatario, asunto, cuerpo });
+    await enviarCorreo({ destinatario, asunto, cuerpo, ...(html ? { html } : {}) });
     res.json({ ok: true });
   } catch (err) {
     console.error(`No se pudo enviar el correo base a ${destinatario}:`, err.message);
@@ -5224,6 +5224,18 @@ app.get(
         } catch (err) {
           console.error('No se pudo leer la suscripción del tenant desde Control:', err.message);
         }
+        // Extras comprados (ver el bloque "Extras" de
+        // control/utils/tenantUpscaleCompra.js) — lista propia, aparte de
+        // disco/usuarios, para pintarlos en "Plan de suscripción". Falla
+        // silencioso a lista vacía: no bloquea el resto de la tarjeta si
+        // Control no responde.
+        let extras = [];
+        try {
+          const { ok, data } = await llamarControlInterno('/internal/upscale/extras/activos', { slug: req.tenant.slug });
+          if (ok && Array.isArray(data.extras)) extras = data.extras;
+        } catch (err) {
+          console.error('No se pudieron leer los extras activos desde Control:', err.message);
+        }
         respuesta.empresa.suscripcion = {
           ilimitada: false,
           planNombre,
@@ -5236,6 +5248,7 @@ app.get(
           precioAnual,
           tieneSuscripcionReal,
           cancelarAlCorte,
+          extras,
         };
         // Punto 418: "Datos de pago" en Mi Cuenta — SOLO la cuenta
         // raíz/maestra (antes: cualquier administrador/super, ver punto
@@ -5437,6 +5450,54 @@ app.post(
   })
 );
 
+// ---------- Extras: funcionalidades del catálogo sin recurso asociado
+// (ver el bloque "Extras" en control/utils/tenantUpscaleCompra.js) —
+// mismo proxy backend->control que disco/usuarios de arriba. ----------
+app.get(
+  '/api/admin/mi-cuenta/upscale/extras',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (req.adminPerfil !== 'administrador' && req.adminPerfil !== 'super') {
+      return res.status(403).json({ error: 'Tu perfil no tiene acceso a esta opción.' });
+    }
+    if (!req.tenant) {
+      return res.status(404).json({ error: 'El sitio base no tiene extras que ampliar.' });
+    }
+    const { ok, status, data } = await llamarControlInterno('/internal/upscale/extras/disponibles', {
+      slug: req.tenant.slug,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudieron calcular los extras disponibles.', codigo: data.codigo });
+    res.json(data);
+  })
+);
+
+app.post(
+  '/api/admin/mi-cuenta/upscale/extras/comprar',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (req.adminPerfil !== 'administrador' && req.adminPerfil !== 'super') {
+      return res.status(403).json({ error: 'Tu perfil no tiene acceso a esta opción.' });
+    }
+    if (!req.tenant) {
+      return res.status(404).json({ error: 'El sitio base no tiene extras que ampliar.' });
+    }
+    const funcionalidadId = Number((req.body || {}).funcionalidadId);
+    if (!funcionalidadId) return res.status(400).json({ error: 'funcionalidadId es obligatorio.' });
+    const urlPortal = detectarUrlPortal(req);
+    const { ok, status, data } = await llamarControlInterno('/internal/upscale/extras/comprar', {
+      slug: req.tenant.slug,
+      funcionalidadId,
+      successUrl: `${urlPortal}/admin?vista=mi-cuenta&upscale=exito`,
+      cancelUrl: `${urlPortal}/admin?vista=mi-cuenta&upscale=cancelado`,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudo procesar la compra.', codigo: data.codigo });
+    invalidarCacheTenant(req.tenant.slug);
+    res.json(data);
+  })
+);
+
 // ---------- Términos y Condiciones: gate post-onboarding, solo cuenta raíz (Propuesta 1) ----------
 // Mismo proxy backend->control que el upscale de arriba. A diferencia de
 // ese y de Cancelar suscripción, SÍ aplica al sitio base (sin tenant) —
@@ -5502,6 +5563,24 @@ async function exigirAdminRaizConTenant(req, res) {
   }
   return true;
 }
+
+// Checkout real de Stripe (reemplaza el stub "integración pendiente" del
+// punto 416) — mismo endpoint sirve tanto el botón del muro de
+// suscripción (bloqueado pero todavía 'activo') como "Actualizar método
+// de pago" en Mi Cuenta. Misma cuenta raíz que puede cancelar/pausar.
+app.post(
+  '/api/admin/mi-cuenta/suscripcion/checkout',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await exigirAdminRaizConTenant(req, res))) return;
+    const { ok, status, data } = await llamarControlInterno('/internal/reactivacion/checkout', {
+      slug: req.tenant.slug,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudo iniciar el cobro.', codigo: data.codigo });
+    res.json(data);
+  })
+);
 
 app.get(
   '/api/admin/mi-cuenta/suscripcion/estado-cancelacion',

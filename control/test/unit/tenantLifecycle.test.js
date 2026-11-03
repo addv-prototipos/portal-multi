@@ -36,6 +36,8 @@ const {
   vaciarPapelera,
   purgarBajasVencidas,
   DIAS_RETENCION_BAJA,
+  DIAS_RETENCION_BAJA_TRIAL_VENCIDO,
+  MOTIVO_BAJA_TRIAL_VENCIDO,
   recalcularUsoDisco,
 } = require('../../utils/tenantLifecycle');
 
@@ -243,10 +245,23 @@ describe('utils/tenantLifecycle.js', () => {
       await reactivarTenant('cliente1', { actor: 'admin' });
 
       const [sqlUpdate, paramsUpdate] = pool.query.mock.calls[0];
-      expect(sqlUpdate).toMatch(/SET estado = \?, activado_en = NOW\(\) WHERE slug = \? AND estado IN \(\?,\?\)/);
-      expect(paramsUpdate).toEqual(['activo', 'cliente1', 'suspendido', 'baja']);
+      expect(sqlUpdate).toMatch(/SET estado = \?, activado_en = NOW\(\), baja_motivo = \? WHERE slug = \? AND estado IN \(\?,\?\)/);
+      expect(paramsUpdate).toEqual(['activo', null, 'cliente1', 'suspendido', 'baja']);
       const [, paramsInsert] = pool.query.mock.calls[2];
       expect(paramsInsert).toEqual([7, 'reactivacion', expect.any(String), 'admin', expect.any(Date)]);
+    });
+
+    test('siempre limpia baja_motivo, aunque el tenant no tuviera ninguno (inofensivo)', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([{ affectedRows: 1 }])
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'activo', baja_motivo: null }]])
+        .mockResolvedValueOnce([{}]);
+
+      await reactivarTenant('cliente1', { actor: 'admin' });
+
+      const [, paramsUpdate] = pool.query.mock.calls[0];
+      expect(paramsUpdate[1]).toBeNull();
     });
   });
 
@@ -277,6 +292,34 @@ describe('utils/tenantLifecycle.js', () => {
 
       expect(error).toBeInstanceOf(ErrorTransicionTenant);
       expect(error.codigo).toBe('estado_invalido');
+    });
+
+    test('con motivo explícito (ej. trial vencido): mismo UPDATE atómico graba baja_motivo', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([{ affectedRows: 1 }])
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'baja', baja_motivo: 'trial_vencido_sin_pago' }]])
+        .mockResolvedValueOnce([{}]);
+
+      await darDeBajaTenant('cliente1', { actor: 'sistema:trial-vencido', motivo: 'trial_vencido_sin_pago' });
+
+      const [sqlUpdate, paramsUpdate] = pool.query.mock.calls[0];
+      expect(sqlUpdate).toMatch(/SET estado = \?, baja_en = NOW\(\), baja_motivo = \? WHERE slug = \? AND estado IN \(\?,\?\)/);
+      expect(paramsUpdate).toEqual(['baja', 'trial_vencido_sin_pago', 'cliente1', 'activo', 'suspendido']);
+    });
+
+    test('sin motivo (baja manual del operador): el UPDATE no toca baja_motivo', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([{ affectedRows: 1 }])
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'baja' }]])
+        .mockResolvedValueOnce([{}]);
+
+      await darDeBajaTenant('cliente1', { actor: 'admin' });
+
+      const [sqlUpdate, paramsUpdate] = pool.query.mock.calls[0];
+      expect(sqlUpdate).toMatch(/SET estado = \?, baja_en = NOW\(\) WHERE slug = \? AND estado IN \(\?,\?\)/);
+      expect(paramsUpdate).toEqual(['baja', 'cliente1', 'activo', 'suspendido']);
     });
   });
 
@@ -441,6 +484,38 @@ describe('utils/tenantLifecycle.js', () => {
 
     test('DIAS_RETENCION_BAJA está fijado en 30 (mismo valor comunicado al usuario)', () => {
       expect(DIAS_RETENCION_BAJA).toBe(30);
+    });
+
+    test('DIAS_RETENCION_BAJA_TRIAL_VENCIDO está fijado en 15', () => {
+      expect(DIAS_RETENCION_BAJA_TRIAL_VENCIDO).toBe(15);
+    });
+
+    test('baja_motivo="trial_vencido_sin_pago" se purga a los 15 días, aunque aún no lleve 30', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[
+          { ...TENANT_FILA, id: 1, slug: 'trial-vencido', estado: 'baja', baja_motivo: MOTIVO_BAJA_TRIAL_VENCIDO, baja_en: haceNDiasUtc(16) },
+          { ...TENANT_FILA, id: 2, slug: 'manual-reciente', estado: 'baja', baja_motivo: null, baja_en: haceNDiasUtc(16) },
+        ]])
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, id: 1, slug: 'trial-vencido', estado: 'baja', baja_motivo: MOTIVO_BAJA_TRIAL_VENCIDO, baja_en: haceNDiasUtc(16) }]]);
+
+      const resultado = await purgarBajasVencidas(pool);
+
+      expect(resultado.eliminados).toEqual(['trial-vencido']);
+      expect(eliminarTenantFisico).toHaveBeenCalledTimes(1);
+      expect(eliminarTenantFisico).toHaveBeenCalledWith('trial-vencido');
+    });
+
+    test('baja manual (baja_motivo NULL) con 16 días: NO se purga, sigue en el umbral de 30', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[
+        { ...TENANT_FILA, id: 2, slug: 'manual-reciente', estado: 'baja', baja_motivo: null, baja_en: haceNDiasUtc(16) },
+      ]]);
+
+      const resultado = await purgarBajasVencidas(pool);
+
+      expect(resultado).toEqual({ eliminados: [], fallidos: [] });
+      expect(eliminarTenantFisico).not.toHaveBeenCalled();
     });
   });
 
