@@ -475,6 +475,7 @@
     max-width: 0;
     transition: opacity 0.1s ease;
   }
+  .admin-body.sidebar-colapsado .admin-sidebar-version { display: none; }
   .admin-sidebar-nav .admin-vista-btn span,
   .admin-sidebar-footer .admin-sidebar-logout span,
   .admin-sidebar-footer .admin-sidebar-ayuda span {
@@ -616,6 +617,9 @@
 .admin-sidebar-footer {
   padding: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.admin-sidebar-version {
+  margin: 8px 0 0; padding: 0 12px; font-size: 11px; color: rgba(255, 255, 255, 0.4);
 }
 .admin-sidebar-logout,
 .admin-sidebar-ayuda {

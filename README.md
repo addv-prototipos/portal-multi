@@ -2,6 +2,22 @@
 
 **Clarvo** ("tu negocio en orden", desarrollado por ADDV) es una plataforma web multi-tenant (múltiples empresas cliente, cada una con su propia base de datos, sus propias URLs `/<slug>` y `/<slug>/admin`, y su propia identidad visual) para que clientes y proveedores capturen sus datos de facturación y suban su **constancia de situación fiscal** (solo PDF; el sistema valida que sea un documento genuino del SAT y extrae automáticamente el nombre/razón social, el régimen fiscal y el código postal). Cada usuario, identificado por su correo electrónico, puede mantener **un solo archivo activo**; si ya existe uno, la app pide confirmación antes de reemplazarlo. Incluye además tickets de venta con verificación de compra, cuentas por cobrar, un panel de administración con gráficas de Business Intelligence y auditoría consultable, control de gastos de la operación, un módulo de inventarios con costeo promedio ponderado y trazabilidad completa (incluida moneda extranjera, código de barras y etiquetas de impresión), un Centro de conocimiento con manual y glosario integrados, identidad visual (marca, tema y logo) por empresa, y una app de control (`/control`) cross-tenant para gestionar el ciclo de vida de las empresas dadas de alta, incluida la asociación de empresas como sucursales del mismo negocio con usuarios de acceso compartidos.
 
+## 🏷️ Versionado
+
+Dos componentes con número de versión propio (`package.json` de cada
+uno) — `backend/` sirve TANTO el panel `/admin` por tenant como el
+sitio base sin tenant (mismo código, mismo deploy, una sola versión).
+`control/` es la app cross-tenant (`/control`), contenedor/deploy
+separado.
+
+| Componente | Versión actual | Cambios de esta versión |
+|---|---|---|
+| **Backend / `/admin`** (tenant y sin tenant) | **1.1.01** | Autosanado de importaciones de inventario abandonadas (job huérfano si el proceso muere a mitad de un catálogo grande, ver punto 458 de `PROJECT_STATE.md`). |
+| **Control (`/control`)** | **1.1.01** | Switch "Publicar en clarvo.mx" por plan (puntos 461/463), orden de la isla de precios pública por precio real en vez de orden manual, estrella "Plan más elegido" exclusiva (reemplaza el valor hardcodeado que vivía en `clarvo-Site`). |
+
+Historial completo, punto por punto, con causa raíz y validación real de
+cada cambio: `PROJECT_STATE.md`.
+
 ## 🧱 Tecnologías usadas
 
 | Capa | Tecnología |
