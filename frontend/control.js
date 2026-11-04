@@ -223,6 +223,7 @@
     btnVistaAuditoria: document.getElementById('btn-vista-control-auditoria'),
     btnVistaAccesos: document.getElementById('btn-vista-control-accesos'),
     btnVistaUpscale: document.getElementById('btn-vista-control-upscale'),
+    btnVistaFinanciero: document.getElementById('btn-vista-control-financiero'),
     btnVistaRecordatorios: document.getElementById('btn-vista-control-recordatorios'),
     btnVistaCupones: document.getElementById('btn-vista-control-cupones'),
     btnVistaCancelaciones: document.getElementById('btn-vista-control-cancelaciones'),
@@ -251,6 +252,45 @@
     vistaAuditoria: document.getElementById('vista-control-auditoria'),
     vistaAccesos: document.getElementById('vista-control-accesos'),
     vistaUpscale: document.getElementById('vista-control-upscale'),
+    vistaFinanciero: document.getElementById('vista-control-financiero'),
+    financieroError: document.getElementById('financiero-error'),
+    financieroKpis: document.getElementById('financiero-kpis'),
+    financieroUtilidadMes: document.getElementById('financiero-utilidad-mes'),
+    financieroUtilidadMesNota: document.getElementById('financiero-utilidad-mes-nota'),
+    financieroUtilidadAcumulada: document.getElementById('financiero-utilidad-acumulada'),
+    financieroChartAltasBajas: document.getElementById('financiero-chart-altas-bajas'),
+    financieroChartAltasBajasQ: document.getElementById('financiero-chart-altas-bajas-q'),
+    financieroKanban: document.getElementById('financiero-kanban'),
+    financieroUpscaleBody: document.getElementById('financiero-upscale-body'),
+    financieroUpscaleEmpty: document.getElementById('financiero-upscale-empty'),
+    financieroRetencionKpis: document.getElementById('financiero-retencion-kpis'),
+    financieroRetencionMotivos: document.getElementById('financiero-retencion-motivos'),
+    financieroChartCrecimiento: document.getElementById('financiero-chart-crecimiento'),
+    financieroCrecimientoNotas: document.getElementById('financiero-crecimiento-notas'),
+    financieroChartHistorial: document.getElementById('financiero-chart-historial'),
+    financieroHistorialNota: document.getElementById('financiero-historial-nota'),
+    financieroRegresionNotas: document.getElementById('financiero-regresion-notas'),
+    financieroChartMargenQ: document.getElementById('financiero-chart-margen-q'),
+    financieroChartCategoriasStack: document.getElementById('financiero-chart-categorias-stack'),
+    financieroDonutCategorias: document.getElementById('financiero-donut-categorias'),
+    financieroDonutLegend: document.getElementById('financiero-donut-legend'),
+    btnFinancieroNuevoGasto: document.getElementById('btn-financiero-nuevo-gasto'),
+    financieroGastoModalOverlay: document.getElementById('financiero-gasto-modal-overlay'),
+    btnFinancieroGastoCerrar: document.getElementById('btn-financiero-gasto-cerrar'),
+    btnFinancieroGastoCancelar: document.getElementById('btn-financiero-gasto-cancelar'),
+    btnFinancieroGastoGuardar: document.getElementById('btn-financiero-gasto-guardar'),
+    financieroGastoFecha: document.getElementById('financiero-gasto-fecha'),
+    financieroGastoConcepto: document.getElementById('financiero-gasto-concepto'),
+    financieroGastoProveedor: document.getElementById('financiero-gasto-proveedor'),
+    financieroGastoCategoria: document.getElementById('financiero-gasto-categoria'),
+    financieroGastoCategoriasLista: document.getElementById('financiero-gasto-categorias-lista'),
+    financieroGastoMonto: document.getElementById('financiero-gasto-monto'),
+    financieroGastoIva: document.getElementById('financiero-gasto-iva'),
+    financieroGastoRecurrente: document.getElementById('financiero-gasto-recurrente'),
+    financieroGastoNotas: document.getElementById('financiero-gasto-notas'),
+    btnFinancieroGastoConFactura: document.getElementById('btn-financiero-gasto-con-factura'),
+    btnFinancieroGastoSinFactura: document.getElementById('btn-financiero-gasto-sin-factura'),
+    financieroGastoErrorGeneral: document.getElementById('financiero-gasto-error-general'),
     vistaRecordatorios: document.getElementById('vista-control-recordatorios'),
     vistaCupones: document.getElementById('vista-control-cupones'),
     vistaCancelaciones: document.getElementById('vista-control-cancelaciones'),
@@ -3676,6 +3716,10 @@
       els.btnVistaUpscale.classList.toggle('is-active', vista === 'upscale');
       els.btnVistaUpscale.setAttribute('aria-selected', String(vista === 'upscale'));
     }
+    if (els.btnVistaFinanciero) {
+      els.btnVistaFinanciero.classList.toggle('is-active', vista === 'financiero');
+      els.btnVistaFinanciero.setAttribute('aria-selected', String(vista === 'financiero'));
+    }
     if (els.btnVistaRecordatorios) {
       els.btnVistaRecordatorios.classList.toggle('is-active', vista === 'recordatorios');
       els.btnVistaRecordatorios.setAttribute('aria-selected', String(vista === 'recordatorios'));
@@ -3700,6 +3744,7 @@
     if (els.vistaAuditoria) els.vistaAuditoria.hidden = vista !== 'auditoria';
     if (els.vistaAccesos) els.vistaAccesos.hidden = vista !== 'accesos';
     if (els.vistaUpscale) els.vistaUpscale.hidden = vista !== 'upscale';
+    if (els.vistaFinanciero) els.vistaFinanciero.hidden = vista !== 'financiero';
     if (els.vistaRecordatorios) els.vistaRecordatorios.hidden = vista !== 'recordatorios';
     if (els.vistaCupones) els.vistaCupones.hidden = vista !== 'cupones';
     if (els.vistaCancelaciones) els.vistaCancelaciones.hidden = vista !== 'cancelaciones';
@@ -3719,6 +3764,7 @@
       cargarAccesoSmtp();
     }
     if (vista === 'upscale') cargarUpscale();
+    if (vista === 'financiero') cargarFinanciero();
     if (vista === 'recordatorios') cargarRecordatorios();
     if (vista === 'cupones') cargarReporteCupones();
     if (vista === 'cancelaciones') cargarReporteCancelaciones();
@@ -3734,6 +3780,7 @@
   if (els.btnVistaAuditoria) els.btnVistaAuditoria.addEventListener('click', () => cambiarVistaPrincipalControl('auditoria'));
   if (els.btnVistaAccesos) els.btnVistaAccesos.addEventListener('click', () => cambiarVistaPrincipalControl('accesos'));
   if (els.btnVistaUpscale) els.btnVistaUpscale.addEventListener('click', () => cambiarVistaPrincipalControl('upscale'));
+  if (els.btnVistaFinanciero) els.btnVistaFinanciero.addEventListener('click', () => cambiarVistaPrincipalControl('financiero'));
   if (els.btnVistaRecordatorios) els.btnVistaRecordatorios.addEventListener('click', () => cambiarVistaPrincipalControl('recordatorios'));
   if (els.btnVistaCupones) els.btnVistaCupones.addEventListener('click', () => cambiarVistaPrincipalControl('cupones'));
   if (els.btnVistaCancelaciones) els.btnVistaCancelaciones.addEventListener('click', () => cambiarVistaPrincipalControl('cancelaciones'));
@@ -4464,6 +4511,614 @@
           btn.disabled = false;
         }
       });
+    });
+  }
+
+  // ---------- Punto 467: "Financiero" ----------
+  function formatMoneyMXN(n) {
+    return `$${Math.round(n).toLocaleString('es-MX')}`;
+  }
+
+  // Mínimos cuadrados — mismo método que el resto de reportes de
+  // tendencia del sitio (sin librería externa).
+  function linreg(xs, ys) {
+    const n = xs.length;
+    let sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (let i = 0; i < n; i++) { sx += xs[i]; sy += ys[i]; sxx += xs[i] * xs[i]; sxy += xs[i] * ys[i]; }
+    const b = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+    const a = (sy - b * sx) / n;
+    const yMean = sy / n;
+    let ssTot = 0, ssRes = 0;
+    for (let i = 0; i < n; i++) { const pred = a + b * xs[i]; ssRes += (ys[i] - pred) ** 2; ssTot += (ys[i] - yMean) ** 2; }
+    return { a, b, r2: ssTot > 0 ? 1 - ssRes / ssTot : 0 };
+  }
+
+  // ---------- Motor de canvas (SOLO para las 2 gráficas de proyección) ----------
+  // Todo lo demás del archivo usa el componente de barras CSS
+  // (.resumen-fin-chart-*), igual que Resumen financiero de /admin. Una
+  // línea continua que cruza de "historial real" a "proyección punteada"
+  // con banda de confianza no tiene forma razonable de dibujarse con
+  // columnas CSS independientes — por eso, y solo aquí, canvas.
+  function financieroCssVar(nombre) {
+    return getComputedStyle(document.documentElement).getPropertyValue(nombre).trim() || '#000';
+  }
+  function financieroNiceScale(min, max, steps) {
+    const range = (max - min) || 1;
+    const step = range / steps;
+    const mag = Math.pow(10, Math.floor(Math.log10(step)));
+    const norm = step / mag;
+    const niceStep = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag;
+    return { min: Math.floor(min / niceStep) * niceStep, max: Math.ceil(max / niceStep) * niceStep };
+  }
+  function financieroXOf(i, n, w, pad) { return n === 1 ? (pad.l + (w - pad.l - pad.r) / 2) : pad.l + (w - pad.l - pad.r) * i / (n - 1); }
+  function financieroYOf(v, yMin, yMax, h, pad) { return pad.t + (h - pad.t - pad.b) * (1 - (v - yMin) / (yMax - yMin)); }
+  function financieroDrawAxes(ctx, w, h, pad, yMin, yMax, xLabels, yFmt) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = financieroCssVar('--color-border');
+    ctx.lineWidth = 1;
+    ctx.fillStyle = financieroCssVar('--color-ink-soft');
+    ctx.font = '11px Inter, sans-serif';
+    const rows = 4;
+    for (let r = 0; r <= rows; r++) {
+      const y = pad.t + (h - pad.t - pad.b) * r / rows;
+      ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+      const val = yMax - (yMax - yMin) * r / rows;
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillText(yFmt(val), pad.l - 8, y);
+    }
+    if (xLabels) {
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      const n = xLabels.length, every = Math.max(1, Math.ceil(n / 9));
+      for (let i = 0; i < n; i += every) {
+        const x = financieroXOf(i, n, w, pad);
+        ctx.fillText(xLabels[i], x, h - pad.b + 8);
+      }
+    }
+  }
+  function financieroPrepararCanvas(canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(rect.width * dpr));
+    canvas.height = Math.max(1, Math.round(rect.height * dpr));
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w: rect.width, h: rect.height };
+  }
+
+  // Dibuja una serie de 2 barras por columna, reusando el mismo
+  // componente CSS que ya usa "Ventas vs Facturado vs Gastos" en Resumen
+  // financiero (.resumen-fin-chart-*) — cero CSS nuevo para esto.
+  function renderBarChart2(container, puntos, keyA, keyB, claseA, claseB, labelA, labelB, fmt) {
+    const maximo = Math.max(1, ...puntos.flatMap((p) => [Math.abs(p[keyA]), Math.abs(p[keyB])]));
+    container.innerHTML = puntos.map((p) => `
+      <div class="resumen-fin-chart-columna">
+        <div class="resumen-fin-chart-barras" role="img" aria-label="${escapeHtmlAttr(p.etiqueta)}: ${escapeHtmlAttr(labelA)} ${fmt(p[keyA])}, ${escapeHtmlAttr(labelB)} ${fmt(p[keyB])}">
+          <span class="resumen-fin-chart-barra ${claseA}" style="height:${(Math.abs(p[keyA]) / maximo) * 100}%" data-tooltip="${escapeHtmlAttr(labelA)}: ${fmt(p[keyA])}"></span>
+          <span class="resumen-fin-chart-barra ${claseB}" style="height:${(Math.abs(p[keyB]) / maximo) * 100}%" data-tooltip="${escapeHtmlAttr(labelB)}: ${fmt(p[keyB])}"></span>
+        </div>
+        <span class="resumen-fin-chart-etiqueta">${escapeHtml(p.etiqueta)}</span>
+      </div>
+    `).join('') || '<p class="admin-login-hint">Todavía no hay historial que mostrar.</p>';
+  }
+
+  function renderBarChart1(container, puntos, key, clase, label, fmt, scrollToEnd) {
+    const maximo = Math.max(1, ...puntos.map((p) => Math.abs(p[key])));
+    container.innerHTML = puntos.map((p) => `
+      <div class="resumen-fin-chart-columna">
+        <div class="resumen-fin-chart-barras" role="img" aria-label="${escapeHtmlAttr(p.etiqueta)}: ${escapeHtmlAttr(label)} ${fmt(p[key])}">
+          <span class="resumen-fin-chart-barra ${clase}" style="height:${(Math.abs(p[key]) / maximo) * 100}%" data-tooltip="${escapeHtmlAttr(label)}: ${fmt(p[key])}"></span>
+        </div>
+        <span class="resumen-fin-chart-etiqueta">${escapeHtml(p.etiqueta)}</span>
+      </div>
+    `).join('') || '<p class="admin-login-hint">Sin datos este mes.</p>';
+    // Con 24 columnas, el ancho real es mayor que la tarjeta — sin esto
+    // el navegador arranca mostrando el extremo IZQUIERDO (meses viejos
+    // en 0, "no se ve nada"), nunca el extremo real con datos.
+    if (scrollToEnd) container.scrollLeft = container.scrollWidth;
+  }
+
+  const ICONO_DINERO = '<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>';
+  const ICONO_EDIFICIO = '<path d="M3 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M11 21V4a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v17M3 21h18" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>';
+  const ICONO_ALERTA = '<path d="M12 9v4M12 17h.01" stroke-linecap="round" stroke-width="2"/><circle cx="12" cy="12" r="9" stroke-width="1.8"/>';
+
+  function renderKpis(kpis) {
+    const items = [
+      { k: 'MRR', v: formatMoneyMXN(kpis.mrr), icono: ICONO_DINERO, clase: 'financiero-stat-icono-neutral', tendencia: kpis.mrrTrendPct },
+      { k: 'ARR proyectado', v: formatMoneyMXN(kpis.arr), icono: ICONO_DINERO, clase: 'financiero-stat-icono-neutral' },
+      { k: 'Tenants activos', v: kpis.tenantsActivos, icono: ICONO_EDIFICIO, clase: 'financiero-stat-icono-positivo' },
+      { k: 'Altas este mes', v: kpis.altasEsteMes, icono: ICONO_EDIFICIO, clase: 'financiero-stat-icono-positivo' },
+      { k: 'Churn mensual (aprox.)', v: `${kpis.churnPct.toFixed(1)}%`, icono: ICONO_ALERTA, clase: 'financiero-stat-icono-alerta' },
+      { k: 'LTV estimado', v: kpis.ltv !== null ? formatMoneyMXN(kpis.ltv) : '—', icono: ICONO_DINERO, clase: 'financiero-stat-icono-neutral' },
+      { k: 'Ingreso por upscale', v: formatMoneyMXN(kpis.mrrUpscale), icono: ICONO_DINERO, clase: 'financiero-stat-icono-positivo' },
+      { k: 'Margen del mes', v: `${kpis.margenMesPct.toFixed(1)}%`, icono: ICONO_DINERO, clase: kpis.margenMesPct >= 0 ? 'financiero-stat-icono-positivo' : 'financiero-stat-icono-alerta' },
+    ];
+    els.financieroKpis.innerHTML = items.map((it) => `
+      <div class="inicio-stat-card">
+        <div class="inicio-stat-header">
+          <span class="inicio-stat-titulo">${escapeHtml(it.k)}</span>
+          <span class="inicio-stat-icono ${it.clase}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">${it.icono}</svg></span>
+        </div>
+        <p class="inicio-stat-numero" style="font-size:22px;">${it.v}</p>
+        ${it.tendencia !== undefined && it.tendencia !== null ? `<p class="inicio-stat-tendencia ${it.tendencia >= 0 ? 'es-positiva' : 'es-negativa'}">${it.tendencia >= 0 ? '+' : ''}${it.tendencia.toFixed(1)}% vs. mes anterior</p>` : ''}
+      </div>
+    `).join('');
+  }
+
+  function renderKanban(kanban) {
+    const cols = [
+      { key: 'onboarding', titulo: 'Onboarding', tono: 'es-alerta' },
+      { key: 'activa', titulo: 'Activa', tono: 'es-positivo' },
+      { key: 'enRiesgo', titulo: 'En riesgo (≤7 días)', tono: 'es-alerta' },
+      { key: 'cancelacionProceso', titulo: 'Cancelación en proceso', tono: 'es-critico' },
+      { key: 'suspendido', titulo: 'Suspendido', tono: 'es-neutral' },
+    ];
+    els.financieroKanban.innerHTML = cols.map((c) => {
+      const items = kanban[c.key] || [];
+      return `
+        <div class="financiero-kanban-col ${c.tono}">
+          <h3>${c.titulo}</h3>
+          <div class="sum">${items.length} tenant${items.length === 1 ? '' : 's'}</div>
+          ${items.map((it) => `
+            <div class="financiero-tenant-row">
+              <span class="nombre">${escapeHtml(it.nombre)}</span>
+              <span class="chip ${c.tono}">${it.diasParaVencer !== undefined ? `${it.diasParaVencer} día(s)` : formatMoneyMXN(it.mrr)}</span>
+            </div>
+          `).join('') || '<p class="admin-login-hint" style="margin:0;">Ninguno</p>'}
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderUpscale(compras) {
+    els.financieroUpscaleEmpty.hidden = compras.length > 0;
+    els.financieroUpscaleBody.innerHTML = compras.map((c) => `
+      <tr>
+        <td>${escapeHtml(c.tenant)}</td>
+        <td>${escapeHtml(c.funcionalidad)}</td>
+        <td>${escapeHtml(c.detalle)}</td>
+        <td class="num">${formatMoneyMXN(c.monto)}</td>
+        <td>${c.ciclo === 'anual' ? 'Anual' : 'Mensual'}</td>
+        <td>${formatearFechaHoraMx(c.fecha)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function renderRetencion(retencion) {
+    const items = [
+      { k: 'Canceladas este mes', v: retencion.canceladasEsteMes },
+      { k: 'En proceso ahora', v: retencion.enProcesoAhora },
+      { k: 'Se quedó con descuento', v: retencion.retuvoConDescuento },
+      { k: 'Se fue aun con descuento', v: retencion.noRetuvoConDescuento },
+    ];
+    els.financieroRetencionKpis.innerHTML = items.map((it) => `
+      <div class="inicio-stat-card">
+        <div class="inicio-stat-header"><span class="inicio-stat-titulo">${escapeHtml(it.k)}</span></div>
+        <p class="inicio-stat-numero" style="font-size:20px;">${it.v}</p>
+      </div>
+    `).join('');
+    const total = retencion.motivos.reduce((s, m) => s + m.n, 0);
+    els.financieroRetencionMotivos.innerHTML = retencion.motivos.map((m) => {
+      const pct = total > 0 ? Math.round((m.n / total) * 100) : 0;
+      return `
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px;">
+            <span>${escapeHtml(m.motivo)}</span><span>${m.n} (${pct}%)</span>
+          </div>
+          <div style="height:6px;border-radius:99px;background:var(--color-border);overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:var(--color-error);border-radius:99px;"></div>
+          </div>
+        </div>
+      `;
+    }).join('') || '<p class="admin-login-hint">Sin cancelaciones con motivo registrado este mes.</p>';
+  }
+
+  // Crecimiento de tenants: 100% real (reconstrucción de
+  // creado_en/baja_en, ver crecimientoTenantsHistorico en el backend) —
+  // ajuste exponencial por linealización logarítmica y logístico por
+  // 3 puntos (Fisher–Pry) + mínimos cuadrados sobre el residual.
+  function renderCrecimiento(puntos) {
+    const n = puntos.length;
+    const labels = puntos.map((p) => p.periodo.slice(2));
+    const sinVariacion = n < 6 || puntos.every((p) => p.tenants === puntos[0].tenants);
+
+    if (sinVariacion) {
+      // Igual se dibuja la línea real (aunque sea plana) — nunca una
+      // gráfica en blanco — pero sin proyección: con tan poca variación
+      // un ajuste exponencial/logístico no significa nada todavía.
+      const { ctx, w, h } = financieroPrepararCanvas(els.financieroChartCrecimiento);
+      const pad = { l: 40, r: 14, t: 14, b: 26 };
+      const vals = puntos.map((p) => p.tenants);
+      const sc = financieroNiceScale(0, Math.max(1, ...vals) * 1.2, 4);
+      financieroDrawAxes(ctx, w, h, pad, sc.min, sc.max, labels, (v) => String(Math.round(v)));
+      ctx.beginPath(); ctx.lineWidth = 2.4; ctx.strokeStyle = financieroCssVar('--color-accent');
+      puntos.forEach((p, i) => { const x = financieroXOf(i, n, w, pad), y = financieroYOf(p.tenants, sc.min, sc.max, h, pad); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+      ctx.stroke();
+      els.financieroCrecimientoNotas.innerHTML = `<div class="financiero-utilidad-card"><div class="k">Proyección</div><div class="v" style="font-size:14px;">Acumulando historial</div><div class="nota">Se necesitan más meses con cambios reales en el conteo de tenants para un ajuste confiable.</div></div>`;
+      return;
+    }
+
+    const t = puntos.map((_, i) => i);
+    const y = puntos.map((p) => Math.max(1, p.tenants));
+    const lnY = y.map((v) => Math.log(v));
+    const expReg = linreg(t, lnY);
+    const r = Math.exp(expReg.b) - 1;
+
+    let logL = Math.max(...y) * 1.3;
+    const i1 = 0, i2 = Math.floor(n / 2), i3 = n - 1;
+    const y1 = y[i1], y2 = y[i2], y3 = y[i3];
+    const Lcalc = (y2 * (y1 * y2 + y3 * y2 - 2 * y1 * y3)) / (y2 * y2 - y1 * y3);
+    if (isFinite(Lcalc) && Lcalc > Math.max(...y)) logL = Lcalc;
+    const zs = y.map((v) => Math.log(Math.max(logL / v - 1, 1e-6)));
+    const zReg = linreg(t, zs);
+    const logK = -zReg.b;
+    const logT0 = Math.log(Math.exp(zReg.a)) / logK;
+    const logisticAt = (tt) => logL / (1 + Math.exp(-logK * (tt - logT0)));
+    const expAt = (tt) => y[0] * Math.pow(1 + r, tt);
+
+    const FUT = 12;
+    const total = n + FUT;
+    const labelsConFuturo = labels.slice();
+    for (let i = 1; i <= FUT; i++) labelsConFuturo.push('+' + i);
+
+    const { ctx, w, h } = financieroPrepararCanvas(els.financieroChartCrecimiento);
+    const pad = { l: 40, r: 14, t: 14, b: 26 };
+    const topeVisible = Math.max(Math.max(...y), expAt(n - 1 + FUT), Math.min(logL, logisticAt(n - 1 + FUT) * 1.15));
+    const sc = financieroNiceScale(0, topeVisible * 1.08, 4);
+    financieroDrawAxes(ctx, w, h, pad, sc.min, sc.max, labelsConFuturo, (v) => String(Math.round(v)));
+
+    // real
+    ctx.beginPath(); ctx.lineWidth = 2.4; ctx.strokeStyle = financieroCssVar('--color-accent');
+    puntos.forEach((p, i) => { const x = financieroXOf(i, total, w, pad), yv = financieroYOf(p.tenants, sc.min, sc.max, h, pad); i === 0 ? ctx.moveTo(x, yv) : ctx.lineTo(x, yv); });
+    ctx.stroke();
+    ctx.fillStyle = financieroCssVar('--color-accent');
+    const xUlt = financieroXOf(n - 1, total, w, pad), yUlt = financieroYOf(puntos[n - 1].tenants, sc.min, sc.max, h, pad);
+    ctx.beginPath(); ctx.arc(xUlt, yUlt, 3.5, 0, Math.PI * 2); ctx.fill();
+
+    function dibujarProyeccion(fn, color) {
+      ctx.beginPath(); ctx.lineWidth = 2.2; ctx.setLineDash([5, 4]); ctx.strokeStyle = color;
+      for (let i = n - 1; i < total; i++) {
+        const x = financieroXOf(i, total, w, pad), yv = financieroYOf(fn(i), sc.min, sc.max, h, pad);
+        i === n - 1 ? ctx.moveTo(x, yv) : ctx.lineTo(x, yv);
+      }
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    dibujarProyeccion(expAt, financieroCssVar('--color-error'));
+    dibujarProyeccion(logisticAt, '#146C43');
+
+    const t12 = n - 1 + FUT;
+    const e12 = Math.round(expAt(t12));
+    const l12 = Math.round(logisticAt(t12));
+    const activosHoy = puntos[n - 1].tenants;
+
+    els.financieroCrecimientoNotas.innerHTML = `
+      <div class="financiero-utilidad-card"><div class="k">Ritmo de crecimiento</div><div class="v" style="font-size:18px;">${(r * 100).toFixed(1)}% al mes</div><div class="nota">Hoy: ${activosHoy} tenants. Si crece a este ritmo SIN frenarse (exponencial), en 12 meses serían ~${e12}.</div></div>
+      <div class="financiero-utilidad-card"><div class="k">Con techo de mercado</div><div class="v" style="font-size:18px;">~${Math.round(logL)} tenants máx.</div><div class="nota">Modelo más realista: el crecimiento se frena al acercarse a ese techo — en 12 meses serían ~${l12}, no ${e12}.</div></div>
+      <div class="financiero-utilidad-card"><div class="k">Qué tan distinto proyectan</div><div class="v" style="font-size:18px;">${Math.abs(e12 - l12)} tenants de diferencia</div><div class="nota">A 12 meses: ${e12} (si nunca se frena) vs. ${l12} (si sí hay techo) — la realidad probablemente quede entre los dos.</div></div>
+    `;
+  }
+
+  // Regresión lineal sobre el historial REAL de ingreso/gasto
+  // (control_utilidad_mensual) — guard explícito: con menos de 3 meses
+  // de historial real, un ajuste lineal no significa nada todavía, así
+  // que se muestra el mensaje en vez de un número inventado.
+  function renderHistorialUtilidad(historial) {
+    const n = historial.length;
+    const labels = historial.map((h) => h.periodo.slice(2));
+    els.financieroHistorialNota.textContent = n > 0 && historial[0].fuenteIngreso === 'facturacion_real'
+      ? 'Ingreso tomado de facturación real.'
+      : 'Ingreso aproximado con el MRR vigente — se va acumulando un punto por cada mes desde que se activó esta vista.';
+
+    const sinProyeccion = n < 3;
+    const FUT = sinProyeccion ? 0 : 6;
+    const total = n + FUT;
+    const labelsConFuturo = labels.slice();
+    for (let i = 1; i <= FUT; i++) labelsConFuturo.push('+' + i);
+
+    let reg = null;
+    if (!sinProyeccion) {
+      const t = historial.map((_, i) => i);
+      const ingresos = historial.map((h) => h.ingreso);
+      reg = linreg(t, ingresos);
+    }
+
+    const { ctx, w, h } = financieroPrepararCanvas(els.financieroChartHistorial);
+    const pad = { l: 56, r: 14, t: 14, b: 26 };
+    const valoresVisibles = historial.flatMap((hh) => [hh.ingreso, hh.gasto]);
+    if (reg) { for (let i = n; i < total; i++) valoresVisibles.push(reg.a + reg.b * i); }
+    const sc = financieroNiceScale(0, Math.max(1, ...valoresVisibles) * 1.1, 4);
+    financieroDrawAxes(ctx, w, h, pad, sc.min, sc.max, labelsConFuturo, (v) => '$' + (v / 1000).toFixed(1) + 'k');
+
+    function linea(vals, color, desde) {
+      ctx.beginPath(); ctx.lineWidth = 2.2; ctx.strokeStyle = color;
+      for (let i = desde; i < vals.length + desde; i++) {
+        const x = financieroXOf(i, total, w, pad), y = financieroYOf(vals[i - desde], sc.min, sc.max, h, pad);
+        i === desde ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    linea(historial.map((hh) => hh.ingreso), financieroCssVar('--color-accent'), 0);
+    linea(historial.map((hh) => hh.gasto), financieroCssVar('--color-error'), 0);
+
+    if (reg) {
+      ctx.beginPath(); ctx.setLineDash([5, 4]); ctx.lineWidth = 2.2; ctx.strokeStyle = '#05DBF2';
+      for (let i = n - 1; i < total; i++) {
+        const pred = i === n - 1 ? historial[n - 1].ingreso : reg.a + reg.b * i;
+        const x = financieroXOf(i, total, w, pad), y = financieroYOf(pred, sc.min, sc.max, h, pad);
+        i === n - 1 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    if (sinProyeccion) {
+      els.financieroRegresionNotas.innerHTML = `<div class="financiero-utilidad-card"><div class="k">Proyección de ingreso</div><div class="v" style="font-size:14px;">Acumulando historial (${n}/3 meses mínimo)</div><div class="nota">La proyección (línea punteada) se activa sola en cuanto haya al menos 3 meses reales.</div></div>`;
+      return;
+    }
+    const ingresoHoy = historial[n - 1].ingreso;
+    const ingresoEn6Meses = reg.a + reg.b * (n - 1 + 6);
+    els.financieroRegresionNotas.innerHTML = `
+      <div class="financiero-utilidad-card"><div class="k">Qué dice la tendencia</div><div class="v" style="font-size:18px;">${reg.b >= 0 ? '+' : ''}${formatMoneyMXN(reg.b)} / mes</div><div class="nota">Cada mes el ingreso sube (o baja) en promedio esa cantidad, según los últimos ${n} meses reales.</div></div>
+      <div class="financiero-utilidad-card"><div class="k">Si se mantiene así, en 6 meses</div><div class="v" style="font-size:18px;">${formatMoneyMXN(Math.max(0, ingresoEn6Meses))}</div><div class="nota">Hoy: ${formatMoneyMXN(ingresoHoy)}. Es la línea punteada del gráfico.</div></div>
+      <div class="financiero-utilidad-card"><div class="k">Qué tan confiable es</div><div class="v" style="font-size:18px;">${reg.r2 >= 0.7 ? 'Alta' : reg.r2 >= 0.4 ? 'Media' : 'Baja'} (R²=${reg.r2.toFixed(2)})</div><div class="nota">Entre más cerca de 1, más se parece el historial real a una línea recta — con pocos meses, conviene tomarlo con cautela.</div></div>
+    `;
+  }
+
+  const CAT_COLOR_POR_NOMBRE = {};
+  function colorDeCategoria(nombre, index) {
+    if (!CAT_COLOR_POR_NOMBRE[nombre]) {
+      const hexes = ['#2F6FB0', '#6C5CE7', '#B23E82', '#2E8B6B', '#5B6B7D', '#C2691E', '#1D8A8A'];
+      CAT_COLOR_POR_NOMBRE[nombre] = hexes[Object.keys(CAT_COLOR_POR_NOMBRE).length % hexes.length];
+    }
+    return CAT_COLOR_POR_NOMBRE[nombre];
+  }
+
+  // Dona canvas — única gráfica de /control que no es el componente CSS
+  // de barras (un pie/dona no tiene equivalente razonable sin canvas).
+  function renderDonutCategorias(desglose) {
+    const canvas = els.financieroDonutCategorias;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    if (!desglose.length) {
+      els.financieroDonutLegend.innerHTML = '<p class="admin-login-hint">Sin gastos registrados este mes.</p>';
+      return;
+    }
+    const total = desglose.reduce((s, d) => s + d.total, 0);
+    const cx = w / 2, cy = h / 2, rOuter = Math.min(w, h) / 2 - 4, rInner = rOuter * 0.56;
+    let start = -Math.PI / 2;
+    desglose.forEach((d, i) => {
+      const angle = (d.total / total) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(start) * rInner, cy + Math.sin(start) * rInner);
+      ctx.arc(cx, cy, rOuter, start, start + angle);
+      ctx.arc(cx, cy, rInner, start + angle, start, true);
+      ctx.closePath();
+      ctx.fillStyle = colorDeCategoria(d.categoria, i);
+      ctx.fill();
+      start += angle;
+    });
+    ctx.fillStyle = '#6B7280';
+    ctx.font = '11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Mes actual', cx, cy);
+    els.financieroDonutLegend.innerHTML = desglose.map((d, i) => `
+      <div class="li"><span class="nm"><span class="swatch" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${colorDeCategoria(d.categoria, i)}"></span><span>${escapeHtml(d.categoria)}</span></span><span>${formatMoneyMXN(d.total)} (${Math.round((d.total / total) * 100)}%)</span></div>
+    `).join('');
+  }
+
+  // Barra apilada por mes — serieGastoPorCategoria llega como filas
+  // planas {periodo, categoria, total}; se pivotea a un mapa
+  // periodo→{categoria:total} antes de dibujar.
+  function renderCategoriasStack(serie, categorias) {
+    const porPeriodo = new Map();
+    serie.forEach((f) => {
+      if (!porPeriodo.has(f.periodo)) porPeriodo.set(f.periodo, {});
+      porPeriodo.get(f.periodo)[f.categoria] = f.total;
+    });
+    const periodos = Array.from(porPeriodo.keys()).sort();
+    if (!periodos.length) {
+      els.financieroChartCategoriasStack.innerHTML = '<p class="admin-login-hint">Sin historial de gasto todavía.</p>';
+      return;
+    }
+    const totalesPorPeriodo = periodos.map((p) => categorias.reduce((s, c) => s + (porPeriodo.get(p)[c] || 0), 0));
+    const maximo = Math.max(1, ...totalesPorPeriodo);
+    els.financieroChartCategoriasStack.innerHTML = periodos.map((p) => {
+      const fila = porPeriodo.get(p);
+      const segmentos = categorias.map((c, i) => {
+        const v = fila[c] || 0;
+        if (!v) return '';
+        return `<span class="financiero-stack-segmento" style="height:${(v / maximo) * 100}%;background:${colorDeCategoria(c, i)}" data-tooltip="${escapeHtmlAttr(c)}: ${formatMoneyMXN(v)}"></span>`;
+      }).join('');
+      return `
+        <div class="financiero-stack-columna">
+          <div class="financiero-stack-barra" role="img" aria-label="${p.slice(2)}: ${formatMoneyMXN(totalesPorPeriodo[periodos.indexOf(p)])} en total">${segmentos}</div>
+          <span class="resumen-fin-chart-etiqueta">${p.slice(2)}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Altas/bajas por trimestre — agregación client-side del mismo array
+  // mensual real que ya trae el backend (sin pedir otra ruta aparte).
+  function renderAltasBajasQ(altasBajas) {
+    const mapa = new Map();
+    altasBajas.forEach((p) => {
+      const [y, m] = p.periodo.split('-').map(Number);
+      const q = Math.floor((m - 1) / 3) + 1;
+      const key = `T${q} '${String(y).slice(2)}`;
+      if (!mapa.has(key)) mapa.set(key, { etiqueta: key, altas: 0, bajas: 0 });
+      const f = mapa.get(key);
+      f.altas += p.altas;
+      f.bajas += p.bajas;
+    });
+    renderBarChart2(els.financieroChartAltasBajasQ, Array.from(mapa.values()), 'altas', 'bajas', 'resumen-fin-chart-barra-facturado', 'resumen-fin-chart-barra-eliminado-reportes', 'Altas', 'Bajas', (v) => String(v));
+  }
+
+  // Margen operativo por trimestre — agregación client-side del
+  // historial real de control_utilidad_mensual.
+  function renderMargenQ(historial) {
+    const mapa = new Map();
+    historial.forEach((h) => {
+      const [y, m] = h.periodo.split('-').map(Number);
+      const q = Math.floor((m - 1) / 3) + 1;
+      const key = `T${q} '${String(y).slice(2)}`;
+      if (!mapa.has(key)) mapa.set(key, { etiqueta: key, ingreso: 0, gasto: 0 });
+      const f = mapa.get(key);
+      f.ingreso += h.ingreso;
+      f.gasto += h.gasto;
+    });
+    const puntos = Array.from(mapa.values()).map((f) => ({ etiqueta: f.etiqueta, margen: f.ingreso > 0 ? ((f.ingreso - f.gasto) / f.ingreso) * 100 : 0 }));
+    if (!puntos.length) {
+      els.financieroChartMargenQ.innerHTML = '<p class="admin-login-hint">Sin historial todavía.</p>';
+      return;
+    }
+    const maximo = Math.max(1, ...puntos.map((p) => Math.abs(p.margen)));
+    els.financieroChartMargenQ.innerHTML = puntos.map((p) => `
+      <div class="resumen-fin-chart-columna">
+        <div class="resumen-fin-chart-barras" role="img" aria-label="${escapeHtmlAttr(p.etiqueta)}: margen ${p.margen.toFixed(1)}%">
+          <span class="resumen-fin-chart-barra ${p.margen >= 0 ? 'resumen-fin-chart-barra-facturado' : 'resumen-fin-chart-barra-eliminado-reportes'}" style="height:${(Math.abs(p.margen) / maximo) * 100}%" data-tooltip="${p.margen.toFixed(1)}%"></span>
+        </div>
+        <span class="resumen-fin-chart-etiqueta">${escapeHtml(p.etiqueta)} · ${Math.round(p.margen)}%</span>
+      </div>
+    `).join('');
+  }
+
+  async function cargarFinanciero() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    els.financieroError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/financiero/resumen`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) { clearSession(); showLogin(); return; }
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+
+      const hist = data.historialUtilidad || [];
+      if (hist.length >= 2) {
+        const prev = hist[hist.length - 2].ingreso;
+        if (prev > 0) data.kpis.mrrTrendPct = ((data.kpis.mrr - prev) / prev) * 100;
+      }
+      data.kpis.margenMesPct = data.utilidadMes.ingreso > 0 ? (data.utilidadMes.utilidad / data.utilidadMes.ingreso) * 100 : 0;
+      renderKpis(data.kpis);
+      const utilidadMes = data.utilidadMes.utilidad;
+      els.financieroUtilidadMes.textContent = formatMoneyMXN(utilidadMes);
+      els.financieroUtilidadMes.classList.toggle('es-positiva', utilidadMes >= 0);
+      els.financieroUtilidadMes.classList.toggle('es-negativa', utilidadMes < 0);
+      els.financieroUtilidadMesNota.textContent = `${formatMoneyMXN(data.utilidadMes.ingreso)} de ingreso − ${formatMoneyMXN(data.utilidadMes.gasto)} de gasto, mes en curso`;
+      els.financieroUtilidadAcumulada.textContent = formatMoneyMXN(data.utilidadAcumulada);
+      els.financieroUtilidadAcumulada.classList.toggle('es-positiva', data.utilidadAcumulada >= 0);
+      els.financieroUtilidadAcumulada.classList.toggle('es-negativa', data.utilidadAcumulada < 0);
+
+      const altasBajas = data.altasBajas.map((p) => ({ etiqueta: p.periodo.slice(2), altas: p.altas, bajas: p.bajas }));
+      renderBarChart2(els.financieroChartAltasBajas, altasBajas, 'altas', 'bajas', 'resumen-fin-chart-barra-facturado', 'resumen-fin-chart-barra-eliminado-reportes', 'Altas', 'Bajas', (v) => String(v));
+      renderAltasBajasQ(data.altasBajas);
+
+      renderKanban(data.kanban);
+      renderUpscale(data.comprasUpscale);
+      renderRetencion(data.retencion);
+      renderCrecimiento(data.crecimientoTenants);
+      renderHistorialUtilidad(hist);
+      renderMargenQ(hist);
+      renderDonutCategorias(data.gastosDesgloseMes);
+      renderCategoriasStack(data.gastosSerieCategoria, data.categoriasGasto);
+
+      els.financieroGastoCategoriasLista.innerHTML = data.categoriasGasto.map((c) => `<option value="${escapeHtmlAttr(c)}"></option>`).join('');
+    } catch {
+      els.financieroError.textContent = 'No se pudo cargar el resumen financiero.';
+    }
+  }
+
+  // ---------- Modal "Registrar gasto" ----------
+  let financieroGastoTieneFactura = true;
+  function abrirFinancieroGastoModal() {
+    ['fecha', 'concepto', 'categoria', 'monto'].forEach((f) => {
+      const el = document.getElementById(`error-financiero-gasto-${f}`);
+      if (el) el.textContent = '';
+    });
+    els.financieroGastoErrorGeneral.textContent = '';
+    els.financieroGastoFecha.value = new Date().toISOString().slice(0, 10);
+    els.financieroGastoConcepto.value = '';
+    els.financieroGastoProveedor.value = '';
+    els.financieroGastoCategoria.value = '';
+    els.financieroGastoMonto.value = '';
+    els.financieroGastoIva.checked = false;
+    els.financieroGastoRecurrente.checked = false;
+    els.financieroGastoNotas.value = '';
+    financieroGastoTieneFactura = true;
+    els.btnFinancieroGastoConFactura.classList.add('is-active');
+    els.btnFinancieroGastoConFactura.setAttribute('aria-selected', 'true');
+    els.btnFinancieroGastoSinFactura.classList.remove('is-active');
+    els.btnFinancieroGastoSinFactura.setAttribute('aria-selected', 'false');
+    els.financieroGastoModalOverlay.hidden = false;
+    els.financieroGastoConcepto.focus();
+  }
+  function cerrarFinancieroGastoModal() { els.financieroGastoModalOverlay.hidden = true; }
+
+  if (els.btnFinancieroNuevoGasto) els.btnFinancieroNuevoGasto.addEventListener('click', abrirFinancieroGastoModal);
+  if (els.btnFinancieroGastoCerrar) els.btnFinancieroGastoCerrar.addEventListener('click', cerrarFinancieroGastoModal);
+  if (els.btnFinancieroGastoCancelar) els.btnFinancieroGastoCancelar.addEventListener('click', cerrarFinancieroGastoModal);
+  if (els.financieroGastoModalOverlay) {
+    els.financieroGastoModalOverlay.addEventListener('click', (e) => { if (e.target === els.financieroGastoModalOverlay) cerrarFinancieroGastoModal(); });
+  }
+  if (els.btnFinancieroGastoConFactura) {
+    els.btnFinancieroGastoConFactura.addEventListener('click', () => {
+      financieroGastoTieneFactura = true;
+      els.btnFinancieroGastoConFactura.classList.add('is-active');
+      els.btnFinancieroGastoConFactura.setAttribute('aria-selected', 'true');
+      els.btnFinancieroGastoSinFactura.classList.remove('is-active');
+      els.btnFinancieroGastoSinFactura.setAttribute('aria-selected', 'false');
+    });
+  }
+  if (els.btnFinancieroGastoSinFactura) {
+    els.btnFinancieroGastoSinFactura.addEventListener('click', () => {
+      financieroGastoTieneFactura = false;
+      els.btnFinancieroGastoSinFactura.classList.add('is-active');
+      els.btnFinancieroGastoSinFactura.setAttribute('aria-selected', 'true');
+      els.btnFinancieroGastoConFactura.classList.remove('is-active');
+      els.btnFinancieroGastoConFactura.setAttribute('aria-selected', 'false');
+    });
+  }
+  if (els.btnFinancieroGastoGuardar) {
+    els.btnFinancieroGastoGuardar.addEventListener('click', async () => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) { showLogin(); return; }
+      const payload = {
+        fecha: els.financieroGastoFecha.value,
+        concepto: els.financieroGastoConcepto.value.trim(),
+        proveedor: els.financieroGastoProveedor.value.trim(),
+        categoria: els.financieroGastoCategoria.value.trim(),
+        monto: parseFloat(String(els.financieroGastoMonto.value).replace(',', '.')),
+        ivaIncluido: els.financieroGastoIva.checked,
+        tieneFactura: financieroGastoTieneFactura,
+        recurrente: els.financieroGastoRecurrente.checked,
+        notas: els.financieroGastoNotas.value.trim(),
+      };
+      els.btnFinancieroGastoGuardar.disabled = true;
+      try {
+        const res = await fetch(`${API_BASE}/financiero/gastos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const campo = { fecha_invalida: 'fecha', concepto_invalido: 'concepto', categoria_invalida: 'categoria', monto_invalido: 'monto' }[data.codigo];
+          if (campo) {
+            document.getElementById(`error-financiero-gasto-${campo}`).textContent = data.error;
+          } else {
+            els.financieroGastoErrorGeneral.textContent = data.error || 'No se pudo guardar el gasto.';
+          }
+          els.btnFinancieroGastoGuardar.disabled = false;
+          return;
+        }
+        cerrarFinancieroGastoModal();
+        showToast('Gasto registrado.');
+        cargarFinanciero();
+      } catch {
+        els.financieroGastoErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
+      } finally {
+        els.btnFinancieroGastoGuardar.disabled = false;
+      }
     });
   }
 

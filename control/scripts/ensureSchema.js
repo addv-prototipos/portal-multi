@@ -904,8 +904,62 @@ async function asegurarTablasTerminos(db) {
   `);
 }
 
+// Punto 467 — vista "Financiero" de /control: gasto operativo de la
+// PLATAFORMA (lo que a Clarvo le cuesta operar Clarvo: VPS, Garage/S3,
+// comisión Stripe, licencias), nunca el gasto de un tenant (eso ya
+// existe aparte, por tenant, en `gastos` dentro de cada BD tenant_*).
+// Se captura a mano porque viene de otras plataformas sin API propia que
+// lo reporte — mismo criterio que el usuario confirmó explícito. Sin
+// columna de tipo "ingreso": el ingreso NUNCA se captura aquí, es 100%
+// digital (Stripe) — ver financieroResumen.js. `eliminado_en` en vez de
+// DELETE real: control_app no tiene privilegio DELETE (mismo gotcha que
+// el resto de `control_tenants`, ver comentario de
+// asegurarTablasSucursales/api_credenciales).
+async function asegurarTablaFinanciero(db) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS control_gastos_operativos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      fecha DATE NOT NULL,
+      concepto VARCHAR(200) NOT NULL,
+      proveedor VARCHAR(150) NULL,
+      categoria VARCHAR(100) NOT NULL,
+      monto DECIMAL(10,2) NOT NULL,
+      iva_incluido TINYINT(1) NOT NULL DEFAULT 0,
+      tiene_factura TINYINT(1) NOT NULL DEFAULT 1,
+      recurrente TINYINT(1) NOT NULL DEFAULT 0,
+      notas TEXT NULL,
+      creado_por VARCHAR(200) NULL,
+      creado_en DATETIME NOT NULL,
+      eliminado_en DATETIME NULL,
+      KEY idx_gastos_operativos_fecha (fecha),
+      KEY idx_gastos_operativos_categoria (categoria)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  // Snapshot mensual de utilidad — se escribe (UPSERT) cada vez que se
+  // calcula el resumen financiero del mes EN CURSO (ver
+  // financieroResumen.js:upsertUtilidadMensual). Nunca se reescribe un
+  // mes ya cerrado (deja de recibir upserts en cuanto cambia el mes
+  // calendario) — así se construye historial real hacia adelante en vez
+  // de fabricar datos retroactivos que no existen. `fuente_ingreso`
+  // documenta la limitación conocida: hoy el ingreso es el MRR vigente
+  // (proxy razonable, no es lo mismo que "ya cobrado"), cambia a
+  // 'facturacion_real' el día que exista el módulo de facturación y se
+  // pueda leer el ingreso facturado/cobrado real — motivo exacto por el
+  // que esta tabla existe desde ahora en vez de calcular todo al vuelo.
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS control_utilidad_mensual (
+      periodo CHAR(7) PRIMARY KEY,
+      ingreso DECIMAL(12,2) NOT NULL DEFAULT 0,
+      gasto DECIMAL(12,2) NOT NULL DEFAULT 0,
+      fuente_ingreso ENUM('mrr_estimado','facturacion_real') NOT NULL DEFAULT 'mrr_estimado',
+      actualizado_en DATETIME NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
 module.exports = {
   asegurarColumnasCicloVidaTenant,
+  asegurarTablaFinanciero,
   asegurarTablaApiCredenciales,
   asegurarTablasSucursales,
   asegurarTablaPlanes,

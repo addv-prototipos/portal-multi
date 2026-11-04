@@ -1931,6 +1931,33 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   futura encuentra código "ya commiteado" en `git log` que no reconoce
   haber revisado/probado antes, no asumir que ya pasó por su propio
   ciclo completo de prueba — puede ser colateral de otra sesión.
+- **Un KPI que necesita serie histórica pero solo tiene el dato de HOY:
+  snapshot-por-UPSERT hacia adelante, nunca fabricar el pasado** (punto
+  467, "Financiero" de `/control`): `control_utilidad_mensual` guarda un
+  renglón por mes (PK = `YYYY-MM`), y `upsertUtilidadMensual()` lo
+  actualiza cada vez que se carga la vista — pero SOLO mientras ese
+  periodo siga siendo el mes en curso; en cuanto cambia el mes
+  calendario, ese renglón deja de recibir upserts y queda congelado como
+  historial real. El resultado es honesto desde el día uno: con 1 mes de
+  datos, la gráfica muestra 1 punto y el cálculo que necesita más
+  historial (ej. una regresión lineal) se apaga solo con un mensaje
+  ("acumulando historial, N/3 mínimo") en vez de mostrar un ajuste
+  calculado sobre basura. Replicar este patrón para cualquier KPI futuro
+  que necesite tendencia pero arranque sin ningún dato pasado real — la
+  alternativa (reconstruir el pasado a ojo, o peor, inventar puntos) es
+  lo que esta sesión evitó a propósito.
+- **Cuando SÍ hay forma de reconstruir el pasado real sin inventar nada,
+  hacerlo en vez de depender de un snapshot que recién empieza** (mismo
+  punto 467): `crecimientoTenantsHistorico()` no espera a que se
+  acumule un snapshot — reconstruye el tenant-count activo en cada corte
+  de mes de los últimos 24 directo de `tenants.creado_en`/`baja_en`
+  ("¿ya existía? ¿ya se había dado de baja?"), así que ese KPI tiene
+  historial completo desde el primer `GET`, a diferencia de la utilidad
+  (que si depende del snapshot porque el MRR de un mes pasado no se
+  puede recalcular retroactivamente). Antes de resignarse a "vamos a
+  tener que esperar a acumular datos", revisar si el dato de origen
+  (una fecha ya guardada, un estado ya guardado) permite reconstruir el
+  histórico real sin esperar nada.
 
 ## Stack
 

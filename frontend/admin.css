@@ -10933,3 +10933,203 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   font-weight: 700;
   margin: 0 0 4px;
 }
+
+/* ============ Punto 467: "Financiero" de /control ============ */
+/* Fila de un tenant dentro de una columna del ciclo de vida — mismo
+   criterio de fila compacta que .kcard del mockup, pero reusando tokens
+   reales (--color-surface/--color-border) en vez de inventar otra vez. */
+.financiero-tenant-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  margin-bottom: 6px;
+}
+.financiero-tenant-row .nombre { font-weight: 600; }
+.financiero-tenant-row .mrr { color: var(--color-ink-soft); font-variant-numeric: tabular-nums; }
+/* Grid fijo de 4 columnas (8 KPIs = 2 filas parejas) — a propósito NO
+   auto-fit: con 7 tarjetas y auto-fit(170px) el navegador acomodaba 6
+   por fila y dejaba la 7ma sola en su propia fila (reportado como "se ve
+   feo"/"nada homogéneo"). Con columnas fijas + un KPI extra (Margen del
+   mes, para completar 8), la distribución siempre es exacta. */
+.financiero-kpis-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+@media (max-width: 900px) {
+  .financiero-kpis-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .financiero-kpis-grid { grid-template-columns: 1fr; }
+}
+.financiero-kanban-col {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-top: 3px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 16px;
+}
+.financiero-kanban-col.es-neutral { border-top-color: var(--color-accent); }
+.financiero-kanban-col.es-positivo { border-top-color: #1FAE6B; }
+.financiero-kanban-col.es-alerta { border-top-color: var(--color-warn); }
+.financiero-kanban-col.es-critico { border-top-color: var(--color-error); }
+.financiero-kanban-col h3 {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0 0 2px;
+}
+.financiero-kanban-col .sum {
+  font-size: 11.5px;
+  color: var(--color-ink-soft);
+  margin-bottom: 12px;
+}
+.financiero-tenant-row .chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.financiero-tenant-row .chip.es-neutral { background: var(--color-accent-soft); color: var(--color-accent-dark); }
+.financiero-tenant-row .chip.es-positivo { background: #DCEFE3; color: #146C43; }
+.financiero-tenant-row .chip.es-alerta { background: var(--color-warn-soft); color: var(--color-warn); }
+.financiero-tenant-row .chip.es-critico { background: var(--color-error-soft); color: var(--color-error); }
+/* Paleta categórica para "Gasto por categoría" — deliberadamente distinta
+   de los 4 colores semánticos ya usados en Ventas/Facturado/Gastos (ver
+   .resumen-fin-chart-barra-ventas y vecinos), para no hacer pensar que
+   "categoría 1" significa lo mismo que "ventas". */
+.resumen-fin-chart-barra-cat1 { background: #2F6FB0; }
+.resumen-fin-chart-barra-cat2 { background: #6C5CE7; }
+.resumen-fin-chart-barra-cat3 { background: #B23E82; }
+.resumen-fin-chart-barra-cat4 { background: #2E8B6B; }
+.resumen-fin-chart-barra-cat5 { background: #5B6B7D; }
+.financiero-utilidad-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin: 18px 0 24px;
+}
+.financiero-utilidad-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 18px 20px;
+}
+.financiero-utilidad-card .k {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+}
+.financiero-utilidad-card .v {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 8px 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+.financiero-utilidad-card .v.es-positiva { color: #146C43; }
+.financiero-utilidad-card .v.es-negativa { color: var(--color-error); }
+.financiero-utilidad-card .nota { font-size: 11.5px; color: var(--color-ink-soft); }
+
+/* Pares de tarjetas lado a lado — mismo criterio que la propuesta
+   visual en Artifact (grid-2), para que secciones relacionadas
+   (altas/Q, dona/apilado, balance/margen) se lean juntas en vez de una
+   abajo de otra en una sola columna. */
+.financiero-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.financiero-grid-2 > .resumen-fin-chart-card { margin-bottom: 0; }
+@media (max-width: 860px) {
+  .financiero-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* KPI con insignia de color propia — las 4 variantes semánticas ya
+   existentes (inicio-stat-icono-total/proceso/completadas/rechazadas)
+   son para OTRO dominio (solicitudes) — estas son neutrales/positivas/
+   de alerta para KPIs financieros, reusando los mismos --color-accent-
+   soft/--color-good-soft/--color-warn-soft ya definidos. */
+.financiero-stat-icono-neutral { background: var(--color-accent-soft); color: var(--color-accent-dark); }
+.financiero-stat-icono-positivo { background: #DCEFE3; color: #146C43; }
+.financiero-stat-icono-alerta { background: var(--color-warn-soft); color: var(--color-warn); }
+
+/* Contenedor de las 2 gráficas que SÍ necesitan canvas (línea +
+   proyección punteada + banda de confianza — un continuo que cruza
+   varias columnas de tiempo no tiene equivalente razonable con el
+   componente de barras CSS, que solo sabe dibujar columnas
+   independientes). Mismo criterio ya usado para la dona. */
+.financiero-chart-canvas-box {
+  position: relative;
+  width: 100%;
+  height: 260px;
+}
+.financiero-chart-canvas-box canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Dona de participación por categoría — canvas (única del archivo; el
+   resto de las gráficas de /control siguen siendo divs CSS puros como
+   Resumen financiero de /admin, pero un pie/dona no tiene equivalente
+   razonable sin canvas/SVG). */
+.financiero-donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.financiero-donut-wrap canvas {
+  width: 150px;
+  height: 150px;
+  flex: 0 0 150px;
+}
+.financiero-donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12.5px;
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.financiero-donut-legend .li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.financiero-donut-legend .nm { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.financiero-donut-legend .nm span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Barra apilada (gasto mensual por categoría) — mismo "contenedor de
+   220px + etiqueta debajo" que .resumen-fin-chart-columna, pero con
+   UNA barra por mes dividida en segmentos de color en vez de varias
+   barras lado a lado (ahí no aplica .resumen-fin-chart-barras porque
+   esa clase alinea por abajo con `align-items:flex-end`, pensada para
+   varias barras independientes, no para apilar). */
+.financiero-stack-columna {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 34px;
+}
+.financiero-stack-barra {
+  width: 22px;
+  height: 200px;
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 3px 3px 0 0;
+  overflow: hidden;
+}
+.financiero-stack-segmento { width: 100%; min-height: 1px; }

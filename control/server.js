@@ -121,6 +121,26 @@ const {
   obtenerEstadoParaTenant,
   listarHistorialTenant,
 } = require('./utils/terminosCondiciones');
+const {
+  ErrorGastoOperativo,
+  crearGasto,
+  listarGastosMes,
+  desgloseCategoriasMes,
+  serieGastoPorCategoria,
+  listarCategorias: listarCategoriasGasto,
+} = require('./utils/gastosOperativos');
+const {
+  periodoActual,
+  calcularKpis,
+  altasBajasPorMes,
+  crecimientoTenantsHistorico,
+  cicloVidaKanban,
+  comprasUpscaleRecientes,
+  retencionCancelaciones,
+  upsertUtilidadMensual,
+  historialUtilidad,
+  utilidadAcumulada,
+} = require('./utils/financieroResumen');
 
 const PORT = Number(process.env.PORT || 4001);
 // Auditoría 2026-09-03 (hallazgo #9, mismo criterio que backend/server.js):
@@ -2390,6 +2410,92 @@ app.post(
   })
 );
 
+// ---------- Punto 467: vista "Financiero" de /control ----------
+// Ingreso SIEMPRE automático (MRR vigente, proxy hasta que exista
+// facturación) — gasto SIEMPRE manual (viene de otras plataformas sin
+// API propia). Un solo GET agrupa todo lo que pinta la vista para evitar
+// 8 round-trips por cada carga de pantalla.
+app.get(
+  '/api/control/financiero/resumen',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    // Primero el upsert (deja el mes en curso al día), luego se lee todo
+    // lo demás — así utilidadMes/historial/acumulado ya reflejan el gasto
+    // y el MRR más recientes de esta misma carga.
+    const utilidadMes = await upsertUtilidadMensual();
+    const [
+      kpis,
+      altasBajas,
+      crecimientoTenants,
+      kanban,
+      comprasUpscale,
+      retencion,
+      historial,
+      acumulado,
+      gastosDesgloseMes,
+      gastosSerieCategoria,
+      categoriasGasto,
+    ] = await Promise.all([
+      calcularKpis(),
+      altasBajasPorMes(24),
+      crecimientoTenantsHistorico(24),
+      cicloVidaKanban(),
+      comprasUpscaleRecientes(30),
+      retencionCancelaciones(),
+      historialUtilidad(),
+      utilidadAcumulada(),
+      desgloseCategoriasMes(periodoActual()),
+      serieGastoPorCategoria(),
+      listarCategoriasGasto(),
+    ]);
+    res.json({
+      kpis,
+      altasBajas,
+      crecimientoTenants,
+      kanban,
+      comprasUpscale,
+      retencion,
+      utilidadMes,
+      utilidadAcumulada: acumulado,
+      historialUtilidad: historial,
+      gastosDesgloseMes,
+      gastosSerieCategoria,
+      categoriasGasto,
+    });
+  })
+);
+
+app.get(
+  '/api/control/financiero/gastos',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const periodo = /^\d{4}-\d{2}$/.test(req.query.periodo || '') ? req.query.periodo : periodoActual();
+    res.json({ periodo, gastos: await listarGastosMes(periodo) });
+  })
+);
+
+app.post(
+  '/api/control/financiero/gastos',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const gasto = await crearGasto(req.body || {}, req.adminUser);
+      res.status(201).json(gasto);
+    } catch (err) {
+      if (err instanceof ErrorGastoOperativo) {
+        return res.status(400).json({ error: err.message, codigo: err.codigo });
+      }
+      throw err;
+    }
+  })
+);
+
 // ---------- Punto 247: gestión de super admins (ADMIN_USERS en .env) ----------
 // Híbrido: super = ADMIN_USERS (.env) + usuarios perfil super en BD (si los hay),
 // pero la alta/edición/baja de ADMIN_USERS solo se hace aquí, en /control,
@@ -2540,7 +2646,7 @@ app.use((req, res) => {
 
 async function iniciar() {
   await asegurarTablaAuditoria();
-  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores, asegurarTablaStripeEventos, asegurarTablaUpscale, asegurarTablaUpscaleActivos, asegurarTablaCancelacionesEncuesta, asegurarTablasTerminos, asegurarTablaReactivacionTokens } = require('./scripts/ensureSchema');
+  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores, asegurarTablaStripeEventos, asegurarTablaUpscale, asegurarTablaUpscaleActivos, asegurarTablaCancelacionesEncuesta, asegurarTablasTerminos, asegurarTablaReactivacionTokens, asegurarTablaFinanciero } = require('./scripts/ensureSchema');
   // asegurarTablasSucursales() debe correr ANTES de
   // asegurarColumnasCicloVidaTenant(): esta última hace un UPDATE sobre
   // `tenants.grupo_sucursal_id`, columna que crea asegurarTablasSucursales
@@ -2560,6 +2666,7 @@ async function iniciar() {
   await asegurarTablaCancelacionesEncuesta(obtenerPool());
   await asegurarTablasTerminos(obtenerPool());
   await asegurarTablaReactivacionTokens(obtenerPool());
+  await asegurarTablaFinanciero(obtenerPool());
 
   app.listen(PORT, () => {
     console.log(`Control escuchando en el puerto ${PORT}`);

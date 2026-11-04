@@ -119,6 +119,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 11l18-8-8 18-2-8-8-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
           <span>Upscale y Stripe</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-control-financiero" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><path d="M18 17V9M13 17V5M8 17v-3" stroke-linecap="round" stroke-width="1.8"/></svg>
+          <span>Financiero</span>
+        </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-control-recordatorios" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-width="1.8"/><path d="M12 7v5l3 3" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
           <span>Recordatorios</span>
@@ -1140,6 +1144,123 @@
           <p class="admin-empty-state" id="cancelaciones-empty" hidden>Todavía no hay cancelaciones registradas.</p>
         </div>
 
+        <div id="vista-control-financiero" hidden>
+          <div class="admin-toolbar">
+            <div class="admin-toolbar-title">
+              <h1>Financiero</h1>
+              <button type="button" class="campo-ayuda" id="btn-ayuda-vista-financiero" aria-label="Ayuda" data-tooltip="El ingreso es siempre automático (MRR vigente, proxy hasta que exista facturación) — el gasto siempre se captura a mano, porque viene de otras plataformas sin API propia que lo reporte.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Ayuda
+              </button>
+            </div>
+            <div class="admin-toolbar-right">
+              <button type="button" class="btn btn-primary" id="btn-financiero-nuevo-gasto">Registrar gasto</button>
+            </div>
+          </div>
+
+          <p class="field-error" id="financiero-error" role="alert"></p>
+
+          <div class="financiero-kpis-grid" id="financiero-kpis"></div>
+
+          <h2 class="tema-grupo-titulo" style="margin:24px 0 10px;font-size:15px;">Utilidad neta</h2>
+          <div class="financiero-utilidad-grid">
+            <div class="financiero-utilidad-card">
+              <div class="k">Utilidad del mes en curso</div>
+              <div class="v" id="financiero-utilidad-mes">—</div>
+              <div class="nota" id="financiero-utilidad-mes-nota">Ingreso (MRR) − gasto del mes</div>
+            </div>
+            <div class="financiero-utilidad-card">
+              <div class="k">Utilidad acumulada</div>
+              <div class="v" id="financiero-utilidad-acumulada">—</div>
+              <div class="nota">Suma de la utilidad de cada mes desde que esta vista empezó a registrar historial</div>
+            </div>
+          </div>
+
+          <div class="financiero-grid-2">
+            <div class="resumen-fin-chart-card">
+              <h2>Suscripciones nuevas — por mes</h2>
+              <p class="field-hint" style="margin:2px 0 12px;">De <code>tenants.creado_en</code>/<code>baja_en</code> — real, sin fabricar historial.</p>
+              <div class="resumen-fin-chart-body" id="financiero-chart-altas-bajas"></div>
+              <ul class="resumen-fin-chart-leyenda">
+                <li><span class="resumen-fin-chart-barra-facturado" style="display:inline-block;width:10px;height:10px;border-radius:2px;"></span> Altas</li>
+                <li><span class="resumen-fin-chart-barra-eliminado-reportes" style="display:inline-block;width:10px;height:10px;border-radius:2px;"></span> Bajas</li>
+              </ul>
+            </div>
+            <div class="resumen-fin-chart-card">
+              <h2>Suscripciones nuevas — por trimestre</h2>
+              <p class="field-hint" style="margin:2px 0 12px;">Mismo dato, agregado por Q.</p>
+              <div class="resumen-fin-chart-body" id="financiero-chart-altas-bajas-q"></div>
+              <ul class="resumen-fin-chart-leyenda">
+                <li><span class="resumen-fin-chart-barra-facturado" style="display:inline-block;width:10px;height:10px;border-radius:2px;"></span> Altas</li>
+                <li><span class="resumen-fin-chart-barra-eliminado-reportes" style="display:inline-block;width:10px;height:10px;border-radius:2px;"></span> Bajas</li>
+              </ul>
+            </div>
+          </div>
+
+          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">Ciclo de vida de suscripciones</h2>
+          <div id="financiero-kanban" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:28px;"></div>
+
+          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">Compras y upscale recientes</h2>
+          <div class="admin-table-wrap" style="margin-bottom:28px;">
+            <table class="admin-table">
+              <thead><tr><th>Tenant</th><th>Funcionalidad</th><th>Detalle</th><th class="num">Cobro</th><th>Ciclo</th><th>Fecha</th></tr></thead>
+              <tbody id="financiero-upscale-body"></tbody>
+            </table>
+            <p class="admin-empty-state" id="financiero-upscale-empty" hidden>Todavía no hay compras de upscale.</p>
+          </div>
+
+          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">Retención y cancelaciones</h2>
+          <div class="kpi-row" id="financiero-retencion-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px;"></div>
+          <div id="financiero-retencion-motivos" style="display:flex;flex-direction:column;gap:7px;margin-bottom:28px;"></div>
+
+          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">Crecimiento de tenants — exponencial vs. logístico</h2>
+          <div class="resumen-fin-chart-card" style="margin-bottom:24px;">
+            <p class="field-hint" style="margin:0 0 12px;">Línea sólida = tenants activos reales (24 meses). Líneas punteadas = proyección a 12 meses hacia adelante, cada una con un modelo distinto.</p>
+            <div class="financiero-chart-canvas-box"><canvas id="financiero-chart-crecimiento"></canvas></div>
+            <ul class="resumen-fin-chart-leyenda">
+              <li><span style="display:inline-block;width:14px;height:2px;background:var(--color-accent);"></span> Tenants reales</li>
+              <li><span style="display:inline-block;width:14px;height:2px;background:var(--color-error);border-top:2px dashed var(--color-error);"></span> Proyección exponencial</li>
+              <li><span style="display:inline-block;width:14px;height:2px;background:#146C43;border-top:2px dashed #146C43;"></span> Proyección logística (con techo)</li>
+            </ul>
+            <div class="financiero-utilidad-grid" id="financiero-crecimiento-notas" style="margin-top:16px;"></div>
+          </div>
+
+          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">BI — proyección de ingreso</h2>
+          <div class="financiero-grid-2">
+            <div class="resumen-fin-chart-card">
+              <h2>Ingreso vs. gasto — historial y proyección</h2>
+              <p class="field-hint" style="margin:2px 0 12px;" id="financiero-historial-nota">Se va acumulando un punto por cada mes desde que se activó esta vista.</p>
+              <div class="financiero-chart-canvas-box"><canvas id="financiero-chart-historial"></canvas></div>
+              <ul class="resumen-fin-chart-leyenda">
+                <li><span style="display:inline-block;width:14px;height:2px;background:var(--color-accent);"></span> Ingreso real</li>
+                <li><span style="display:inline-block;width:14px;height:2px;background:var(--color-error);"></span> Gasto real</li>
+                <li><span style="display:inline-block;width:14px;height:2px;background:#05DBF2;border-top:2px dashed #05DBF2;"></span> Ingreso proyectado (6 meses)</li>
+              </ul>
+            </div>
+            <div class="resumen-fin-chart-card">
+              <h2>Margen operativo por trimestre</h2>
+              <p class="field-hint" style="margin:2px 0 12px;">(ingreso − gasto) ÷ ingreso, por Q del historial real.</p>
+              <div class="resumen-fin-chart-body" id="financiero-chart-margen-q"></div>
+            </div>
+          </div>
+          <div class="financiero-utilidad-grid" id="financiero-regresion-notas"></div>
+
+          <h2 class="tema-grupo-titulo" style="margin:24px 0 10px;font-size:15px;">Gasto operativo</h2>
+          <div class="financiero-grid-2">
+            <div class="resumen-fin-chart-card">
+              <h2>Gasto mensual por categoría</h2>
+              <p class="field-hint" style="margin:2px 0 12px;">Barras apiladas, historial real.</p>
+              <div class="resumen-fin-chart-body" id="financiero-chart-categorias-stack"></div>
+            </div>
+            <div class="resumen-fin-chart-card">
+              <h2>Participación por categoría — mes actual</h2>
+              <div class="financiero-donut-wrap">
+                <canvas id="financiero-donut-categorias" width="150" height="150"></canvas>
+                <div class="financiero-donut-legend" id="financiero-donut-legend"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div id="vista-control-terminos" hidden>
           <div class="admin-toolbar">
             <div class="admin-toolbar-title">
@@ -1421,6 +1542,65 @@
           <button type="submit" class="btn btn-primary" id="super-btn-guardar"><span id="super-btn-guardar-label">Guardar</span></button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Punto 467: "Registrar gasto" de Financiero — mismos campos que
+       /admin → Gastos, pero gasto OPERATIVO de la plataforma, nunca de
+       un tenant. -->
+  <div class="modal-overlay" id="financiero-gasto-modal-overlay" hidden>
+    <div class="modal gastos-modal" role="dialog" aria-modal="true" aria-labelledby="financiero-gasto-modal-title">
+      <div class="gastos-modal-header">
+        <h2 id="financiero-gasto-modal-title">Registrar gasto</h2>
+        <button type="button" class="btn-icon" id="btn-financiero-gasto-cerrar" aria-label="Cerrar"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="gastos-modal-body">
+        <div class="gastos-modal-grid">
+          <div class="field">
+            <label for="financiero-gasto-fecha">Fecha del gasto <span class="required">*</span></label>
+            <input type="date" id="financiero-gasto-fecha" />
+            <p class="field-error" id="error-financiero-gasto-fecha" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="financiero-gasto-concepto">Concepto <span class="required">*</span></label>
+            <input type="text" id="financiero-gasto-concepto" maxlength="200" placeholder="Ej. Factura mensual Vultr" autocomplete="off" />
+            <p class="field-error" id="error-financiero-gasto-concepto" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="financiero-gasto-proveedor">Proveedor</label>
+            <input type="text" id="financiero-gasto-proveedor" maxlength="150" placeholder="Opcional" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="financiero-gasto-categoria">Categoría <span class="required">*</span></label>
+            <input list="financiero-gasto-categorias-lista" id="financiero-gasto-categoria" maxlength="100" placeholder="Elige o escribe una nueva" autocomplete="off" />
+            <datalist id="financiero-gasto-categorias-lista"></datalist>
+            <p class="field-error" id="error-financiero-gasto-categoria" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="financiero-gasto-monto">Monto (MXN) <span class="required">*</span></label>
+            <input type="text" inputmode="decimal" id="financiero-gasto-monto" placeholder="0.00" autocomplete="off" />
+            <p class="field-error" id="error-financiero-gasto-monto" role="alert"></p>
+          </div>
+          <label class="checkbox-row gastos-modal-check"><input type="checkbox" id="financiero-gasto-iva" /><span>El monto ya incluye IVA</span></label>
+          <div class="field gastos-modal-factura">
+            <label>Factura</label>
+            <div class="view-toggle" role="tablist" aria-label="¿Este gasto tiene factura?">
+              <button type="button" class="view-toggle-btn is-active" id="btn-financiero-gasto-con-factura" role="tab" aria-selected="true">Con factura</button>
+              <button type="button" class="view-toggle-btn" id="btn-financiero-gasto-sin-factura" role="tab" aria-selected="false">Sin factura</button>
+            </div>
+          </div>
+          <label class="checkbox-row gastos-modal-check"><input type="checkbox" id="financiero-gasto-recurrente" /><span>Gasto recurrente</span></label>
+          <div class="field gastos-modal-notas">
+            <label for="financiero-gasto-notas">Notas internas</label>
+            <textarea id="financiero-gasto-notas" maxlength="2000" rows="3" placeholder="Opcional"></textarea>
+          </div>
+        </div>
+        <p class="field-error" id="financiero-gasto-error-general" role="alert"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="btn-financiero-gasto-cancelar">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btn-financiero-gasto-guardar"><span id="btn-financiero-gasto-guardar-label">Guardar gasto</span></button>
+        </div>
+      </div>
     </div>
   </div>
 

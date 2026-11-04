@@ -27513,3 +27513,188 @@ Archivos: `control/utils/reactivacionTenant.js` (nuevo),
 (nuevo), `control/test/unit/tenantLifecycle.test.js`,
 `backend/test/unit/auth.test.js`, `CLAUDE.md`, `PROJECT_STATE.md` (este
 punto).
+
+## Punto 467 — "Financiero" en /control: KPIs reales, ciclo de vida, upscale, retención, BI de crecimiento, utilidad neta mensual + acumulada, gasto operativo manual (4 nov 2026, CERRADO)
+
+Vista nueva, cross-tenant, exclusiva de `/control` (nunca `/admin` ni
+portal de clientes) — monitor financiero de la PLATAFORMA, no de un
+tenant. Precedida de varias rondas de propuesta visual en Artifact
+(mockup con datos sintéticos) antes de implementar; el usuario pidió
+explícitamente implementar lo trabajado y agregar utilidad neta
+mes/acumulada, dejando facturación para una sesión futura.
+
+**Decisión de negocio confirmada por el usuario**: el ingreso es
+**siempre automático** (Stripe, 100% digital, Clarvo nunca recibe
+efectivo) — nunca se captura a mano. El gasto operativo es **siempre
+manual** porque viene de otras plataformas (Vultr, Garage/S3, comisión
+Stripe, licencias) sin API propia que lo reporte a Clarvo.
+
+**Todo lo mostrado sale de datos reales** — nada fabricado:
+- MRR/ARR/tenants activos/ingreso por upscale: `tenants` JOIN `planes` +
+  `disco_upscale_monto`/`usuarios_upscale_monto` (denormalizados,
+  recurrentes). Limitación documentada en código: no incluye "extras" de
+  `tenant_upscales_activos` con `recurso_tipo='ninguno'` (no están
+  denormalizados en `tenants`).
+- Altas/bajas por mes: `tenants.creado_en`/`baja_en` directo, reales.
+- Crecimiento de tenants (exponencial vs. logístico): reconstrucción
+  real del tenant-count activo a cada corte de mes (¿ya existía? ¿ya se
+  había dado de baja?) a partir de `creado_en`/`baja_en` — no es un
+  snapshot guardado, es contar en vivo para cada uno de 24 meses.
+- Ciclo de vida (kanban): 5 estados reales (`tenants.estado` +
+  `suscripcion_cancelar_al_corte`/`suscripcion_expira_en`) — Onboarding/
+  Activa/En riesgo (≤7 días)/Cancelación en proceso/Suspendido. La 5ta
+  columna del mockup original ("Resuelto, 30 días") se reemplazó por
+  "Suspendido" (real) porque habría necesitado un log de eventos que no
+  existe.
+- Retención y cancelaciones: real pero PARCIAL — `baja_motivo` +
+  `suscripcion_descuento_retencion_usado` dan "canceladas este mes",
+  "en proceso ahora", "se quedó/se fue con descuento" y motivo más
+  frecuente. **No** es el embudo de 5 etapas del mockup
+  (solicitud→fricción→propuesta vista→aceptó→canceló) — eso necesita
+  instrumentar cada paso del modal de cancelación, que hoy solo guarda
+  el resultado final, no el camino.
+- Churn mensual: aproximado (`bajas / (activos_ahora + bajas)`) — no
+  existe snapshot del tenant count al INICIO del mes, documentado como
+  tal en el KPI.
+
+**Utilidad neta — mecanismo de snapshot mensual, pensado para
+facturación futura**: tabla nueva `control_utilidad_mensual` (periodo
+`YYYY-MM` PK, ingreso, gasto, `fuente_ingreso` enum
+`mrr_estimado`/`facturacion_real`, actualizado_en). Se hace UPSERT del
+mes EN CURSO cada vez que se carga la vista (`upsertUtilidadMensual()`)
+— nunca se reescribe un mes ya cerrado (deja de recibir upserts en
+cuanto cambia el mes calendario). Así se construye historial real hacia
+ADELANTE sin fabricar nada hacia atrás — hoy el historial empieza
+literalmente en el primer `GET` de esta sesión (4 nov 2026). "Utilidad
+acumulada" = `SUM(ingreso - gasto)` de esa tabla. **Gancho para
+facturación** (explícitamente pedido por el usuario: "debes
+considerarlos para tener el dato más actualizado de las utilidades"):
+el día que exista el módulo de facturación, `upsertUtilidadMensual()`
+cambia su fuente de ingreso de "MRR vigente" a "lo realmente
+facturado/cobrado" y graba `fuente_ingreso='facturacion_real'` — el
+resto de la vista (gráficas, KPIs de utilidad) no necesita tocarse,
+solo ese punto.
+
+**BI con guard de datos insuficientes** (regresión lineal sobre
+`control_utilidad_mensual`): con <3 meses de historial real, en vez de
+un ajuste inventado se muestra "Acumulando historial (N/3 meses
+mínimo)" — se activa solo cuando hay suficientes puntos. El crecimiento
+de tenants (exponencial/logístico) SÍ tiene 24 meses reales desde el
+día uno (reconstrucción, no depende de la tabla de snapshot).
+
+**Gasto operativo — tabla nueva** `control_gastos_operativos` (fecha,
+concepto, proveedor, categoría, monto, iva_incluido, tiene_factura,
+recurrente, notas, creado_por, `eliminado_en` para soft-delete —
+`control_app` no tiene privilegio `DELETE`, mismo gotcha documentado ya
+varias veces en este archivo). Sin tabla de catálogo de categorías
+aparte: una categoría nace con el primer gasto que la usa (`SELECT
+DISTINCT categoria`), igual que en `/admin` → Gastos. Modal "Registrar
+gasto" en `/control` replica los campos del modal real de `/admin` →
+Gastos (fecha, concepto, proveedor, categoría, monto, IVA incluido,
+toggle Con/Sin factura, recurrente, notas) — simplificado: categoría es
+un `<input list>` con `<datalist>` en vez del panel completo de gestión
+de categorías de `/admin` (alcance menor, mismo resultado para el
+operador).
+
+**Archivos**: `control/scripts/ensureSchema.js`
+(`asegurarTablaFinanciero`, 2 tablas nuevas), `control/server.js`
+(wiring + 3 rutas: `GET /api/control/financiero/resumen`, `GET`/`POST
+/api/control/financiero/gastos`), `control/utils/gastosOperativos.js`
+(nuevo), `control/utils/financieroResumen.js` (nuevo),
+`frontend/control.html` (nav "Financiero" + vista + modal "Registrar
+gasto"), `frontend/control.js` (fetch/render + regresión lineal +
+ajuste exponencial/logístico, reusando el mismo componente CSS de
+barras que ya usa Resumen financiero de `/admin` —
+`.resumen-fin-chart-*`, cero librería de gráficas), `frontend/admin.css`
+(clases nuevas mínimas: `.financiero-*` + 5 colores categóricos para
+gasto por categoría), `control/test/unit/gastosOperativos.test.js`
+(nuevo, 15 casos), `control/test/unit/financieroResumen.test.js`
+(nuevo, 6 casos).
+
+**Pruebas**: unitarias (mockeadas) 20 casos nuevos, suite completa de
+`control/` sin regresiones (567/567 verde). Funcional real contra
+Docker/MySQL real: rebuild de `control`+`frontend`, tablas creadas
+confirmadas por `SHOW TABLES`, `GET /financiero/resumen` real contra los
+15 tenants de prueba existentes, `POST /financiero/gastos` real (2
+gastos registrados, utilidad recalculada correctamente en cada caso:
+$8,205 ingreso − $4,200 → $4,005 → tras un segundo gasto de $980,
+$3,025), validación 400 real para concepto vacío/monto 0, y clics
+reales con Playwright (chrome-devtools MCP, login real admin/admin,
+navegación al tab "Financiero", apertura del modal "Registrar gasto",
+llenado y guardado real, toast "Gasto registrado.", utilidad y gráfica
+de categoría actualizadas en pantalla sin recargar).
+
+**Deliberadamente fuera de alcance de este punto** (confirmado con el
+usuario, queda para la sesión de facturación):
+- Módulo de facturación en sí (flujo, cómo se presenta a los tenants,
+  cómo se gestiona desde `/control`) — el único gancho que existe hoy es
+  `fuente_ingreso` en `control_utilidad_mensual`, documentado arriba.
+- Embudo completo de cancelación (5 etapas instrumentadas paso a paso).
+- "Extras" de upscale (`recurso_tipo='ninguno'`) en el cálculo de MRR.
+- Gestión de categorías de gasto desde un panel dedicado (alta/edición/
+  archivado) — hoy solo nacen implícitamente con el primer gasto.
+
+**Addendum (mismo día, mismo punto) — ajuste visual + datos de prueba multi-mes**:
+el usuario reportó que el diseño real no se parecía a la propuesta del
+Artifact — faltaban piezas visuales (dona de participación, barras
+apiladas de gasto mensual por categoría, margen operativo por
+trimestre, altas/bajas por trimestre) y el layout era una sola columna
+en vez de pares lado a lado. Se agregó: grid de 2 columnas
+(`.financiero-grid-2`) para las secciones relacionadas, dona canvas de
+participación por categoría (única gráfica de `/control` que no es el
+componente CSS de barras — un pie/dona no tiene equivalente razonable
+sin canvas), barra apilada por mes (`.financiero-stack-*`, nuevo,
+pivotea `gastosSerieCategoria` de filas planas a mapa periodo→
+categoría), margen operativo por trimestre y altas/bajas por trimestre
+(ambos agregados client-side del mismo array mensual real que ya
+mandaba el backend, sin ruta nueva), e íconos de color por KPI
+(`.financiero-stat-icono-neutral/positivo/alerta`) + tendencia de MRR
+mes contra mes (del propio `historialUtilidad`).
+
+**Datos de prueba sembrados a propósito, para poder comparar contra el
+Artifact** (pedido explícito del usuario, no para producción): 7 meses
+hacia atrás (abril–octubre 2026) insertados directo en
+`control_utilidad_mensual` y `control_gastos_operativos` vía SQL —
+`creado_por='seed-script'` y nota `"dato de prueba, punto 467"` en cada
+fila para que una sesión futura identifique estas filas como sembradas,
+no reales. Con 8 meses de historial real (7 sembrados + el mes en curso
+real), la regresión lineal y el margen por trimestre ya se activan
+(antes solo había 1 punto). **Esto es la única vez que este punto
+fabrica historial pasado — rompe a propósito la regla de "nunca
+reescribir/inventar el pasado" documentada arriba, con permiso explícito
+del usuario y marcado como dato de prueba**; si se despliega a
+producción real, estas filas deben borrarse primero (no hay botón de
+borrado en la UI a propósito — requiere SQL directo, mismo criterio que
+cualquier `DELETE` en `control_tenants`).
+
+**Addendum 2 (mismo día) — 4 correcciones puntuales reportadas con captura**:
+1. "Crecimiento de tenants" no mostraba nada: el contenedor arrancaba
+   con scroll a la IZQUIERDA (meses viejos en 0) — `renderBarChart1()`
+   ganó un parámetro `scrollToEnd` que hace `scrollLeft = scrollWidth`
+   tras pintar, usado solo en este gráfico (24 columnas, el único que de
+   verdad desborda).
+2. Kanban "feo": columnas ganaron borde superior de color por estado
+   (`.financiero-kanban-col.es-*`) y la cifra de cada tarjeta ahora es un
+   chip con el mismo color (`.financiero-tenant-row .chip.es-*`) en vez
+   de texto plano — mismo lenguaje visual que el resto del sitio
+   (`.chip.good/.warn/.critical`).
+3. KPI grid despareja (6+1 en una fila suelta): grid fijo de 4 columnas
+   (`.financiero-kpis-grid`, con su propio responsive en vez de
+   auto-fit) + un 8vo KPI real ("Margen del mes", de `utilidadMes`) para
+   llenar las 2 filas parejo.
+4. "Agrega más datos para validar": 21 tenants de prueba sembrados
+   directo en `tenants` (3 por mes, abril–octubre 2026,
+   `baja_motivo='prueba_historica'`, notas explícitas "Dato de
+   prueba... Seguro de borrar") — todos con `estado='baja'` a propósito
+   para que NO contaminen ningún KPI en vivo (MRR, tenants activos,
+   kanban, churn del mes filtran por `estado`), pero sus `creado_en`/
+   `baja_en` sí alimentan las reconstrucciones históricas reales
+   (altas/bajas por mes, crecimiento de tenants). Gotcha real encontrado
+   y corregido en el camino: el tope "nunca después de hoy" del offset
+   de churn de 2 filas cayó en `2026-11-03` (el mes EN CURSO), lo que sí
+   infló el churn en vivo de 6.7% a 17.6% — se corrigió topando esas 2
+   filas a `2026-10-31` en vez de "ayer". Lección para la próxima vez
+   que se siembren fechas de prueba con un tope dinámico: topar siempre
+   al ÚLTIMO DÍA DEL MES PASADO, nunca a "ayer" sin más — "ayer" puede
+   caer dentro del mes en curso y filtrar hacia KPIs que se presumían
+   100% reales.

@@ -779,6 +779,18 @@ solo la frase en español de la UI.
     note (pasó real, punto 466) — si aparece codigo "ya commiteado" que
     no se reconoce haber probado, no asumir que ya paso su propio ciclo
     de prueba.
+  - Un KPI que necesita serie historica pero solo tiene el dato de HOY
+    (punto 467, "Financiero" de /control): snapshot-por-UPSERT hacia
+    adelante (tabla con PK = periodo 'YYYY-MM', se actualiza SOLO
+    mientras ese periodo sea el mes en curso, se congela solo al cambiar
+    de mes), nunca fabricar el pasado. Un calculo que necesita varios
+    puntos (ej. regresion lineal) se apaga solo con un mensaje mientras
+    no haya suficiente historial, en vez de mostrar un ajuste sobre
+    basura. Si el dato SI se puede reconstruir sin inventar nada (una
+    fecha o estado ya guardado, como tenants.creado_en/baja_en),
+    reconstruir el historico completo de una vez en vez de esperar a que
+    se acumule un snapshot — ver crecimientoTenantsHistorico() en el
+    mismo punto.
 
 ## Stack
 
