@@ -1856,6 +1856,24 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   `control_tenants.tenants`) puede faltar en silencio — confirmar
   `SHOW GRANTS` para `app`/`control_app` contra un servidor nuevo antes
   de asumir que el aprovisionamiento automático de tenants va a funcionar.
+- **Tercer hallazgo, misma familia, encontrado al borrar las 15 empresas
+  de prueba de este punto: `app_tenant_drop` tenía sus credenciales YA en
+  `.env` (`DB_DROP_USER`/`DB_DROP_PASSWORD`, backend) pero el usuario
+  NUNCA se había creado en MySQL** — `eliminarTenantDefinitivo()` fallaba
+  con "No se pudo borrar la base de datos del tenant" en las 15/15,
+  siempre, hasta correr a mano `CREATE USER 'app_tenant_drop'@'%'
+  IDENTIFIED BY '<la misma password ya en .env>'` +
+  `GRANT DROP ON \`tenant\_%\`.* TO 'app_tenant_drop'@'%'` (confirmado con
+  `SHOW GRANTS`: solo DROP, nada más — mismo criterio de privilegio
+  mínimo que `app`). Mismo patrón exacto que el gotcha anterior —
+  cualquier credencial que `asegurarControlYPrivilegios()` crea "una sola
+  vez, a mano" puede tener la CONTRASEÑA ya en `.env` (copiada de un
+  template) sin que el USUARIO exista de verdad en MySQL — tener la
+  variable de entorno configurada NO es evidencia de que el usuario
+  fue creado. Antes de confiar en que un borrado/aprovisionamiento físico
+  va a funcionar en un servidor nuevo, confirmar con `SHOW GRANTS` los 3
+  usuarios (`app`, `control_app`, `app_tenant_drop`), no solo que las
+  variables de entorno tengan valor.
 - **`onboardingPublicLimiter` (40 req/15min por IP, 7 rutas del wizard
   público comparten el mismo balde) es real y se agota rápido probando
   en serio — y es de VENTANA FIJA, un pacing fijo no basta**: una alta

@@ -27321,8 +27321,31 @@ adivinada — implementado en `VULTR/smoke-test-onboarding.js`
 en lote. Reintentadas #9 y #14 con el fix → ambas exitosas, 15/15 total.
 Ver gotcha completo en CLAUDE.md.
 
-Las 15 empresas se dejan en pie a propósito (pedido explícito del
-usuario, "déjalas, yo te aviso cuando borrarlas") — NO se eliminaron.
+Las 15 empresas se dejaron en pie primero (pedido explícito del usuario)
+y se eliminaron después, en un segundo mensaje del usuario pidiendo la
+limpieza completa: suscripción de Stripe cancelada + `darDeBajaTenant` +
+`eliminarTenantDefinitivo` (DROP DATABASE físico real + filas de
+`tenants`/`tenant_eventos`) para las 15, verificado con `SHOW DATABASES`
+(cero `tenant_prueba-webhook-*` restantes) y `SELECT COUNT(*)` (cero
+filas en `tenants`).
+
+**Tercer hueco de la misma familia, encontrado al borrar**: el usuario
+`app_tenant_drop` (único privilegio real: DROP sobre `tenant_%`, ver
+`backend/db.js:eliminarBaseDeDatosTenant`) tenía sus credenciales YA
+configuradas en `.env` del backend (`DB_DROP_USER`/`DB_DROP_PASSWORD`)
+pero el usuario NUNCA se había creado en MySQL — mismo patrón exacto que
+el GRANT de `app` sobre `tenant_%` de este mismo punto: este servidor se
+armó con `docker stack deploy` directo, sin correr nunca
+`asegurarControlYPrivilegios()`. Corregido igual (`CREATE USER` +
+`GRANT DROP` exacto, usando la contraseña ya configurada, nunca impresa
+en ningún log/chat). Confirmado con `SHOW GRANTS` — solo DROP sobre
+`tenant_%`, nada más.
+
+**Único rastro que queda, a propósito, nunca borrado**: las 15 filas de
+`onboarding_borradores` (quedan `estado='convertido'`) — `control_app`
+no tiene privilegio DELETE en NINGUNA tabla (hardening deliberado del
+proyecto, no un descuido de esta limpieza) — no se amplió ese privilegio
+sin pedirlo explícito.
 
 Reporte completo enviado por correo a antonio.prado@addv.mx.
 
