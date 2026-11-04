@@ -1148,7 +1148,7 @@
           <div class="admin-toolbar">
             <div class="admin-toolbar-title">
               <h1>Financiero</h1>
-              <button type="button" class="campo-ayuda" id="btn-ayuda-vista-financiero" aria-label="Ayuda" data-tooltip="El ingreso es siempre automático (MRR vigente, proxy hasta que exista facturación) — el gasto siempre se captura a mano, porque viene de otras plataformas sin API propia que lo reporte.">
+              <button type="button" class="campo-ayuda" id="btn-ayuda-vista-financiero" aria-label="Ayuda" data-tooltip="El ingreso siempre se calcula solo (nadie lo teclea) porque todos tus clientes pagan en línea — el gasto sí se captura a mano, porque viene de otras plataformas (Vultr, Stripe, etc.) que no le avisan a Clarvo.">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Ayuda
               </button>
             </div>
@@ -1166,7 +1166,7 @@
             <div class="financiero-utilidad-card">
               <div class="k">Utilidad del mes en curso</div>
               <div class="v" id="financiero-utilidad-mes">—</div>
-              <div class="nota" id="financiero-utilidad-mes-nota">Ingreso (MRR) − gasto del mes</div>
+              <div class="nota" id="financiero-utilidad-mes-nota">Ingreso del mes menos gasto del mes</div>
             </div>
             <div class="financiero-utilidad-card">
               <div class="k">Utilidad acumulada</div>
@@ -1177,54 +1177,54 @@
 
           <div class="financiero-grid-2">
             <div class="resumen-fin-chart-card">
-              <h2>Suscripciones nuevas — por mes</h2>
-              <p class="field-hint" style="margin:2px 0 12px;">De <code>tenants.creado_en</code>/<code>baja_en</code> — real, sin fabricar historial.</p>
+              <h2>Clientes nuevos y perdidos — por mes</h2>
+              <p class="field-hint" style="margin:2px 0 12px;">Fecha real en que cada empresa se dio de alta o se fue — nada inventado.</p>
               <div class="resumen-fin-chart-body" id="financiero-chart-altas-bajas"></div>
               <ul class="resumen-fin-chart-leyenda">
-                <li><span class="resumen-fin-chart-barra-facturado" style="display:inline-block;width:10px;height:10px;border-radius:2px;"></span> Altas</li>
-                <li><span class="resumen-fin-chart-barra-eliminado-reportes" style="display:inline-block;width:10px;height:10px;border-radius:2px;"></span> Bajas</li>
+                <li><span class="resumen-fin-chart-barra-facturado" style="display:inline-block;width:10px;height:10px;border-radius:2px;"></span> Nuevos</li>
+                <li><span class="resumen-fin-chart-barra-eliminado-reportes" style="display:inline-block;width:10px;height:10px;border-radius:2px;"></span> Se fueron</li>
               </ul>
             </div>
             <div class="resumen-fin-chart-card">
-              <h2>Suscripciones nuevas — por trimestre</h2>
-              <p class="field-hint" style="margin:2px 0 12px;">Mismo dato, agregado por Q.</p>
+              <h2>Clientes nuevos y perdidos — por trimestre</h2>
+              <p class="field-hint" style="margin:2px 0 12px;">Mismo dato, sumado cada 3 meses.</p>
               <div class="resumen-fin-chart-body" id="financiero-chart-altas-bajas-q"></div>
               <ul class="resumen-fin-chart-leyenda">
-                <li><span class="resumen-fin-chart-barra-facturado" style="display:inline-block;width:10px;height:10px;border-radius:2px;"></span> Altas</li>
-                <li><span class="resumen-fin-chart-barra-eliminado-reportes" style="display:inline-block;width:10px;height:10px;border-radius:2px;"></span> Bajas</li>
+                <li><span class="resumen-fin-chart-barra-facturado" style="display:inline-block;width:10px;height:10px;border-radius:2px;"></span> Nuevos</li>
+                <li><span class="resumen-fin-chart-barra-eliminado-reportes" style="display:inline-block;width:10px;height:10px;border-radius:2px;"></span> Se fueron</li>
               </ul>
             </div>
           </div>
 
-          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">Ciclo de vida de suscripciones</h2>
+          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">En qué etapa está cada cliente</h2>
           <div id="financiero-kanban" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:28px;"></div>
 
-          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">Compras y upscale recientes</h2>
+          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">Compras adicionales recientes</h2>
           <div class="admin-table-wrap" style="margin-bottom:28px;">
             <table class="admin-table">
-              <thead><tr><th>Tenant</th><th>Funcionalidad</th><th>Detalle</th><th class="num">Cobro</th><th>Ciclo</th><th>Fecha</th></tr></thead>
+              <thead><tr><th>Empresa</th><th>Qué compró</th><th>Detalle</th><th class="num">Cobro</th><th>Ciclo</th><th>Fecha</th></tr></thead>
               <tbody id="financiero-upscale-body"></tbody>
             </table>
-            <p class="admin-empty-state" id="financiero-upscale-empty" hidden>Todavía no hay compras de upscale.</p>
+            <p class="admin-empty-state" id="financiero-upscale-empty" hidden>Todavía no hay compras adicionales.</p>
           </div>
 
           <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">Retención y cancelaciones</h2>
           <div class="kpi-row" id="financiero-retencion-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px;"></div>
           <div id="financiero-retencion-motivos" style="display:flex;flex-direction:column;gap:7px;margin-bottom:28px;"></div>
 
-          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">Crecimiento de tenants — exponencial vs. logístico</h2>
+          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">Proyección de crecimiento — ¿cuántos clientes tendremos?</h2>
           <div class="resumen-fin-chart-card" style="margin-bottom:24px;">
-            <p class="field-hint" style="margin:0 0 12px;">Línea sólida = tenants activos reales (24 meses). Líneas punteadas = proyección a 12 meses hacia adelante, cada una con un modelo distinto.</p>
+            <p class="field-hint" style="margin:0 0 12px;">Línea sólida = clientes activos reales (24 meses). Líneas punteadas = 2 formas distintas de imaginar los próximos 12 meses.</p>
             <div class="financiero-chart-canvas-box"><canvas id="financiero-chart-crecimiento"></canvas></div>
             <ul class="resumen-fin-chart-leyenda">
-              <li><span style="display:inline-block;width:14px;height:2px;background:var(--color-accent);"></span> Tenants reales</li>
-              <li><span style="display:inline-block;width:14px;height:2px;background:var(--color-error);border-top:2px dashed var(--color-error);"></span> Proyección exponencial</li>
-              <li><span style="display:inline-block;width:14px;height:2px;background:#146C43;border-top:2px dashed #146C43;"></span> Proyección logística (con techo)</li>
+              <li><span style="display:inline-block;width:14px;height:2px;background:var(--color-accent);"></span> Clientes reales</li>
+              <li><span style="display:inline-block;width:14px;height:2px;background:var(--color-error);border-top:2px dashed var(--color-error);"></span> Si crece sin frenarse</li>
+              <li><span style="display:inline-block;width:14px;height:2px;background:#146C43;border-top:2px dashed #146C43;"></span> Si el crecimiento se frena (más realista)</li>
             </ul>
             <div class="financiero-utilidad-grid" id="financiero-crecimiento-notas" style="margin-top:16px;"></div>
           </div>
 
-          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">BI — proyección de ingreso</h2>
+          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">Proyección de ingreso — ¿cuánto vamos a ganar?</h2>
           <div class="financiero-grid-2">
             <div class="resumen-fin-chart-card">
               <h2>Ingreso vs. gasto — historial y proyección</h2>
@@ -1237,8 +1237,8 @@
               </ul>
             </div>
             <div class="resumen-fin-chart-card">
-              <h2>Margen operativo por trimestre</h2>
-              <p class="field-hint" style="margin:2px 0 12px;">(ingreso − gasto) ÷ ingreso, por Q del historial real.</p>
+              <h2>Margen por trimestre</h2>
+              <p class="field-hint" style="margin:2px 0 12px;">Qué porcentaje del ingreso te queda, trimestre por trimestre.</p>
               <div class="resumen-fin-chart-body" id="financiero-chart-margen-q"></div>
             </div>
           </div>

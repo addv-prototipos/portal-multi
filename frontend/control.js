@@ -4661,7 +4661,7 @@
       return `
         <div class="financiero-kanban-col ${c.tono}">
           <h3>${c.titulo}</h3>
-          <div class="sum">${items.length} tenant${items.length === 1 ? '' : 's'}</div>
+          <div class="sum">${items.length} empresa${items.length === 1 ? '' : 's'}</div>
           ${items.map((it) => `
             <div class="financiero-tenant-row">
               <span class="nombre">${escapeHtml(it.nombre)}</span>
@@ -4673,7 +4673,13 @@
     }).join('');
   }
 
-  function renderUpscale(compras) {
+  // Nombre distinto a propósito: ya existe renderUpscale(items) para el
+  // catálogo de "Upscale y Stripe" (arriba en este mismo archivo) — mismo
+  // nombre en el mismo scope habría pisado esa función completa (bug
+  // real encontrado y corregido en el camino, nunca llegó a producción
+  // sin probarse: la tabla de "Upscale y Stripe" habría dejado de
+  // pintar).
+  function renderUpscaleFinanciero(compras) {
     els.financieroUpscaleEmpty.hidden = compras.length > 0;
     els.financieroUpscaleBody.innerHTML = compras.map((c) => `
       <tr>
@@ -4737,7 +4743,7 @@
       ctx.beginPath(); ctx.lineWidth = 2.4; ctx.strokeStyle = financieroCssVar('--color-accent');
       puntos.forEach((p, i) => { const x = financieroXOf(i, n, w, pad), y = financieroYOf(p.tenants, sc.min, sc.max, h, pad); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
       ctx.stroke();
-      els.financieroCrecimientoNotas.innerHTML = `<div class="financiero-utilidad-card"><div class="k">Proyección</div><div class="v" style="font-size:14px;">Acumulando historial</div><div class="nota">Se necesitan más meses con cambios reales en el conteo de tenants para un ajuste confiable.</div></div>`;
+      els.financieroCrecimientoNotas.innerHTML = `<div class="financiero-utilidad-card"><div class="k">Proyección</div><div class="v" style="font-size:14px;">Acumulando historial</div><div class="nota">Hace falta ver más meses con cambios reales en el número de clientes antes de poder proyectar con confianza.</div></div>`;
       return;
     }
 
@@ -4795,9 +4801,9 @@
     const activosHoy = puntos[n - 1].tenants;
 
     els.financieroCrecimientoNotas.innerHTML = `
-      <div class="financiero-utilidad-card"><div class="k">Ritmo de crecimiento</div><div class="v" style="font-size:18px;">${(r * 100).toFixed(1)}% al mes</div><div class="nota">Hoy: ${activosHoy} tenants. Si crece a este ritmo SIN frenarse (exponencial), en 12 meses serían ~${e12}.</div></div>
-      <div class="financiero-utilidad-card"><div class="k">Con techo de mercado</div><div class="v" style="font-size:18px;">~${Math.round(logL)} tenants máx.</div><div class="nota">Modelo más realista: el crecimiento se frena al acercarse a ese techo — en 12 meses serían ~${l12}, no ${e12}.</div></div>
-      <div class="financiero-utilidad-card"><div class="k">Qué tan distinto proyectan</div><div class="v" style="font-size:18px;">${Math.abs(e12 - l12)} tenants de diferencia</div><div class="nota">A 12 meses: ${e12} (si nunca se frena) vs. ${l12} (si sí hay techo) — la realidad probablemente quede entre los dos.</div></div>
+      <div class="financiero-utilidad-card"><div class="k">Qué tan rápido crece</div><div class="v" style="font-size:18px;">${(r * 100).toFixed(1)}% más clientes cada mes</div><div class="nota">Hoy tienes ${activosHoy}. Si sigue así de rápido sin frenarse nunca, en 12 meses serían ~${e12}.</div></div>
+      <div class="financiero-utilidad-card"><div class="k">Un límite más realista</div><div class="v" style="font-size:18px;">~${Math.round(logL)} clientes como máximo</div><div class="nota">Ningún negocio crece para siempre — con este límite, en 12 meses serían ~${l12}, no ${e12}.</div></div>
+      <div class="financiero-utilidad-card"><div class="k">Qué tan distinto es cada escenario</div><div class="v" style="font-size:18px;">${Math.abs(e12 - l12)} clientes de diferencia</div><div class="nota">A 12 meses: ${e12} si nunca se frena, ${l12} si sí hay un límite — lo real probablemente quede entre los dos.</div></div>
     `;
   }
 
@@ -4810,7 +4816,7 @@
     const labels = historial.map((h) => h.periodo.slice(2));
     els.financieroHistorialNota.textContent = n > 0 && historial[0].fuenteIngreso === 'facturacion_real'
       ? 'Ingreso tomado de facturación real.'
-      : 'Ingreso aproximado con el MRR vigente — se va acumulando un punto por cada mes desde que se activó esta vista.';
+      : 'Ingreso aproximado con lo que tus clientes activos pagan ahora — se va acumulando un punto por cada mes desde que se activó esta vista.';
 
     const sinProyeccion = n < 3;
     const FUT = sinProyeccion ? 0 : 6;
@@ -4862,7 +4868,7 @@
     els.financieroRegresionNotas.innerHTML = `
       <div class="financiero-utilidad-card"><div class="k">Qué dice la tendencia</div><div class="v" style="font-size:18px;">${reg.b >= 0 ? '+' : ''}${formatMoneyMXN(reg.b)} / mes</div><div class="nota">Cada mes el ingreso sube (o baja) en promedio esa cantidad, según los últimos ${n} meses reales.</div></div>
       <div class="financiero-utilidad-card"><div class="k">Si se mantiene así, en 6 meses</div><div class="v" style="font-size:18px;">${formatMoneyMXN(Math.max(0, ingresoEn6Meses))}</div><div class="nota">Hoy: ${formatMoneyMXN(ingresoHoy)}. Es la línea punteada del gráfico.</div></div>
-      <div class="financiero-utilidad-card"><div class="k">Qué tan confiable es</div><div class="v" style="font-size:18px;">${reg.r2 >= 0.7 ? 'Alta' : reg.r2 >= 0.4 ? 'Media' : 'Baja'} (R²=${reg.r2.toFixed(2)})</div><div class="nota">Entre más cerca de 1, más se parece el historial real a una línea recta — con pocos meses, conviene tomarlo con cautela.</div></div>
+      <div class="financiero-utilidad-card"><div class="k">Qué tan confiable es esta proyección</div><div class="v" style="font-size:18px;">${reg.r2 >= 0.7 ? 'Alta' : reg.r2 >= 0.4 ? 'Media' : 'Baja'}</div><div class="nota">Entre más parecido el historial real a una línea recta, más confiable — con pocos meses, conviene tomarlo con cautela.</div></div>
     `;
   }
 
@@ -4955,7 +4961,7 @@
       f.altas += p.altas;
       f.bajas += p.bajas;
     });
-    renderBarChart2(els.financieroChartAltasBajasQ, Array.from(mapa.values()), 'altas', 'bajas', 'resumen-fin-chart-barra-facturado', 'resumen-fin-chart-barra-eliminado-reportes', 'Altas', 'Bajas', (v) => String(v));
+    renderBarChart2(els.financieroChartAltasBajasQ, Array.from(mapa.values()), 'altas', 'bajas', 'resumen-fin-chart-barra-facturado', 'resumen-fin-chart-barra-eliminado-reportes', 'Nuevos', 'Se fueron', (v) => String(v));
   }
 
   // Margen operativo por trimestre — agregación client-side del
@@ -5014,11 +5020,11 @@
       els.financieroUtilidadAcumulada.classList.toggle('es-negativa', data.utilidadAcumulada < 0);
 
       const altasBajas = data.altasBajas.map((p) => ({ etiqueta: p.periodo.slice(2), altas: p.altas, bajas: p.bajas }));
-      renderBarChart2(els.financieroChartAltasBajas, altasBajas, 'altas', 'bajas', 'resumen-fin-chart-barra-facturado', 'resumen-fin-chart-barra-eliminado-reportes', 'Altas', 'Bajas', (v) => String(v));
+      renderBarChart2(els.financieroChartAltasBajas, altasBajas, 'altas', 'bajas', 'resumen-fin-chart-barra-facturado', 'resumen-fin-chart-barra-eliminado-reportes', 'Nuevos', 'Se fueron', (v) => String(v));
       renderAltasBajasQ(data.altasBajas);
 
       renderKanban(data.kanban);
-      renderUpscale(data.comprasUpscale);
+      renderUpscaleFinanciero(data.comprasUpscale);
       renderRetencion(data.retencion);
       renderCrecimiento(data.crecimientoTenants);
       renderHistorialUtilidad(hist);
