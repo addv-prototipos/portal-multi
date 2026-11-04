@@ -10952,6 +10952,16 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 }
 .financiero-tenant-row .nombre { font-weight: 600; }
 .financiero-tenant-row .mrr { color: var(--color-ink-soft); font-variant-numeric: tabular-nums; }
+/* Explicación en español llano debajo del número — pedido explícito del
+   usuario (no entendía MRR/ARR/churn/LTV en pantalla). Siempre visible,
+   no tooltip: el punto es que se lea sin tener que pasar el mouse. */
+.financiero-kpi-explica {
+  font-size: 11px;
+  color: var(--color-ink-soft);
+  margin: 4px 0 0;
+  line-height: 1.3;
+}
+
 /* Grid fijo de 4 columnas (8 KPIs = 2 filas parejas) — a propósito NO
    auto-fit: con 7 tarjetas y auto-fit(170px) el navegador acomodaba 6
    por fila y dejaba la 7ma sola en su propia fila (reportado como "se ve

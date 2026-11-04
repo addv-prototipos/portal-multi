@@ -4621,16 +4621,19 @@
   const ICONO_EDIFICIO = '<path d="M3 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M11 21V4a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v17M3 21h18" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>';
   const ICONO_ALERTA = '<path d="M12 9v4M12 17h.01" stroke-linecap="round" stroke-width="2"/><circle cx="12" cy="12" r="9" stroke-width="1.8"/>';
 
+  // Nombres y explicaciones en español llano — nada de MRR/ARR/churn/LTV
+  // en pantalla (pedido explícito del usuario: "no lo entiendo"). El
+  // cálculo de atrás no cambia, solo cómo se presenta.
   function renderKpis(kpis) {
     const items = [
-      { k: 'MRR', v: formatMoneyMXN(kpis.mrr), icono: ICONO_DINERO, clase: 'financiero-stat-icono-neutral', tendencia: kpis.mrrTrendPct },
-      { k: 'ARR proyectado', v: formatMoneyMXN(kpis.arr), icono: ICONO_DINERO, clase: 'financiero-stat-icono-neutral' },
-      { k: 'Tenants activos', v: kpis.tenantsActivos, icono: ICONO_EDIFICIO, clase: 'financiero-stat-icono-positivo' },
-      { k: 'Altas este mes', v: kpis.altasEsteMes, icono: ICONO_EDIFICIO, clase: 'financiero-stat-icono-positivo' },
-      { k: 'Churn mensual (aprox.)', v: `${kpis.churnPct.toFixed(1)}%`, icono: ICONO_ALERTA, clase: 'financiero-stat-icono-alerta' },
-      { k: 'LTV estimado', v: kpis.ltv !== null ? formatMoneyMXN(kpis.ltv) : '—', icono: ICONO_DINERO, clase: 'financiero-stat-icono-neutral' },
-      { k: 'Ingreso por upscale', v: formatMoneyMXN(kpis.mrrUpscale), icono: ICONO_DINERO, clase: 'financiero-stat-icono-positivo' },
-      { k: 'Margen del mes', v: `${kpis.margenMesPct.toFixed(1)}%`, icono: ICONO_DINERO, clase: kpis.margenMesPct >= 0 ? 'financiero-stat-icono-positivo' : 'financiero-stat-icono-alerta' },
+      { k: 'Ingreso mensual', explica: 'Lo que pagan tus clientes activos cada mes', v: formatMoneyMXN(kpis.mrr), icono: ICONO_DINERO, clase: 'financiero-stat-icono-neutral', tendencia: kpis.mrrTrendPct },
+      { k: 'Ingreso anual proyectado', explica: 'El ingreso mensual × 12, si nada cambia', v: formatMoneyMXN(kpis.arr), icono: ICONO_DINERO, clase: 'financiero-stat-icono-neutral' },
+      { k: 'Empresas activas', explica: 'Clientes pagando ahora mismo', v: kpis.tenantsActivos, icono: ICONO_EDIFICIO, clase: 'financiero-stat-icono-positivo' },
+      { k: 'Empresas nuevas', explica: 'Se dieron de alta este mes', v: kpis.altasEsteMes, icono: ICONO_EDIFICIO, clase: 'financiero-stat-icono-positivo' },
+      { k: 'Clientes que se fueron', explica: 'Cancelaron este mes, de cada 100 activos', v: `${kpis.churnPct.toFixed(1)}%`, icono: ICONO_ALERTA, clase: 'financiero-stat-icono-alerta' },
+      { k: 'Valor promedio por cliente', explica: 'Lo que deja un cliente antes de irse, en promedio', v: kpis.ltv !== null ? formatMoneyMXN(kpis.ltv) : '—', icono: ICONO_DINERO, clase: 'financiero-stat-icono-neutral' },
+      { k: 'Ingreso por mejoras extra', explica: 'Disco/usuarios adicionales que compraron tus clientes', v: formatMoneyMXN(kpis.mrrUpscale), icono: ICONO_DINERO, clase: 'financiero-stat-icono-positivo' },
+      { k: 'Margen del mes', explica: 'Lo que queda del ingreso después de los gastos', v: `${kpis.margenMesPct.toFixed(1)}%`, icono: ICONO_DINERO, clase: kpis.margenMesPct >= 0 ? 'financiero-stat-icono-positivo' : 'financiero-stat-icono-alerta' },
     ];
     els.financieroKpis.innerHTML = items.map((it) => `
       <div class="inicio-stat-card">
@@ -4640,6 +4643,7 @@
         </div>
         <p class="inicio-stat-numero" style="font-size:22px;">${it.v}</p>
         ${it.tendencia !== undefined && it.tendencia !== null ? `<p class="inicio-stat-tendencia ${it.tendencia >= 0 ? 'es-positiva' : 'es-negativa'}">${it.tendencia >= 0 ? '+' : ''}${it.tendencia.toFixed(1)}% vs. mes anterior</p>` : ''}
+        <p class="financiero-kpi-explica">${escapeHtml(it.explica)}</p>
       </div>
     `).join('');
   }
