@@ -27357,3 +27357,159 @@ Archivos: `control/utils/stripeWebhookHealth.js` (nuevo),
 `control/test/unit/stripeWebhookHealth.test.js` (nuevo),
 `VULTR/MAPA-LOGS.md` (nuevo), `VULTR/smoke-test-onboarding.js` (nuevo),
 `VULTR/README-VULTR.md`, `CLAUDE.md`, `PROJECT_STATE.md` (este punto).
+
+## Punto 466 — Alta manual con periodo de prueba: al vencer sin tarjeta, 15 días para pagar o se elimina la cuenta (3-4 nov 2026, CERRADO)
+
+Requerimiento textual del usuario: "si lo doy manual y colocando el
+periodo de prueba, quiero que al terminar le pida los datos de la
+tarjeta para continuar usandolo, caso contrarios que se niegue a
+seguir, notificarle que cuenta con 15 días para cambiar de opinión,
+sino se eliminará la cuenta. En este paso la mandas a archivar el
+tenant y a posterior el proceso que ya contamos de eliminación." Pidió
+usar `/prompt-master`/`/ui-ux-pro-max`/`/impeccable` para refinar el
+requerimiento antes de implementar — `/prompt-master` resultó no
+aplicable (está scoped a generar prompts para OTRAS herramientas de IA,
+no para auto-dirigir implementación propia, confirmado leyendo su
+propia regla dura); se usó análisis directo + `ui-ux-pro-max` para los
+patrones de UX de error/estado bloqueado.
+
+**2 conflictos de arquitectura detectados ANTES de implementar, resueltos
+con el usuario vía `AskUserQuestion` (nunca asumidos)**:
+1. La constante global `DIAS_RETENCION_BAJA` (30 días, punto en curso de
+   purga de Papelera) no podía reusarse tal cual — el usuario pidió 15
+   días SOLO para este caso. Se eligió: 15 días solo para este caso
+   (nueva columna `baja_motivo` + umbral por motivo en
+   `purgarBajasVencidas()`, nunca tocar el global).
+2. Archivar el tenant (`estado='baja'`) lo esconde detrás del candado
+   anti-enumeración (punto 422: cualquier estado≠'activo' responde 404
+   genérico) — el link de "15 días para cambiar de opinión" por correo
+   NUNCA podría pasar por ahí. Se eligió: link único por correo con
+   token propio (`reactivacion_tokens`), público, nunca por el sitio
+   normal — sin tocar el candado de 422.
+
+**Mecanismo elegido para "pedir tarjeta"**: Stripe Checkout hosted
+(nunca Stripe Elements/captura de tarjeta propia — ver
+`crearCheckoutSessionReactivacion()`, mismo criterio ya establecido en
+el proyecto: el Price se arma ad-hoc con `price_data`, nunca vive en el
+catálogo de Stripe).
+
+**Flujo completo implementado**:
+1. `control/utils/reactivacionTenant.js` (nuevo) —
+   `archivarTrialsVencidosSinPago()` (job en `control/server.js:iniciar()`,
+   cada hora + 50s de delay inicial): detecta tenants
+   `estado IN ('activo','suspendido') AND suscripcion_estatus='prueba'
+   AND suscripcion_origen='manual' AND stripe_subscription_id IS NULL AND
+   suscripcion_expira_en < hoy`, los archiva
+   (`darDeBajaTenant(slug, {motivo:'trial_vencido_sin_pago'})`) y manda
+   un correo con el link de 15 días (`enviarCorreoBase`, vía el default
+   SMTP de plataforma del punto 443 si el tenant no tiene el suyo).
+2. `GET /api/public/reactivacion/:token` (`control/server.js`) — público,
+   `onboardingPublicLimiter`, nunca pasa por `requireAdminAuth` ni por el
+   404 genérico de 422. Token inválido/usado/vencido → mismo mensaje
+   genérico en los 3 casos (nunca revela si el tenant existe). Éxito →
+   redirect 303 directo a Stripe.
+3. Webhook (`manejarReactivacionConfirmada()`, enrutado desde
+   `stripePagos.js:enrutarPagoConfirmado()` por
+   `metadata.tipo==='reactivacion'`, mismo patrón lazy-require que la
+   rama 'upscale' ya existente) — marca `suscripcion_estatus='pagada'`,
+   guarda `stripe_customer_id`/`stripe_subscription_id`, reactiva el
+   tenant (`reactivarTenant()`, limpia `baja_motivo` siempre) y marca el
+   token usado. **`suscripcion_origen` NUNCA se toca aquí** — sigue
+   'manual', la verdad histórica de cómo nació el tenant, aunque ya esté
+   pagando.
+4. Mientras el tenant sigue `'activo'` pero ya vencido (antes de que el
+   job lo archive), el muro de suscripción (`backend/utils/auth.js:
+   finalizarAutenticacionAdmin`, 402 ya existente del punto 416) lo
+   bloquea de inmediato — "pedirle tarjeta al terminar" no espera a la
+   corrida del job, es instantáneo vía el mismo mecanismo de bloqueo que
+   ya existía.
+5. `POST /api/admin/mi-cuenta/suscripcion/checkout` (`backend/server.js`,
+   nuevo) — el botón real tanto del muro de suscripción como de "Mi
+   Cuenta → Actualizar método de pago" (`frontend/admin.js:
+   iniciarCheckoutSuscripcion()`, un solo helper compartido, reemplaza 2
+   stubs que mostraban "la integración está pendiente"). Llama a
+   `backend→control` (`llamarControlInterno('/internal/reactivacion/checkout')`,
+   mismo patrón de secreto compartido que el resto de `/internal/*`).
+
+**Candado circular encontrado y corregido ANTES de probar**: la ruta de
+checkout, si se gatea con el `requireAdminAuth` normal, queda bloqueada
+por el mismo 402 que viene a resolver — un candado sin llave. Fix:
+`RUTAS_EXENTAS_BLOQUEO_SUSCRIPCION` (`backend/utils/auth.js`), un `Set`
+de rutas exentas revisado ANTES del check de bloqueo en
+`finalizarAutenticacionAdmin()` — hoy solo
+`/api/admin/mi-cuenta/suscripcion/checkout`. **Hueco relacionado, no
+corregido a propósito (fuera de alcance, no se tocó sin pedirlo)**:
+`/api/admin/login` no está en esa excepción — un usuario que cierre
+sesión después de que su trial venza podría no poder volver a entrar
+para ver el muro y pagar. Si una sesión futura lo reporta, es este
+gotcha, no una regresión nueva.
+
+**Bug real encontrado SOLO con la prueba funcional, nunca con
+`node --check` ni con Jest (mockeado)**: `manejarReactivacionConfirmada()`
+intentaba `UPDATE tenants SET ... actualizado_en = ?` — esa columna
+NUNCA existió en `control_tenants.tenants` (solo hay timestamps
+específicos como `plan_actualizado_en`). Reproducido real completando
+un pago de Stripe test mode con tarjeta 4242 vía navegador
+(chrome-devtools MCP): `ER_BAD_FIELD_ERROR`, el tenant se quedaba
+cobrado pero NUNCA reactivado, en silencio para el cliente (el webhook
+respondía 200 a Stripe antes de que se pudiera reintentar — mismo
+patrón de "falla silenciosa con 200" ya documentado en el punto 440
+para `invoice.subscription`). Corregido (commit `0c9f747`, separado del
+resto porque la feature completa ya había quedado commiteada por otra
+sesión concurrente antes de correr la prueba funcional — ver nota de
+abajo) y revalidado reenviando el mismo evento real firmado a mano:
+tenant reactivado, `suscripcion_origen` intacto, acceso admin
+restaurado (200, ya no 402).
+
+**Validado real, end-to-end, contra Docker+MySQL+Stripe test mode+
+navegador real (nunca solo mocks)**: tenant de prueba (`panes`) puesto
+en trial manual vencido vía `/control` + `UPDATE` directo de
+`suscripcion_expira_en` al pasado → (a) acceso admin bloqueado con 402
+`SUSCRIPCION_BLOQUEADA` mientras seguía `'activo'`; (b) el job
+automático lo archivó solo (`estado='baja'`, `baja_motivo=
+'trial_vencido_sin_pago'`, token de 15 días generado, correo intentado
+sin error); (c) el link público devolvió 303 real a un Checkout Session
+real de Stripe ("Plan Panadero", $850 MXN/mes); (d) pago completado con
+tarjeta de prueba 4242 vía navegador real (chrome-devtools MCP); (e)
+tras el fix del bug de arriba, el webhook (reenviado firmado a mano,
+mismo patrón del punto 430) reactivó el tenant real
+(`estado='activo'`, `suscripcion_estatus='pagada'`,
+`stripe_customer_id`/`stripe_subscription_id` reales persistidos,
+`suscripcion_origen` sin tocar) y el acceso admin volvió a 200; (f) el
+endpoint de checkout desde el muro (`POST
+/api/admin/mi-cuenta/suscripcion/checkout`) confirmado funcionando con
+el tenant AÚN bloqueado (402), probando la excepción de ruta del punto
+anterior. Tenant de prueba restaurado a su estado original al terminar
+(`suscripcion_estatus='pendiente'`), sin dejar rastro.
+
+**Tests unitarios nuevos**: `control/test/unit/tenantLifecycle.test.js`
+(+motivo en `darDeBajaTenant`/`reactivarTenant`, +umbral 15 días en
+`purgarBajasVencidas`), `control/test/unit/reactivacionTenant.test.js`
+(nuevo, 20 casos: token, Checkout Session, webhook, job de archivado),
+`backend/test/unit/auth.test.js` (+exención de ruta). Suite completa sin
+regresiones: 1382 backend + 547 control, verde.
+
+**Nota de coordinación (concurrencia real entre sesiones)**: casi todo
+el código de este punto (`control/utils/reactivacionTenant.js`,
+columna `baja_motivo`, tabla `reactivacion_tokens`, las 2 rutas nuevas,
+la excepción de `auth.js`, el wiring de `frontend/admin.js`/
+`admin.html`, y los tests) quedó commiteado como colateral dentro de los
+commits de otra sesión concurrente sobre un incidente no relacionado
+(punto 465, "Taquería el Infierno") — ambas sesiones compartían el
+mismo working tree. Nunca se había documentado bajo su propio punto
+hasta ahora; el bug de `actualizado_en` de arriba viajó sin corregir en
+esos commits hasta que esta sesión corrió la prueba funcional real y lo
+encontró. Lección: cuando dos sesiones comparten repo real (no
+worktrees separados), un commit de la sesión A puede arrastrar cambios
+sin terminar de la sesión B sin que A lo note — si una sesión futura ve
+código "ya commiteado" que no reconoce haber revisado, no asumir que ya
+pasó por su propio ciclo de prueba completo.
+
+Archivos: `control/utils/reactivacionTenant.js` (nuevo),
+`control/utils/tenantLifecycle.js`, `control/utils/stripePagos.js`,
+`control/scripts/ensureSchema.js`, `control/server.js`,
+`backend/utils/auth.js`, `backend/server.js`, `frontend/admin.js`,
+`frontend/admin.html`, `control/test/unit/reactivacionTenant.test.js`
+(nuevo), `control/test/unit/tenantLifecycle.test.js`,
+`backend/test/unit/auth.test.js`, `CLAUDE.md`, `PROJECT_STATE.md` (este
+punto).

@@ -767,6 +767,18 @@ solo la frase en español de la UI.
     `VULTR/smoke-test-onboarding.js --borrar` (alta real desde clarvo.mx,
     Checkout real, confirma activacion sola, borra). Mapa de logs del
     stack: `VULTR/MAPA-LOGS.md`.
+  - `control_tenants.tenants` NO tiene columna generica `actualizado_en`
+    (solo timestamps especificos: `plan_actualizado_en`,
+    `disco_cache_actualizado_en`, etc.) — un `UPDATE tenants SET ...
+    actualizado_en = ?` nuevo truena con `ER_BAD_FIELD_ERROR`, bug real
+    que solo una prueba funcional real atrapo (nunca `node --check` ni
+    Jest mockeado). Verificar con `SHOW COLUMNS ... LIKE '%actualiz%'`
+    antes de inventar el nombre de una columna de timestamp.
+  - 2 sesiones compartiendo el mismo working tree: un commit de una
+    puede arrastrar cambios sin terminar de la otra sin que ninguna lo
+    note (pasó real, punto 466) — si aparece codigo "ya commiteado" que
+    no se reconoce haber probado, no asumir que ya paso su propio ciclo
+    de prueba.
 
 ## Stack
 

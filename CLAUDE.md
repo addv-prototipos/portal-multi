@@ -1904,6 +1904,33 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   webhook activa el tenant SOLO (sin tocar nada a mano) en hasta 2
   minutos, y lo borra. Mapa completo de dónde vive cada log del stack
   (para diagnosticar si este smoke-test falla): `VULTR/MAPA-LOGS.md`.
+- **`control_tenants.tenants` NO tiene una columna genérica
+  `actualizado_en`** (punto 466, 2026-11-04) — solo timestamps
+  específicos por campo (`plan_actualizado_en`,
+  `disco_cache_actualizado_en`, etc.). Un `UPDATE tenants SET ...
+  actualizado_en = ?` nuevo truena en runtime con `ER_BAD_FIELD_ERROR`
+  ("Unknown column 'actualizado_en' in 'field list'") — bug real que
+  viajó sin detectar hasta una prueba funcional completa (pago real de
+  Stripe test mode + webhook real), nunca atrapado por `node --check` ni
+  por un test unitario con el pool mockeado (el mock no valida columnas
+  reales). Antes de escribir un `UPDATE tenants SET ...` nuevo con un
+  campo de "última modificación", verificar con
+  `SHOW COLUMNS FROM tenants LIKE '%actualiz%'` si ya existe una columna
+  específica para ese campo — y si no existe ninguna, omitir el
+  timestamp genérico en vez de inventar el nombre de una columna que no
+  está en el esquema.
+- **Dos sesiones compartiendo el mismo working tree (sin worktrees
+  separados): un commit de la sesión A puede arrastrar cambios sin
+  terminar de la sesión B** (punto 466, 2026-11-04): casi todo el código
+  del punto 466 (`reactivacionTenant.js`, columna `baja_motivo`, rutas
+  nuevas, tests) quedó commiteado como colateral dentro de los commits
+  de otra sesión sobre un incidente no relacionado (punto 465) — ninguna
+  de las dos sesiones lo notó hasta que la prueba funcional de la
+  primera encontró un bug real (ver el gotcha de `actualizado_en` de
+  arriba) que viajó sin corregir en ese commit ajeno. Si una sesión
+  futura encuentra código "ya commiteado" en `git log` que no reconoce
+  haber revisado/probado antes, no asumir que ya pasó por su propio
+  ciclo completo de prueba — puede ser colateral de otra sesión.
 
 ## Stack
 
