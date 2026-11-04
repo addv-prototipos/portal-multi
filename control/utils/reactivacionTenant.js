@@ -170,9 +170,9 @@ async function manejarReactivacionConfirmada(session, db) {
   await db.query(
     `UPDATE tenants
         SET suscripcion_estatus = 'pagada', stripe_customer_id = ?, stripe_subscription_id = ?,
-            suscripcion_ciclo_inicia_en = ?, suscripcion_expira_en = ?, actualizado_en = ?
+            suscripcion_ciclo_inicia_en = ?, suscripcion_expira_en = ?
       WHERE id = ?`,
-    [stripeCustomerId, stripeSubscriptionId, hoy, expiraEn, new Date(), tenant.id]
+    [stripeCustomerId, stripeSubscriptionId, hoy, expiraEn, tenant.id]
   );
 
   // Si estaba archivado (vino del link de 15 días), lo reactiva — si

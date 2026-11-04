@@ -242,7 +242,7 @@ describe('utils/reactivacionTenant.js', () => {
       const [sqlUpdate, paramsUpdate] = pool.query.mock.calls[1];
       expect(sqlUpdate).toMatch(/UPDATE tenants/);
       expect(sqlUpdate).not.toMatch(/suscripcion_origen/);
-      expect(paramsUpdate).toEqual(['cus_abc', 'sub_abc', expect.any(String), '2026-12-01', expect.any(Date), 7]);
+      expect(paramsUpdate).toEqual(['cus_abc', 'sub_abc', expect.any(String), '2026-12-01', 7]);
       expect(sumarCiclo).toHaveBeenCalledWith(expect.any(String), 'mensual');
       expect(reactivarTenant).toHaveBeenCalledWith('cliente1', { actor: 'stripe-webhook:reactivacion' }, pool);
       const [sqlToken, paramsToken] = pool.query.mock.calls[2];
