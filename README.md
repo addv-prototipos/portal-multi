@@ -13,7 +13,7 @@ separado.
 | Componente | Versión actual | Cambios de esta versión |
 |---|---|---|
 | **Backend / `/admin`** (tenant y sin tenant) | **1.1.01** | Autosanado de importaciones de inventario abandonadas (job huérfano si el proceso muere a mitad de un catálogo grande, ver punto 458 de `PROJECT_STATE.md`). |
-| **Control (`/control`)** | **1.1.01** | Switch "Publicar en clarvo.mx" por plan (puntos 461/463), orden de la isla de precios pública por precio real en vez de orden manual, estrella "Plan más elegido" exclusiva (reemplaza el valor hardcodeado que vivía en `clarvo-Site`). |
+| **Control (`/control`)** | **1.1.02** | Vista "Financiero" nueva (punto 467): KPIs reales en español llano (sin MRR/ARR/churn/LTV), utilidad neta mensual + acumulada, gasto operativo con captura manual, proyecciones de BI (regresión lineal, exponencial/logístico) dibujadas con línea punteada hacia el futuro. |
 
 Historial completo, punto por punto, con causa raíz y validación real de
 cada cambio: `PROJECT_STATE.md`.
