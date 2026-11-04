@@ -724,6 +724,49 @@ solo la frase en español de la UI.
   (5000ms). No es un hang real - confirmado quitando los cambios y
   volviendo a correr. Fix minimo: timeout explicito (`}, 10000);`) solo en
   esos 2 tests, nunca subir el timeout global del proyecto por esto.
+- **Punto 465 (incidente real de produccion, 2026-11-03) - un tenant pago
+  de verdad en Vultr y se quedo atorado 3h45min porque NUNCA hubo un
+  webhook de Stripe registrado en ese servidor** - confirmado consultando
+  `stripe.webhookEndpoints.list()` directo (lista vacia) y el log de
+  nginx del host (0 hits historicos en `/api/control/webhooks/stripe`).
+  Fix: `control/utils/stripeWebhookHealth.js`, self-healing real -
+  verifica/crea/reactiva el webhook (7 eventos) al arrancar `control` y
+  cada hora. **Los webhooks de Stripe son por MODO** (prueba vs. live,
+  registros completamente separados) - el self-healing se auto-registra
+  en el modo activo, pero correr el smoke-test real (abajo) sigue siendo
+  obligatorio al cambiar de modo, nunca asumir que ya funciona solo.
+  - Un contenedor de Swarm NO puede escribir el `.env` del host
+    (`STRIPE_WEBHOOK_SECRET` llega via `environment:` interpolado en el
+    deploy) - el secreto nuevo se guarda en `ajustes_globales`
+    (`stripe_webhook_secret_actual`) y el endpoint del webhook intenta la
+    firma con `process.env` primero, cae a ese valor de BD si falla. Un
+    `.env` desactualizado en el host ya no puede bloquear un pago real.
+  - **3 huecos de privilegios de MySQL encontrados en el mismo servidor**,
+    todos la misma causa: este VPS se armo con `docker stack deploy`
+    directo, nunca corrio `provisionar-tenant.js`
+    (`asegurarControlYPrivilegios()`), asi que ningun GRANT "de una sola
+    vez, a mano" se aplico: (1) `app` sin GRANT sobre `tenant_%` -
+    ningun alta real podia completarse aunque el webhook ya funcionara;
+    (2) `app_tenant_drop` tenia su password YA en `.env`
+    (`DB_DROP_USER`/`DB_DROP_PASSWORD`) pero el USUARIO nunca existia en
+    MySQL - eliminar un tenant fallaba siempre con "No se pudo borrar la
+    base de datos". Tener la variable de entorno configurada NO es
+    evidencia de que el usuario fue creado - confirmar con `SHOW GRANTS`
+    los 3 usuarios (`app`, `control_app`, `app_tenant_drop`) en cualquier
+    servidor nuevo antes de asumir que el aprovisionamiento/borrado de
+    tenants va a funcionar.
+  - `onboardingPublicLimiter` (40 req/15min por IP, ventana FIJA) se
+    agota real a la 5a-6a alta seguida (~7 llamadas por alta). Un pacing
+    fijo (180s) sigue fallando porque la ventana resetea entera, no
+    gradual - la forma correcta es leer `RateLimit-Remaining`/
+    `RateLimit-Reset` reales antes de cada alta (ver
+    `VULTR/smoke-test-onboarding.js:esperarCuotaSuficiente()`), nunca una
+    duracion adivinada.
+  - Smoke-test obligatorio tras cualquier deploy que toque
+    backend/control/frontend, y SIEMPRE al pasar Stripe de prueba a live:
+    `VULTR/smoke-test-onboarding.js --borrar` (alta real desde clarvo.mx,
+    Checkout real, confirma activacion sola, borra). Mapa de logs del
+    stack: `VULTR/MAPA-LOGS.md`.
 
 ## Stack
 
