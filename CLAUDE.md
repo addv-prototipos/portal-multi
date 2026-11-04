@@ -1806,6 +1806,78 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   `/impeccable clarify`, ver también memoria de task-observer
   `0008-async-job-needs-staleness-recovery.md`).
 
+- **Incidente real de producción (punto 465, 2026-11-03): un tenant pagó
+  de verdad y se quedó atorado 3h45min porque NUNCA hubo un webhook de
+  Stripe registrado en el servidor de Vultr** — confirmado consultando
+  `stripe.webhookEndpoints.list()` directo (0 resultados) y el log de
+  nginx del host (0 hits en `/api/control/webhooks/stripe`, en TODAS las
+  rotaciones retenidas). No fue un crash ni una firma inválida —
+  simplemente nadie lo había registrado nunca en ese servidor
+  específico. **Fix: `control/utils/stripeWebhookHealth.js`**, self-healing
+  real — verifica/crea/reactiva el webhook (los 7 eventos que
+  `procesarEventoWebhook` maneja) al arrancar `control` y cada hora.
+  **Los webhooks de Stripe son por MODO** (prueba vs. live = registros
+  completamente separados, cada API key solo ve/crea los de su propio
+  modo) — este self-healing corre con la API key que esté activa, así
+  que se auto-registra solo en AMBOS modos sin pedirlo, pero **nunca dar
+  por bueno un cambio de modo sin correr el smoke-test real** (ver abajo)
+  — el self-healing demuestra que el ENDPOINT existe, no que una compra
+  real de punta a punta funciona.
+- **Un contenedor de Swarm NO puede escribir el `.env` del host** —
+  `STRIPE_WEBHOOK_SECRET` (y cualquier otra var) llega vía
+  `environment:` interpolado por `docker stack deploy` en el momento del
+  deploy, nunca por bind mount ni `env_file` dentro del contenedor. Por
+  eso el secreto nuevo que crea el self-healing se guarda en
+  `ajustes_globales` (clave `stripe_webhook_secret_actual`), NUNCA en un
+  archivo — y el propio endpoint `/api/control/webhooks/stripe` intenta
+  verificar la firma con `process.env.STRIPE_WEBHOOK_SECRET` primero y,
+  si falla, reintenta con ese valor de BD (`secretosCandidatos()`) antes
+  de rechazar. Un `.env` desactualizado en el host YA NUNCA puede volver
+  a bloquear un pago real — la base de datos manda, no el archivo. Si se
+  necesita otro valor que un contenedor deba "recordar" entre restarts
+  sin tocar el host, replicar este mismo patrón (BD como fuente de
+  verdad + fallback en el punto de uso), nunca intentar escribir al
+  filesystem del host desde dentro de un servicio de Swarm.
+- **Segundo hallazgo del mismo incidente, independiente del webhook: el
+  usuario `app` de MySQL en Vultr nunca tuvo el GRANT sobre `tenant_%`**
+  que `backend/scripts/lib/controlDb.js:asegurarControlYPrivilegios()` ya
+  define — `SHOW GRANTS FOR 'app'@'%'` solo mostraba `portal_facturacion`.
+  Sin ese privilegio, `POST /internal/activar-tenant/:slug` (aprovisionamiento
+  físico real) truena con "No se pudo crear la base de datos del tenant"
+  — **ningún alta real podía completarse en ese servidor, incluso con el
+  webhook ya reparado**. El webhook nunca llegó a exponer este segundo
+  bug porque el primero siempre fallaba antes. Ya corregido (GRANT exacto
+  replicado a mano — sin DROP ni GRANT OPTION, mismo privilegio mínimo
+  que el proyecto ya documenta). **Lección**: cuando un servidor de
+  producción se levanta por fuera del flujo normal de
+  `provisionar-tenant.js` (este VPS se armó directo con `docker stack
+  deploy`, nunca corrió ese CLI), cualquier GRANT que ese script aplica
+  "una sola vez, a mano" (ver el otro gotcha ya documentado sobre
+  `control_tenants.tenants`) puede faltar en silencio — confirmar
+  `SHOW GRANTS` para `app`/`control_app` contra un servidor nuevo antes
+  de asumir que el aprovisionamiento automático de tenants va a funcionar.
+- **`onboardingPublicLimiter` (40 req/15min por IP, 7 rutas del wizard
+  público comparten el mismo balde) es real y se agota rápido probando
+  en serio**: una alta completa por el wizard gasta ~7 llamadas
+  (crearBorrador + slugDisponible + 4× actualizarBorrador, uno por
+  transición de paso + pagarBorrador) — 5-6 altas seguidas desde el mismo
+  IP ya tumban el balde (`RateLimit-Remaining: 0`, `Retry-After`
+  expone los segundos exactos). El polling de `estado-pago` NO cuenta
+  aquí (tiene su propio limiter, `onboardingEstadoPagoLimiter`, 300/15min
+  — punto 441). Si se necesita automatizar varias altas reales seguidas
+  (QA, smoke-tests en lote, lo que generó este punto), espaciar ~180s
+  entre cada una — nunca asumir que el límite es "generoso" solo porque
+  40 suena alto; a 7 llamadas por alta real, son 5-6 altas por ventana,
+  no 40.
+- **Smoke-test obligatorio tras cualquier deploy a producción que toque
+  backend/control/frontend, y SIEMPRE al cambiar Stripe de modo prueba a
+  modo live** (decisión explícita del usuario, "es una prueba que no te
+  puedes saltar"): `VULTR/smoke-test-onboarding.js --borrar` — alta real
+  desde `https://clarvo.mx`, Checkout real de Stripe, confirma que el
+  webhook activa el tenant SOLO (sin tocar nada a mano) en hasta 2
+  minutos, y lo borra. Mapa completo de dónde vive cada log del stack
+  (para diagnosticar si este smoke-test falla): `VULTR/MAPA-LOGS.md`.
+
 ## Stack
 
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),

@@ -27221,3 +27221,97 @@ Archivos: `backend/package.json`, `control/package.json`,
 curso de "Extras" de upscale de otra sesión) se tocó, commiteó ni
 desplegó — queda intacto en el working tree local, pendiente de esa
 sesión.
+
+## Punto 465
+
+Incidente real de producción (reportado por el usuario, 2026-11-03): un
+tenant pagó de verdad en Vultr (modo prueba de Stripe) y se quedó atorado
+3h45min sin activarse — "Taquería el Infierno", $199 MXN, checkout
+confirmado por Stripe (`payment_status: paid`) pero nunca aprovisionado.
+El usuario pidió: (1) investigar a fondo y arreglar, (2) construir
+pruebas/health-checks de regresión para que nunca vuelva a pasar, (3)
+localizar y mapear todos los logs del stack para monitoreo futuro, (4)
+registrar 15 empresas reales desde el sitio productivo validando el
+fix, (5) garantizar que el mismo hueco no reaparezca al pasar Stripe de
+modo prueba a modo live, con 98% de seguridad.
+
+**Causa raíz #1 (la que originó el atasco)**: cero webhooks registrados
+en Stripe para este servidor — confirmado consultando
+`stripe.webhookEndpoints.list()` directo con la llave real (lista
+vacía) y el log de nginx del host (0 hits históricos en
+`/api/control/webhooks/stripe`, en todas las rotaciones retenidas).
+Nunca fue un error de firma ni un crash — simplemente nadie lo había
+registrado nunca en este servidor (distinto del de pruebas,
+`yt.addv.com.mx`).
+
+**Causa raíz #2 (independiente, descubierta al intentar recuperar el
+tenant atorado)**: el usuario `app` de MySQL en Vultr nunca tuvo el
+GRANT sobre `tenant\_%` que `backend/scripts/lib/controlDb.js` ya
+define — `SHOW GRANTS` solo mostraba `portal_facturacion`. Sin eso,
+`POST /internal/activar-tenant/:slug` (aprovisionamiento físico)
+truena con "No se pudo crear la base de datos del tenant" — **ningún
+alta real podía completarse en este servidor, incluso con el webhook ya
+reparado**. El primer bug siempre tapaba al segundo.
+
+**Fix #1 — self-healing real (`control/utils/stripeWebhookHealth.js`,
+12 tests nuevos)**: verifica/crea/reactiva el webhook (los 7 eventos
+que `procesarEventoWebhook` maneja) al arrancar `control` y cada hora.
+El secreto nuevo se guarda en `ajustes_globales`
+(`stripe_webhook_secret_actual`) — un contenedor de Swarm no puede
+escribir el `.env` del host, así que esa es la fuente de verdad real; el
+endpoint del webhook intenta la firma con `process.env` primero y cae a
+ese valor de BD si falla. `GET/POST /api/control/health/stripe-webhook(/reparar)`
+para monitoreo bajo demanda. Ver el gotcha completo en CLAUDE.md.
+
+**Fix #2 — GRANT aplicado a mano** (exacto, sin DROP ni GRANT OPTION,
+replicando `controlDb.js`), verificado con `SHOW GRANTS` antes/después.
+
+**Recuperación del tenant real atorado**: replicado el evento real de
+Stripe (`evt_1UXnB1...`) firmado a mano contra el webhook ya reparado
+(mismo patrón ya documentado en el punto 430) → `pago_estado=confirmado`
+→ reintentado `convertirBorrador()` (idempotente, ya diseñado para esto)
+una vez aplicado el GRANT → tenant "taqueria-el-infierno" activo de
+verdad, URL admin real, correo de credenciales enviado. Confirmado con
+`GET /api/public/onboarding/estado-pago/<token>` devolviendo
+`activado:true` — el modal del usuario, que seguía haciendo polling en
+vivo, se resolvió solo sin que el usuario tuviera que hacer nada más.
+
+**Índice de logs**: `VULTR/MAPA-LOGS.md` — dónde vive cada log
+(aplicación vía `docker service logs`, nginx del host en 2 capas,
+MySQL, y las tablas que funcionan como bitácora de negocio), huecos
+encontrados (sin rotación configurada en Docker, sin correlación de
+request-id, nada centralizado fuera del propio servidor) y
+recomendaciones para monitoreo futuro, sin implementar todavía (fuera
+de alcance de este punto, requiere decisión de costo/alcance aparte).
+
+**Smoke-test obligatorio, nuevo**: `VULTR/smoke-test-onboarding.js`
+(--borrar) — alta real completa desde clarvo.mx + Checkout real de
+Stripe + confirmación de que el webhook activa solo + borrado. Pedido
+explícito del usuario: correr después de CUALQUIER deploy que toque
+backend/control/frontend, y SIEMPRE al pasar Stripe de modo prueba a
+modo live (los webhooks son por modo, un endpoint de prueba no sirve en
+live) — documentado como paso obligatorio en `VULTR/README-VULTR.md`.
+
+**Validación de 15 empresas reales**: corridas con
+`VULTR/smoke-test-onboarding.js`/script equivalente, cada una un alta
+100% real desde `https://clarvo.mx` (wizard completo + Checkout real de
+Stripe modo prueba, tarjeta 4242...), repartidas entre los 4 planes
+(Solicita/Controla/Crece/Domina) y ambos ciclos, confirmando en cada
+una que el webhook activó el tenant SOLO, sin ninguna intervención
+manual — exactamente el escenario que falló con "Taquería el Infierno".
+**Hallazgo adicional durante esta validación**: `onboardingPublicLimiter`
+(40 req/15min por IP) se agotó real a la 5ª alta seguida sin pausa — ~7
+llamadas por alta, confirmado con el header `RateLimit-Remaining: 0` —
+nunca un bug, el límite funcionando como debe; se corrigió el script de
+validación para espaciar 180s entre altas (ver gotcha en CLAUDE.md).
+Las 15 empresas se dejan en pie a propósito (pedido explícito del
+usuario, "déjalas, yo te aviso cuando borrarlas") — NO se eliminaron.
+
+Reporte completo enviado por correo a antonio.prado@addv.mx.
+
+Archivos: `control/utils/stripeWebhookHealth.js` (nuevo),
+`control/utils/ajustesGlobales.js`, `control/utils/notificarBackend.js`,
+`control/server.js`, `backend/server.js`,
+`control/test/unit/stripeWebhookHealth.test.js` (nuevo),
+`VULTR/MAPA-LOGS.md` (nuevo), `VULTR/smoke-test-onboarding.js` (nuevo),
+`VULTR/README-VULTR.md`, `CLAUDE.md`, `PROJECT_STATE.md` (este punto).
