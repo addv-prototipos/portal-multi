@@ -1858,16 +1858,25 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   de asumir que el aprovisionamiento automático de tenants va a funcionar.
 - **`onboardingPublicLimiter` (40 req/15min por IP, 7 rutas del wizard
   público comparten el mismo balde) es real y se agota rápido probando
-  en serio**: una alta completa por el wizard gasta ~7 llamadas
-  (crearBorrador + slugDisponible + 4× actualizarBorrador, uno por
-  transición de paso + pagarBorrador) — 5-6 altas seguidas desde el mismo
-  IP ya tumban el balde (`RateLimit-Remaining: 0`, `Retry-After`
-  expone los segundos exactos). El polling de `estado-pago` NO cuenta
-  aquí (tiene su propio limiter, `onboardingEstadoPagoLimiter`, 300/15min
-  — punto 441). Si se necesita automatizar varias altas reales seguidas
-  (QA, smoke-tests en lote, lo que generó este punto), espaciar ~180s
-  entre cada una — nunca asumir que el límite es "generoso" solo porque
-  40 suena alto; a 7 llamadas por alta real, son 5-6 altas por ventana,
+  en serio — y es de VENTANA FIJA, un pacing fijo no basta**: una alta
+  completa por el wizard gasta ~7 llamadas (crearBorrador + slugDisponible
+  + 4× actualizarBorrador, uno por transición de paso + pagarBorrador) —
+  5-6 altas seguidas desde el mismo IP ya tumban el balde
+  (`RateLimit-Remaining: 0`). **Primer intento real de automatizar 15
+  altas en lote usó un pacing fijo de 180s entre cada una — falló 2 de 15
+  veces igual** ("Demasiadas solicitudes" visible en la UI, confirmado
+  con captura) porque la ventana es FIJA (resetea completa cuando expiran
+  los 900s desde el primer request de esa ventana, no se va vaciando
+  gradual) — un pacing fijo puede seguir cayendo dentro de una ventana ya
+  cargada por corridas previas. **Fix real**: leer `RateLimit-Remaining`/
+  `RateLimit-Reset` de un GET barato (`slug-disponible`) antes de CADA
+  alta y esperar el reset real si no alcanza — nunca una duración
+  adivinada. Implementado en `VULTR/smoke-test-onboarding.js`
+  (`esperarCuotaSuficiente()`) — replicar ese patrón (headers reales,
+  nunca `sleep(N)` fijo) en cualquier automatización futura contra una
+  ruta con rate limit. El polling de `estado-pago` NO cuenta aquí (tiene
+  su propio limiter, `onboardingEstadoPagoLimiter`, 300/15min — punto
+  441). A 7 llamadas por alta real, son ~5-6 altas por ventana de 900s,
   no 40.
 - **Smoke-test obligatorio tras cualquier deploy a producción que toque
   backend/control/frontend, y SIEMPRE al cambiar Stripe de modo prueba a

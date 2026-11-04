@@ -27299,11 +27299,28 @@ Stripe modo prueba, tarjeta 4242...), repartidas entre los 4 planes
 (Solicita/Controla/Crece/Domina) y ambos ciclos, confirmando en cada
 una que el webhook activó el tenant SOLO, sin ninguna intervención
 manual — exactamente el escenario que falló con "Taquería el Infierno".
-**Hallazgo adicional durante esta validación**: `onboardingPublicLimiter`
-(40 req/15min por IP) se agotó real a la 5ª alta seguida sin pausa — ~7
-llamadas por alta, confirmado con el header `RateLimit-Remaining: 0` —
-nunca un bug, el límite funcionando como debe; se corrigió el script de
-validación para espaciar 180s entre altas (ver gotcha en CLAUDE.md).
+**Resultado final: 15/15 altas reales confirmadas** (webhook activando
+cada tenant solo, sin tocar nada a mano).
+
+**Hallazgo adicional durante esta validación, con 2 vueltas de fix
+real**: `onboardingPublicLimiter` (40 req/15min por IP) se agotó real a
+la 5ª alta seguida sin pausa — ~7 llamadas por alta, confirmado con el
+header `RateLimit-Remaining: 0` — nunca un bug, el límite funcionando
+como debe. Primer intento de corrección (pacing fijo de 180s entre
+altas) **falló 2 de 15 veces igual** (corridas #9 y #14, "Demasiadas
+solicitudes" visible en la UI, capturado en pantalla) porque la ventana
+del limiter es FIJA — resetea completa a los 900s desde el primer
+request de esa ventana, no se vacía gradual, así que un pacing fijo
+puede seguir cayendo dentro de una ventana ya cargada por corridas
+previas. Fix real (segunda vuelta, pedido explícito del usuario:
+"investiga por qué fallaron... y ajusta la solución"): leer
+`RateLimit-Remaining`/`RateLimit-Reset` reales de un GET barato antes de
+cada alta y esperar el reset real si no alcanza, nunca una duración
+adivinada — implementado en `VULTR/smoke-test-onboarding.js`
+(`esperarCuotaSuficiente()`) y aplicado también al script de validación
+en lote. Reintentadas #9 y #14 con el fix → ambas exitosas, 15/15 total.
+Ver gotcha completo en CLAUDE.md.
+
 Las 15 empresas se dejan en pie a propósito (pedido explícito del
 usuario, "déjalas, yo te aviso cuando borrarlas") — NO se eliminaron.
 
