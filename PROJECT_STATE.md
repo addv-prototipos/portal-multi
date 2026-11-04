@@ -27341,11 +27341,13 @@ armó con `docker stack deploy` directo, sin correr nunca
 en ningún log/chat). Confirmado con `SHOW GRANTS` — solo DROP sobre
 `tenant_%`, nada más.
 
-**Único rastro que queda, a propósito, nunca borrado**: las 15 filas de
-`onboarding_borradores` (quedan `estado='convertido'`) — `control_app`
-no tiene privilegio DELETE en NINGUNA tabla (hardening deliberado del
-proyecto, no un descuido de esta limpieza) — no se amplió ese privilegio
-sin pedirlo explícito.
+**Las 15 filas de `onboarding_borradores` también se borraron**, pedido
+explícito del usuario en un tercer mensaje — `DELETE FROM
+onboarding_borradores WHERE nombre_empresa LIKE 'Prueba Webhook %'`
+corrido con la credencial root de MySQL directo (confirmado 15
+encontradas → 0 restantes), nunca ampliando el privilegio de
+`control_app` (sigue sin DELETE en ninguna tabla, intacto). Cero rastro
+de las 15 empresas de prueba en ningún lado del sistema.
 
 Reporte completo enviado por correo a antonio.prado@addv.mx.
 
