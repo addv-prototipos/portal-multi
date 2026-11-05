@@ -3161,14 +3161,17 @@
     // sesión que ya estaba activa, no para un login recién hecho.
     guardarVistaActual('inicio');
     showDashboard(usuario, perfil, funciones, imagenMaxMb);
-    // "Inicio" (la vista que se ve por defecto al iniciar sesión) usa
-    // datos de tickets, que un perfil "administrador" no tiene
-    // permitido ver. aplicarRestriccionesPerfil() (dentro de
-    // showDashboard) ya redirige a ese perfil a una vista que sí
-    // puede ver, así que tampoco haría falta el dato de Inicio.
-    if (perfil !== 'administrador') {
-      await cargarInicio();
-    }
+    // Bug real (reportado por el usuario): este bloque asumía que
+    // "administrador" nunca se queda en "Inicio" (aplicarRestriccionesPerfil
+    // lo redirigiría) — falso: RESTRICCIONES_PERFIL.administrador SÍ
+    // incluye 'inicio' (es su primera vista permitida) y
+    // GET /api/admin/inicio/resumen no restringe por perfil (arma
+    // ventas/gastos/inventario según corresponda, nunca solo tickets).
+    // Saltarse cargarInicio() para este perfil dejaba "Inicio" vacío
+    // para siempre tras un login nuevo (el recorrido guiado se armaba
+    // igual, encima de una pantalla sin datos) — se corrige sin
+    // excepción de perfil.
+    await cargarInicio();
     // Hasta aquí ya existen los datos reales de "Inicio" (si este perfil
     // los usa) — recién ahora se arma el checklist "Primeros pasos" y,
     // si aplica, el recorrido guiado. Antes esto vivía DENTRO de

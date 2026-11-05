@@ -28114,3 +28114,46 @@ Archivos (addendum): `control/utils/facturacionClarvo.js`,
 `frontend/admin.js`, `control/test/unit/facturacionClarvo.test.js`
 (nuevo), `control/test/unit/facturacionGestion.test.js` (nuevo),
 `PROJECT_STATE.md` (este addendum).
+
+## Punto 471 — "Inicio" seguía vacío para perfil administrador tras un login nuevo, variante no cubierta por el punto 468 (5 nov 2026, CERRADO)
+
+Reportado por el usuario con captura: login nuevo con perfil
+`administrador` → "Inicio" se queda en "¡Bienvenido!" sin ninguna
+tarjeta/lista, y el recorrido guiado aparece encima de esa pantalla
+vacía. El punto 468 (commit `6341edf`) ya había corregido la RAZA real
+(el recorrido se armaba antes de que `cargarInicio()` terminara) — pero
+dejó intacto un bug DISTINTO, mismo síntoma: `entrarAlPanel()` (único
+camino de "login nuevo", `frontend/admin.js:3169`) tenía
+`if (perfil !== 'administrador') { await cargarInicio(); }` — para
+`administrador` nunca se pedían los datos, ni antes ni después del
+recorrido, simplemente nunca.
+
+**Causa real: el comentario que justificaba el salto estaba
+equivocado.** Decía "Inicio usa datos de tickets, que administrador no
+puede ver, y aplicarRestriccionesPerfil() lo redirige a otra vista" —
+falso en los 2 puntos: `RESTRICCIONES_PERFIL.administrador.vistasPermitidas`
+incluye `'inicio'` explícito (es su PRIMERA vista permitida, nunca lo
+redirige a otro lado) y `GET /api/admin/inicio/resumen`
+(`backend/server.js`) no tiene ningún candado de perfil — arma
+ventas/gastos/inventario según corresponda, tickets es solo UNA de las
+4 secciones posibles, nunca la única. El resto de los 3 caminos que
+llaman a `cargarInicio()` (navegación manual a "Inicio" línea 8839,
+refresh de sesión línea 23562) ya lo llamaban sin ninguna excepción de
+perfil — `entrarAlPanel()` era el ÚNICO de los 4 con este candado roto,
+por eso el bug solo se veía en un login nuevo, nunca al navegar o
+refrescar.
+
+Fix: se quita la condición, `cargarInicio()` se llama siempre en
+`entrarAlPanel()` — mismo orden relativo al recorrido guiado que ya dejó
+el punto 468 (`await cargarInicio()` termina antes de
+`renderOnboardingChecklist()`).
+
+**Validado real en navegador** (chrome-devtools + Edge, tenant de
+prueba `panes`, perfil administrador, login nuevo desde cero): "Inicio"
+ya carga las 4 tarjetas (Tickets hoy/Ventas hoy/Gastos hoy/Movs. de
+inventario) + las 3 listas ("Ventas recientes"/"Gastos recientes"/
+"Movimientos de inventario") ANTES de que aparezca el recorrido guiado
+encima — captura real confirma el overlay "PASO 1 DE 6" sobre una
+pantalla ya poblada, no sobre una vacía.
+
+Archivos: `frontend/admin.js`, `PROJECT_STATE.md` (este punto).
