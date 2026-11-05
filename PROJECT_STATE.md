@@ -28156,4 +28156,46 @@ inventario) + las 3 listas ("Ventas recientes"/"Gastos recientes"/
 encima — captura real confirma el overlay "PASO 1 DE 6" sobre una
 pantalla ya poblada, no sobre una vacía.
 
+## Punto 472 — Despliegue a producción real (Vultr) de los puntos 468-471 (5 nov 2026, CERRADO)
+
+`git -c core.autocrlf=false archive HEAD` de `ebff089..1f96de1`
+(5 commits: punto 466 addendum ya en prod desde antes, "Datos de pago"
+reubicada, toast-anchor en "Copiar enlace", "Subir de plan" un solo
+siguiente, "Facturación de Clarvo"/"Solicitar factura" real + corrección
+de monto de catálogo, "Inicio" vacío para administrador) → backup real
+de ambas BD (`primary`/`control`, tamaño verificado, no 0 bytes) →
+checksums de 3 archivos tocados coinciden exacto local vs. servidor →
+rebuild de `backend`/`control`/`frontend` → `docker service update
+--force` en los 3, los 3 convergieron → `/api/health` 200 real contra
+`https://clarvo.mx`.
+
+**Smoke-test obligatorio (`VULTR/smoke-test-onboarding.js --borrar`,
+punto 465) corrido de verdad**: la parte que de verdad importa —
+alta real desde `https://clarvo.mx` + Checkout real de Stripe + el
+webhook activando el tenant SOLO, sin tocar nada a mano — **pasó
+limpio** ("OK — tenant real activado SOLO por el webhook"). Confirma
+que `control/utils/stripeWebhookHealth.js` (self-healing del punto 465)
+sigue sano tras este deploy.
+
+**Bug real nuevo, encontrado al correr el script de verdad por primera
+vez**: el paso de limpieza (`--borrar`) falló con `spawnSync
+...ssh.exe ENOENT` — `SSH_KEY`/`SSH_BIN` tenían rutas estilo Git Bash
+(`/c/Windows/...`, `/c/Users/...`); `execFileSync()` llama a
+`CreateProcess` directo, sin la capa de traducción de rutas que Git Bash
+aplica cuando el mismo comando se teclea a mano en su terminal — nunca
+antes se había corrido el script con el `node` nativo de Windows fuera
+de Git Bash. Corregido a rutas Windows nativas (`C:\\Windows\\...`,
+`C:\\Users\\...`) directo en `VULTR/smoke-test-onboarding.js` — **fix
+solo en disco, `VULTR/` está en `.gitignore`, nunca se commitea**.
+Limpieza del tenant de prueba (`smoke-test-1793899116312`) hecha a mano
+vía `/control` (baja + eliminar, mismas 2 rutas que el script intenta
+automatizar) — confirmado `0 bytes`/`tenants:[]` al buscarlo después,
+cero rastro.
+
+Sin cambios de esquema que requirieran ningún paso manual — `
+asegurarTablaSolicitudesFactura()` (punto 470, tabla
+`tenant_solicitudes_factura`) corre sola en cada arranque de `control`
+(`CREATE TABLE IF NOT EXISTS`), confirmado sin error en los logs del
+servicio tras el redeploy.
+
 Archivos: `frontend/admin.js`, `PROJECT_STATE.md` (este punto).
