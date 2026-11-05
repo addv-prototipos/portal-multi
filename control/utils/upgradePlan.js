@@ -35,10 +35,12 @@ async function cargarPlanPorId(id, db) {
   return filas[0] || null;
 }
 
-// Lista las opciones "hacia arriba" (orden mayor al plan actual) — la
-// primera (orden más bajo entre las disponibles) se marca recomendada.
-// Si el tenant no tiene plan asignado, se listan TODOS los planes
-// activos (no hay "actual" con qué comparar).
+// Solo ofrece UN plan — el siguiente inmediato en `orden` al plan actual
+// (Solicita→Controla→Crece→Domina), nunca toda la lista hacia arriba.
+// Si el tenant no tiene plan asignado (personalizado, fuera de catálogo),
+// se ofrece CLARVO Crece fijo, vía el mismo mapa de claves que usa el
+// onboarding público (ver onboardingConversion.js:NOMBRE_PLAN_POR_CLAVE)
+// — nunca el plan más barato del catálogo.
 async function listarOpcionesSubirPlan(slug, db = obtenerPool()) {
   const tenant = await cargarTenantPorSlug(slug, db);
   if (!tenant || tenant.estado === 'baja') {
@@ -50,24 +52,36 @@ async function listarOpcionesSubirPlan(slug, db = obtenerPool()) {
     planActual = await cargarPlanPorId(tenant.plan_id, db);
   }
 
-  const [filas] = await db.query(
-    `SELECT id, nombre, precio_mensual, precio_anual, orden FROM planes
-      WHERE activo = 1 AND eliminado_en IS NULL ${planActual ? 'AND orden > ?' : ''}
-      ORDER BY orden ASC`,
-    planActual ? [planActual.orden] : []
-  );
+  let fila = null;
+  if (planActual) {
+    const [filas] = await db.query(
+      `SELECT id, nombre, precio_mensual, precio_anual, orden FROM planes
+        WHERE activo = 1 AND eliminado_en IS NULL AND orden > ?
+        ORDER BY orden ASC LIMIT 1`,
+      [planActual.orden]
+    );
+    fila = filas[0] || null;
+  } else {
+    const { resolverPlanPorClave } = require('./onboardingConversion');
+    const planCrece = await resolverPlanPorClave('crece', db);
+    if (planCrece) {
+      fila = { id: planCrece.id, nombre: 'CLARVO Crece', precio_mensual: planCrece.precio_mensual, precio_anual: planCrece.precio_anual };
+    }
+  }
 
   return {
     planActualId: planActual ? planActual.id : null,
     planActualNombre: planActual ? planActual.nombre : null,
     ciclo: tenant.suscripcion_ciclo === 'anual' ? 'anual' : 'mensual',
-    opciones: filas.map((f, i) => ({
-      id: f.id,
-      nombre: f.nombre,
-      precioMensual: f.precio_mensual == null ? null : Number(f.precio_mensual),
-      precioAnual: f.precio_anual == null ? null : Number(f.precio_anual),
-      recomendado: i === 0,
-    })),
+    opciones: fila
+      ? [{
+          id: fila.id,
+          nombre: fila.nombre,
+          precioMensual: fila.precio_mensual == null ? null : Number(fila.precio_mensual),
+          precioAnual: fila.precio_anual == null ? null : Number(fila.precio_anual),
+          recomendado: true,
+        }]
+      : [],
   };
 }
 
