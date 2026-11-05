@@ -4761,6 +4761,22 @@
   // Dibuja una serie de 2 barras por columna, reusando el mismo
   // componente CSS que ya usa "Ventas vs Facturado vs Gastos" en Resumen
   // financiero (.resumen-fin-chart-*) — cero CSS nuevo para esto.
+  // Meses abreviados en español — único lugar de esta forma en el
+  // archivo (punto en curso: las gráficas de Financiero mostraban
+  // "26-04" en vez de un mes legible, y "T1-T4" en vez de "Q1-Q4" como
+  // pidió el usuario).
+  const MESES_ABREV = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  function etiquetaMesCorta(periodo) {
+    const [y, m] = periodo.split('-').map(Number);
+    return `${MESES_ABREV[m - 1]} '${String(y).slice(2)}`;
+  }
+  function etiquetaTrimestre(year, q) {
+    return `Q${q} '${String(year).slice(2)}`;
+  }
+  function mesesDeTrimestreTexto(mesesAbrevDelQ) {
+    return mesesAbrevDelQ.join(', ');
+  }
+
   function renderBarChart2(container, puntos, keyA, keyB, claseA, claseB, labelA, labelB, fmt) {
     const maximo = Math.max(1, ...puntos.flatMap((p) => [Math.abs(p[keyA]), Math.abs(p[keyB])]));
     container.innerHTML = puntos.map((p) => `
@@ -5123,18 +5139,41 @@
 
   // Altas/bajas por trimestre — agregación client-side del mismo array
   // mensual real que ya trae el backend (sin pedir otra ruta aparte).
+  // Formato "Q1-Q4" (pedido explícito del usuario, no "T1-T4") — el hover
+  // de cada barra detalla los meses reales que componen ese trimestre
+  // (abreviados), ya que renderBarChart2 genérico no conoce esa
+  // composición por punto — se arma el HTML aquí mismo en vez de
+  // reusarlo.
   function renderAltasBajasQ(altasBajas) {
     const mapa = new Map();
     altasBajas.forEach((p) => {
       const [y, m] = p.periodo.split('-').map(Number);
       const q = Math.floor((m - 1) / 3) + 1;
-      const key = `T${q} '${String(y).slice(2)}`;
-      if (!mapa.has(key)) mapa.set(key, { etiqueta: key, altas: 0, bajas: 0 });
+      const key = etiquetaTrimestre(y, q);
+      if (!mapa.has(key)) mapa.set(key, { etiqueta: key, altas: 0, bajas: 0, meses: [] });
       const f = mapa.get(key);
       f.altas += p.altas;
       f.bajas += p.bajas;
+      f.meses.push(MESES_ABREV[m - 1]);
     });
-    renderBarChart2(els.financieroChartAltasBajasQ, Array.from(mapa.values()), 'altas', 'bajas', 'resumen-fin-chart-barra-facturado', 'resumen-fin-chart-barra-eliminado-reportes', 'Nuevos', 'Se fueron', (v) => String(v));
+    const puntos = Array.from(mapa.values());
+    if (!puntos.length) {
+      els.financieroChartAltasBajasQ.innerHTML = '<p class="admin-login-hint">Todavía no hay historial que mostrar.</p>';
+      return;
+    }
+    const maximo = Math.max(1, ...puntos.flatMap((p) => [Math.abs(p.altas), Math.abs(p.bajas)]));
+    els.financieroChartAltasBajasQ.innerHTML = puntos.map((p) => {
+      const meses = mesesDeTrimestreTexto(p.meses);
+      return `
+        <div class="resumen-fin-chart-columna">
+          <div class="resumen-fin-chart-barras" role="img" aria-label="${escapeHtmlAttr(p.etiqueta)} (${escapeHtmlAttr(meses)}): Nuevos ${p.altas}, Se fueron ${p.bajas}">
+            <span class="resumen-fin-chart-barra resumen-fin-chart-barra-facturado" style="height:${(Math.abs(p.altas) / maximo) * 100}%" data-tooltip="Nuevos: ${p.altas} — ${escapeHtmlAttr(meses)}"></span>
+            <span class="resumen-fin-chart-barra resumen-fin-chart-barra-eliminado-reportes" style="height:${(Math.abs(p.bajas) / maximo) * 100}%" data-tooltip="Se fueron: ${p.bajas} — ${escapeHtmlAttr(meses)}"></span>
+          </div>
+          <span class="resumen-fin-chart-etiqueta">${escapeHtml(p.etiqueta)}</span>
+        </div>
+      `;
+    }).join('');
   }
 
   // Margen operativo por trimestre — agregación client-side del
@@ -5144,13 +5183,18 @@
     historial.forEach((h) => {
       const [y, m] = h.periodo.split('-').map(Number);
       const q = Math.floor((m - 1) / 3) + 1;
-      const key = `T${q} '${String(y).slice(2)}`;
-      if (!mapa.has(key)) mapa.set(key, { etiqueta: key, ingreso: 0, gasto: 0 });
+      const key = etiquetaTrimestre(y, q);
+      if (!mapa.has(key)) mapa.set(key, { etiqueta: key, ingreso: 0, gasto: 0, meses: [] });
       const f = mapa.get(key);
       f.ingreso += h.ingreso;
       f.gasto += h.gasto;
+      f.meses.push(MESES_ABREV[m - 1]);
     });
-    const puntos = Array.from(mapa.values()).map((f) => ({ etiqueta: f.etiqueta, margen: f.ingreso > 0 ? ((f.ingreso - f.gasto) / f.ingreso) * 100 : 0 }));
+    const puntos = Array.from(mapa.values()).map((f) => ({
+      etiqueta: f.etiqueta,
+      meses: mesesDeTrimestreTexto(f.meses),
+      margen: f.ingreso > 0 ? ((f.ingreso - f.gasto) / f.ingreso) * 100 : 0,
+    }));
     if (!puntos.length) {
       els.financieroChartMargenQ.innerHTML = '<p class="admin-login-hint">Sin historial todavía.</p>';
       return;
@@ -5158,8 +5202,8 @@
     const maximo = Math.max(1, ...puntos.map((p) => Math.abs(p.margen)));
     els.financieroChartMargenQ.innerHTML = puntos.map((p) => `
       <div class="resumen-fin-chart-columna">
-        <div class="resumen-fin-chart-barras" role="img" aria-label="${escapeHtmlAttr(p.etiqueta)}: margen ${p.margen.toFixed(1)}%">
-          <span class="resumen-fin-chart-barra ${p.margen >= 0 ? 'resumen-fin-chart-barra-facturado' : 'resumen-fin-chart-barra-eliminado-reportes'}" style="height:${(Math.abs(p.margen) / maximo) * 100}%" data-tooltip="${p.margen.toFixed(1)}%"></span>
+        <div class="resumen-fin-chart-barras" role="img" aria-label="${escapeHtmlAttr(p.etiqueta)} (${escapeHtmlAttr(p.meses)}): margen ${p.margen.toFixed(1)}%">
+          <span class="resumen-fin-chart-barra ${p.margen >= 0 ? 'resumen-fin-chart-barra-facturado' : 'resumen-fin-chart-barra-eliminado-reportes'}" style="height:${(Math.abs(p.margen) / maximo) * 100}%" data-tooltip="${p.margen.toFixed(1)}% — ${escapeHtmlAttr(p.meses)}"></span>
         </div>
         <span class="resumen-fin-chart-etiqueta">${escapeHtml(p.etiqueta)} · ${Math.round(p.margen)}%</span>
       </div>
@@ -5192,7 +5236,7 @@
       els.financieroUtilidadAcumulada.classList.toggle('es-positiva', data.utilidadAcumulada >= 0);
       els.financieroUtilidadAcumulada.classList.toggle('es-negativa', data.utilidadAcumulada < 0);
 
-      const altasBajas = data.altasBajas.map((p) => ({ etiqueta: p.periodo.slice(2), altas: p.altas, bajas: p.bajas }));
+      const altasBajas = data.altasBajas.map((p) => ({ etiqueta: etiquetaMesCorta(p.periodo), altas: p.altas, bajas: p.bajas }));
       renderBarChart2(els.financieroChartAltasBajas, altasBajas, 'altas', 'bajas', 'resumen-fin-chart-barra-facturado', 'resumen-fin-chart-barra-eliminado-reportes', 'Nuevos', 'Se fueron', (v) => String(v));
       renderAltasBajasQ(data.altasBajas);
 
