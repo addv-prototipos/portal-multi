@@ -1897,10 +1897,21 @@
     return document.querySelector('main') || document.body;
   }
 
-  function showToast(message, isError = false) {
-    const contenedor = contenedorAvisoActivo();
-    if (els.toast.parentElement !== contenedor || els.toast !== contenedor.firstChild) {
-      contenedor.prepend(els.toast);
+  // anchorEl (opcional): cuando el elemento que disparó la acción vive
+  // lejos del tope de la vista (ej. "Copiar enlace" a media página en Mi
+  // Cuenta), el toast se inserta justo ARRIBA de ese elemento en vez de
+  // hasta arriba de toda la vista — ahí scrollIntoView() lo manda lejos
+  // del botón real y se pierde de vista.
+  function showToast(message, isError = false, anchorEl = null) {
+    if (anchorEl && anchorEl.parentElement) {
+      if (els.toast.nextElementSibling !== anchorEl || els.toast.parentElement !== anchorEl.parentElement) {
+        anchorEl.parentElement.insertBefore(els.toast, anchorEl);
+      }
+    } else {
+      const contenedor = contenedorAvisoActivo();
+      if (els.toast.parentElement !== contenedor || els.toast !== contenedor.firstChild) {
+        contenedor.prepend(els.toast);
+      }
     }
     els.toast.innerHTML = '';
     const icono = document.createElement('span');
@@ -9916,9 +9927,9 @@
           document.execCommand('copy');
           document.body.removeChild(textarea);
         }
-        showToast('Enlace copiado al portapapeles.');
+        showToast('Enlace copiado al portapapeles.', false, els.micuentaUrlBar);
       } catch (err) {
-        showToast('No se pudo copiar. Selecciona y copia el texto manualmente.', true);
+        showToast('No se pudo copiar. Selecciona y copia el texto manualmente.', true, els.micuentaUrlBar);
       }
     });
   }

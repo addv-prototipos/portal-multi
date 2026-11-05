@@ -1147,6 +1147,30 @@
     </div>
   </section>
 
+  <section>
+    <h2>Cosméticos <span class="count">1 pendiente</span></h2>
+    <p class="section-note">Hallazgos visuales/UX menores, sin impacto funcional ni de seguridad — marcados para resolver después, no urgentes.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr data-app="admin,control" data-id="cosm-toast-anchor">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="cosm-toast-anchor" aria-label="Marcar completado"></td>
+            <td class="col-punto">—</td>
+            <td class="col-item">Toast (confirmación verde) sale arriba de toda la vista/modal en vez de arriba del botón que lo disparó</td>
+            <td class="col-detalle">Fix real ya aplicado SOLO en "Copiar enlace" de Mi Cuenta (<code>showToast(msg, isError, anchorEl)</code> — 3er parámetro opcional en <code>admin.js</code>, inserta el toast justo arriba de <code>anchorEl</code> en vez de <code>contenedorAvisoActivo()</code>). Auditoría completa (3 agentes en paralelo, sesión 4-5 nov 2026) encontró que el mismo patrón "se pierde porque sale arriba" se repite en muchos más sitios de las 3 apps — total 318 llamadas a <code>showToast(</code> revisadas, de las cuales:<br><br>
+            <strong>admin.js (220 llamadas):</strong> (A) chokepoint — <code>abrirConfirmacion()</code> cierra el modal de confirmación ANTES de correr <code>onConfirmar()</code> (mismo bug-shape que punto 434, un nivel más adentro) — arreglar ahí una sola vez cubre 19 acciones de golpe (eliminar/restaurar en Gastos, Inventario, Tickets, Usuarios, Ventas, Auditoría-Promociones, Reportes-Cortes/Eliminados, categorías de Gastos/Inventario). (B) ~20 acciones sueltas que no pasan por el modal de confirmación (exportar CSV/Excel de Reportes, switches/botones de Mi Cuenta, Auditoría-Promociones, autosave del dashboard de Inicio, "Enviar recordatorio" de CxC, Tickets) — ancla = el botón que ya está en scope de cada una. (C) opcional/baja prioridad: <code>config-modal-overlay</code> (31 hits, modal con pestañas largas, ej. acordeón SMTP).<br><br>
+            <strong>control.js (80 llamadas):</strong> su propio <code>showToast()</code>/<code>contenedorAvisoActivo()</code> TODAVÍA NO tiene el 3er parámetro <code>anchorEl</code> — hay que agregárselo primero, igual que se hizo en <code>admin.js</code>. Después, ~42 llamadas / 10 features necesitan ancla: lista de tenants (Suspender/Reactivar/Baja), Planes (x9: estrella/Archivar/Reactivar/Eliminar), Kanban de facturas (x7), Upscale+Stripe (x8), Recordatorios, Términos y Condiciones, Reporte de cancelaciones, Sucursales, Super Admins, Accesos (cards Garage/SMTP apiladas) — ancla en cada caso el elemento de tabla/card que persiste entre recargas, nunca la fila (se reescribe). ~15 opcionales (modal alto: wizard de plan con ~15 switches, Editar empresa con pestañas).<br><br>
+            <strong>Resto (7 archivos, 18 llamadas):</strong> solo 2 sitios necesitan fix — <code>dashboard.js:54/65</code> (botón de fila en tabla de solicitudes sin tope) y <code>marcaTemaEditor.js:337/356</code> (usa <code>op.showToast</code> inyectado desde <code>admin.js</code>, vive en card larga dentro del modal de Configuraciones — quien lo monta debe pasarle también la variante con ancla). <code>login.js</code>, <code>app.js</code>, <code>mi-cuenta.js</code>, <code>tickets.js</code>, <code>portal.js</code> ya están bien (páginas cortas o modal correcto).<br><br>
+            <strong>Bug aparte encontrado de paso (no es este mismo patrón, pero mismo archivo):</strong> <code>control.js:2067-2071</code>, <code>btnReaplicarPlan</code> — el toast dispara ANTES de <code>cerrarEdicion()</code>, instancia real del bug de punto 434 ("toast antes de cerrar modal lo oculta sin que nadie lo vea") que no entró en el fix original de 8 sitios.<br><br>
+            Orden de implementación sugerido cuando se retome: (1) chokepoint de <code>admin.js</code>, (2) agregar <code>anchorEl</code> a <code>control.js</code> + sus ~42, (3) los ~20 sueltos de <code>admin.js</code>, (4) <code>dashboard.js</code> + <code>marcaTemaEditor.js</code>, (5) bug de orden en <code>btnReaplicarPlan</code>.</td>
+            <td class="col-estado"><span class="pill pill-amber">Mapeado, sin empezar — cosmético, no urgente</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   </div><!-- /tab-listado -->
 
   <div id="tab-mapa" class="tab-panel" role="tabpanel" aria-labelledby="tab-mapa-btn">
