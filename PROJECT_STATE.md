@@ -27722,6 +27722,26 @@ cualquier `DELETE` en `control_tenants`).
    caer dentro del mes en curso y filtrar hacia KPIs que se presumían
    100% reales.
 
+**Addendum (5 nov 2026, corrección de etiquetas pedida por el usuario
+con capturas reales)**: el eje X de "Clientes nuevos y perdidos — por
+mes" mostraba `26-04` (año-mes numérico, `periodo.slice(2)`) en vez de
+un mes legible; "por trimestre" y "Margen por trimestre" mostraban
+`T1-T4` (Trimestre) — el usuario prefiere `Q1-Q4`. Fix: helper nuevo
+`etiquetaMesCorta(periodo)` (`frontend/control.js`, array
+`MESES_ABREV` español) → `abr '26`, `may '26`, etc.; `etiquetaTrimestre(year,
+q)` → `Q2 '26`. Además, a petición explícita ("cuando pase el over, diga
+los meses abreviados"), el `data-tooltip` de cada barra trimestral ahora
+incluye los 3 meses reales que componen ese trimestre (ej. `"Nuevos: 9 —
+abr, may, jun"`) — antes solo mostraba el valor agregado sin indicar qué
+meses lo componían. `renderAltasBajasQ()` dejó de reusar el
+`renderBarChart2()` genérico (no tiene forma de cargar ese detalle
+extra por punto) y ahora arma su propio HTML, mismo patrón ya usado por
+`renderMargenQ()`. Verificado real en Docker (rebuild de `frontend`),
+confirmado por captura y por inspección directa del DOM
+(`data-tooltip="Nuevos: 9 — abr, may, jun"`). Desplegado a producción
+(clarvo.mx/Vultr) el mismo día — rebuild de `clarvo_frontend`, checksum
+`control.js` verificado idéntico vía `https://clarvo.mx/control.js`.
+
 ## Punto 468 — Análisis de calidad v1.4 (`calidad/sonar_1.4.html`): 54 hallazgos re-estado (48 cerrados) + 8 nuevos, gate APROBADA CON CONDICIONES (4 nov 2026, CERRADO)
 
 Informe incremental de la serie tipo SonarQube, en `calidad/sonar_1.4.html`
