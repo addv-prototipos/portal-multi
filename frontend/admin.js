@@ -395,6 +395,23 @@
     btnCancelacionCodigoVolver: document.getElementById('btn-cancelacion-codigo-volver'),
     btnCancelacionConfirmarSi: document.getElementById('btn-cancelacion-confirmar-si'),
     micuentaFacturacionCard: document.getElementById('micuenta-facturacion-card'),
+    micuentaFacturacionVacia: document.getElementById('micuenta-facturacion-vacia'),
+    micuentaFacturacionVaciaTitulo: document.getElementById('micuenta-facturacion-vacia-titulo'),
+    micuentaFacturacionVaciaTexto: document.getElementById('micuenta-facturacion-vacia-texto'),
+    micuentaFacturacionTablaWrap: document.getElementById('micuenta-facturacion-tabla-wrap'),
+    micuentaFacturacionTbody: document.getElementById('micuenta-facturacion-tbody'),
+    facturacionReciboModalOverlay: document.getElementById('facturacion-recibo-modal-overlay'),
+    btnCerrarFacturacionReciboModal: document.getElementById('btn-cerrar-facturacion-recibo-modal'),
+    facturacionReciboFolio: document.getElementById('facturacion-recibo-folio'),
+    facturacionReciboPill: document.getElementById('facturacion-recibo-pill'),
+    facturacionReciboFecha: document.getElementById('facturacion-recibo-fecha'),
+    facturacionReciboLineas: document.getElementById('facturacion-recibo-lineas'),
+    facturacionReciboTotal: document.getElementById('facturacion-recibo-total'),
+    facturacionReciboPdf: document.getElementById('facturacion-recibo-pdf'),
+    facturacionFacturaAviso: document.getElementById('facturacion-factura-aviso'),
+    facturacionFacturaAvisoTexto: document.getElementById('facturacion-factura-aviso-texto'),
+    facturacionSolicitudZona: document.getElementById('facturacion-solicitud-zona'),
+    facturacionCsfInput: document.getElementById('facturacion-csf-input'),
     // Punto 416: "Datos de pago" (solo administrador/super)
     micuentaPagoCard: document.getElementById('micuenta-pago-card'),
     micuentaPagoSinConfigurar: document.getElementById('micuenta-pago-sin-configurar'),
@@ -8924,6 +8941,8 @@
   // Punto 418: última respuesta de empresa.suscripcion — reusada por la
   // vista "Actualizar método de pago" sin pedirla otra vez.
   let ultimaSuscripcionMiCuenta = null;
+  let ultimaEmpresaMiCuenta = null;
+  let ultimasFacturasClarvo = [];
 
   async function cargarMiCuenta() {
     const authHeader = getAuthHeader();
@@ -8993,6 +9012,18 @@
         // Punto 418: se cachea para que la vista "Actualizar método de
         // pago" no necesite un fetch propio — ya viajó aquí.
         ultimaSuscripcionMiCuenta = data.empresa.suscripcion || null;
+        ultimaEmpresaMiCuenta = data.empresa;
+        // Punto 469: "Facturación de Clarvo" — mismo candado exacto que
+        // "Datos de pago" (la presencia de datosPago en la respuesta YA
+        // es el candado real server-side, esto solo decide qué se pinta).
+        if (data.empresa.datosPago) {
+          cargarFacturacionClarvo();
+        } else {
+          renderFacturacionVacia(
+            'Visible solo para la cuenta raíz',
+            'Solo la cuenta raíz de esta empresa puede ver el historial de cobros de Clarvo.'
+          );
+        }
         if (data.empresa.tenantSlug && data.empresa.urlPortal) {
           els.micuentaUrlBar.hidden = false;
           els.micuentaUrlTenant.textContent = data.empresa.urlPortal;
@@ -9010,6 +9041,251 @@
       }
     } catch (err) {
       showToast(err.message || 'No se pudo cargar Mi Cuenta.', true);
+    }
+  }
+
+  // Punto 469: "Facturación de Clarvo" — estado de cuenta real (propuesta
+  // 1 del Artifact de 8 propuestas) + modal "Ver recibo" con botón
+  // "Solicitar factura". El historial viene de Stripe vía Control
+  // (GET /api/admin/mi-cuenta/facturacion, solo cuenta raíz).
+  const PILL_ESTADO = {
+    pagado: { texto: 'Pagado', clase: 'pill-pagado' },
+    pendiente: { texto: 'Pendiente', clase: 'pill-pendiente' },
+    vencido: { texto: 'Vencido', clase: 'pill-vencido' },
+  };
+
+  function renderFacturacionVacia(titulo, texto) {
+    els.micuentaFacturacionVacia.hidden = false;
+    els.micuentaFacturacionTablaWrap.hidden = true;
+    els.micuentaFacturacionVaciaTitulo.textContent = titulo;
+    els.micuentaFacturacionVaciaTexto.textContent = texto;
+  }
+
+  async function cargarFacturacionClarvo() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const resp = await fetch(`${API_BASE}/admin/mi-cuenta/facturacion`, { headers: { Authorization: authHeader } });
+      if (!resp.ok) throw new Error('No se pudo cargar tu historial de cobros.');
+      const data = await resp.json();
+      ultimasFacturasClarvo = Array.isArray(data.facturas) ? data.facturas : [];
+      renderFacturacionTabla();
+    } catch (err) {
+      renderFacturacionVacia('No se pudo cargar tu historial', err.message || 'Intenta de nuevo más tarde.');
+    }
+  }
+
+  function renderFacturacionTabla() {
+    if (!ultimasFacturasClarvo.length) {
+      renderFacturacionVacia('Sin comprobantes todavía', 'Se generarán aquí cuando el cobro de la suscripción esté activo.');
+      return;
+    }
+    els.micuentaFacturacionVacia.hidden = true;
+    els.micuentaFacturacionTablaWrap.hidden = false;
+    els.micuentaFacturacionTbody.innerHTML = '';
+    ultimasFacturasClarvo.forEach((factura, indice) => {
+      const pill = PILL_ESTADO[factura.estado] || PILL_ESTADO.pendiente;
+      const extras = factura.lineas.slice(1).map((l) => l.descripcion).join(', ');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="facturacion-mes">${escapeHtml(factura.periodoEtiqueta)}</td>
+        <td>
+          <div>${escapeHtml(factura.lineas[0]?.descripcion || 'Plan de suscripción')}</div>
+          ${extras ? `<div class="facturacion-extras">${escapeHtml(extras)}</div>` : ''}
+        </td>
+        <td class="facturacion-monto">$${formatearMoneda(factura.total)}</td>
+        <td><span class="pill ${pill.clase}">${pill.texto}</span></td>
+        <td><button type="button" class="btn-link btn-ver-recibo-clarvo" data-indice="${indice}">Ver recibo</button></td>
+      `;
+      els.micuentaFacturacionTbody.appendChild(tr);
+    });
+    els.micuentaFacturacionTbody.querySelectorAll('.btn-ver-recibo-clarvo').forEach((btn) => {
+      btn.addEventListener('click', () => abrirFacturacionReciboModal(Number(btn.dataset.indice)));
+    });
+  }
+
+  function facturacionTieneDatosFiscales() {
+    const empresa = ultimaEmpresaMiCuenta;
+    if (!empresa) return false;
+    return Boolean(
+      empresa.razonSocial &&
+      empresa.rfc && !empresa.rfc.startsWith('SINFISCAL-') &&
+      empresa.regimenFiscal &&
+      empresa.codigoPostal
+    );
+  }
+
+  let facturacionIndiceAbierto = null;
+
+  function abrirFacturacionReciboModal(indice) {
+    const factura = ultimasFacturasClarvo[indice];
+    if (!factura) return;
+    facturacionIndiceAbierto = indice;
+    const pill = PILL_ESTADO[factura.estado] || PILL_ESTADO.pendiente;
+    els.facturacionReciboFolio.textContent = `Folio ${factura.folio}`;
+    els.facturacionReciboPill.className = `pill ${pill.clase}`;
+    els.facturacionReciboPill.textContent = pill.texto;
+    els.facturacionReciboFecha.textContent = factura.fechaCobro
+      ? `Pagado el ${formatearFechaCorta(factura.fechaCobro)}`
+      : factura.fechaVencimiento
+      ? `Vence el ${formatearFechaCorta(factura.fechaVencimiento)}`
+      : '';
+    els.facturacionReciboLineas.innerHTML = factura.lineas
+      .map((l) => `<div class="facturacion-recibo-linea"><span>${escapeHtml(l.descripcion)}</span><span>$${formatearMoneda(l.monto)}</span></div>`)
+      .join('');
+    els.facturacionReciboTotal.textContent = `$${formatearMoneda(factura.total)}`;
+    if (factura.pdfUrl) {
+      els.facturacionReciboPdf.href = factura.pdfUrl;
+      els.facturacionReciboPdf.hidden = false;
+    } else {
+      els.facturacionReciboPdf.hidden = true;
+    }
+    els.facturacionFacturaAviso.hidden = true;
+    renderFacturacionZonaSolicitud(factura);
+    els.facturacionReciboModalOverlay.hidden = false;
+  }
+  function cerrarFacturacionReciboModal() {
+    els.facturacionReciboModalOverlay.hidden = true;
+    facturacionIndiceAbierto = null;
+  }
+  els.btnCerrarFacturacionReciboModal.addEventListener('click', cerrarFacturacionReciboModal);
+  els.facturacionReciboModalOverlay.addEventListener('click', (e) => {
+    if (e.target === els.facturacionReciboModalOverlay) cerrarFacturacionReciboModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !els.facturacionReciboModalOverlay.hidden) cerrarFacturacionReciboModal();
+  });
+
+  // "Solicitar factura" real (punto 469, propuesta 3 — Kanban en
+  // Control). Un solo contenedor, un solo render según el estado
+  // combinado: cobro pagado/no, datos fiscales completos/no, y el
+  // estado real de la solicitud ya guardada en Control (si existe).
+  function renderFacturacionZonaSolicitud(factura) {
+    const zona = els.facturacionSolicitudZona;
+    const sol = factura.solicitudFactura;
+    if (sol && sol.estado === 'lista') {
+      zona.innerHTML = `
+        <div class="facturacion-solicitud-linea">
+          <span class="pill pill-pagado">Factura lista</span>
+        </div>
+        <button type="button" class="btn btn-primary" id="btn-descargar-factura-zip">Descargar factura ZIP</button>
+      `;
+      zona.querySelector('#btn-descargar-factura-zip').addEventListener('click', () => descargarFacturaZip(factura.id));
+      return;
+    }
+    if (sol && (sol.estado === 'solicitada' || sol.estado === 'en_proceso')) {
+      zona.innerHTML = `
+        <div class="facturacion-solicitud-linea">
+          <span class="pill pill-pendiente">${sol.estado === 'en_proceso' ? 'Control la está generando' : 'Solicitada'}</span>
+          <span class="micuenta-suscripcion-texto">Folio ${escapeHtml(sol.folio)}</span>
+        </div>
+      `;
+      return;
+    }
+    if (sol && sol.estado === 'rechazada') {
+      zona.innerHTML = `
+        <div class="field-error aviso-cuota">
+          <p>Control rechazó tu solicitud: ${escapeHtml(sol.motivoRechazo || 'verifica tus datos fiscales.')}</p>
+        </div>
+        <button type="button" class="btn btn-secondary" id="btn-reintentar-factura">Corregir y reenviar</button>
+      `;
+      zona.querySelector('#btn-reintentar-factura').addEventListener('click', () => confirmarSolicitudFactura(factura));
+      return;
+    }
+    if (factura.estado !== 'pagado') {
+      zona.innerHTML = `<p class="micuenta-suscripcion-texto">Podrás solicitar tu factura una vez que este cobro esté pagado.</p>`;
+      return;
+    }
+    if (!facturacionTieneDatosFiscales()) {
+      zona.innerHTML = `
+        <p class="micuenta-suscripcion-texto">Para solicitar tu factura primero necesitamos tu Constancia de Situación Fiscal (CSF).</p>
+        <button type="button" class="btn btn-secondary" id="btn-subir-csf-factura">Subir mi CSF (PDF)</button>
+      `;
+      zona.querySelector('#btn-subir-csf-factura').addEventListener('click', () => els.facturacionCsfInput.click());
+      return;
+    }
+    zona.innerHTML = `<button type="button" class="btn btn-primary" id="btn-solicitar-factura">Solicitar factura</button>`;
+    zona.querySelector('#btn-solicitar-factura').addEventListener('click', () => confirmarSolicitudFactura(factura));
+  }
+
+  els.facturacionCsfInput.addEventListener('change', async () => {
+    const archivo = els.facturacionCsfInput.files[0];
+    els.facturacionCsfInput.value = '';
+    if (!archivo) return;
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    const zona = els.facturacionSolicitudZona;
+    zona.innerHTML = `<p class="micuenta-suscripcion-texto">Leyendo tu CSF...</p>`;
+    try {
+      const formData = new FormData();
+      formData.append('archivo', archivo);
+      const resp = await fetch(`${API_BASE}/admin/config/constancia-compania`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+        body: formData,
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'No se pudo procesar tu CSF.');
+      ultimaEmpresaMiCuenta = {
+        ...ultimaEmpresaMiCuenta,
+        razonSocial: data.razon_social_compania || '',
+        rfc: data.rfc_compania || '',
+        regimenFiscal: data.regimen_fiscal_compania || '',
+        codigoPostal: data.codigo_postal_compania || '',
+      };
+      showToast('CSF subida — datos fiscales listos.');
+      const factura = ultimasFacturasClarvo[facturacionIndiceAbierto];
+      if (factura) renderFacturacionZonaSolicitud(factura);
+    } catch (err) {
+      zona.innerHTML = `<div class="field-error aviso-cuota"><p>${escapeHtml(err.message || 'No se pudo procesar tu CSF.')}</p></div>
+        <button type="button" class="btn btn-secondary" id="btn-subir-csf-factura">Reintentar</button>`;
+      zona.querySelector('#btn-subir-csf-factura').addEventListener('click', () => els.facturacionCsfInput.click());
+    }
+  });
+
+  async function confirmarSolicitudFactura(factura) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    const zona = els.facturacionSolicitudZona;
+    zona.innerHTML = `<p class="micuenta-suscripcion-texto">Enviando solicitud...</p>`;
+    try {
+      const resp = await fetch(`${API_BASE}/admin/mi-cuenta/facturacion/solicitar`, {
+        method: 'POST',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoiceId: factura.id, periodoEtiqueta: factura.periodoEtiqueta }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'No se pudo enviar tu solicitud de factura.');
+      showToast('Factura solicitada — Control ya la tiene.');
+      await cargarFacturacionClarvo();
+      const nuevoIndice = ultimasFacturasClarvo.findIndex((f) => f.id === factura.id);
+      if (nuevoIndice >= 0) abrirFacturacionReciboModal(nuevoIndice);
+    } catch (err) {
+      zona.innerHTML = `<div class="field-error aviso-cuota"><p>${escapeHtml(err.message || 'No se pudo enviar tu solicitud.')}</p></div>
+        <button type="button" class="btn btn-primary" id="btn-solicitar-factura">Reintentar</button>`;
+      zona.querySelector('#btn-solicitar-factura').addEventListener('click', () => confirmarSolicitudFactura(factura));
+    }
+  }
+
+  async function descargarFacturaZip(invoiceId) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const resp = await fetch(`${API_BASE}/admin/mi-cuenta/facturacion/zip?invoiceId=${encodeURIComponent(invoiceId)}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!resp.ok) throw new Error('No se pudo descargar la factura.');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `factura-${invoiceId}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showToast(err.message || 'No se pudo descargar la factura.', true);
     }
   }
 

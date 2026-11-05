@@ -550,6 +550,22 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   después desincroniza contra el password real ya grabado. Runbook en
   memoria `project_mysql_credential_desync_prod.md`; preflight ya
   integrado en `hostinger/actualizar.sh`.
+- **`verificar-mysql.js` (punto 468): correr desde el HOST, nunca con
+  `docker compose exec`** — `backend/.dockerignore:13` excluye `scripts/`
+  de la imagen, así que el archivo NO está dentro del contenedor (el
+  comando que decía el propio encabezado del script era imposible, ya
+  corregido aquí y pendiente en el script). Requiere las variables de
+  `.env`: `DB_HOST=127.0.0.1` `DB_PORT=3306` `DB_USER=app`
+  `DB_NAME=portal_facturacion` `DB_PASSWORD` (= `MYSQL_PASSWORD`), y
+  **también** `MINIO_ENDPOINT=http://127.0.0.1:9000`
+  `MINIO_REGION=garage` + `MINIO_BUCKET/ROOT_USER/ROOT_PASSWORD` — sin
+  esas 4 de almacenamiento, `storage.eliminarArchivo` lanza por fila
+  (default `http://minio:9000` ya no existe; Garage rechaza
+  `us-east-1`), el `catch` por fila se traga el error y el script
+  reporta falsos negativos: **14 rojos en vez de 9** (verificado hoy:
+  282/296 sin ellas, 287/296 con ellas). Baseline esperado hoy:
+  287/296 con 9 rojos que son de SCRIPT desactualizado (N-14 de
+  `calidad/sonar_1.4.html`), no del producto.
 - **Candado de feature-flag por tenant**: `backend/utils/requiereFeature.js`
   (punto 347) — responde **404, nunca 403**, un tenant sin el módulo se
   comporta como si la ruta no existiera (mismo criterio que la
@@ -1048,6 +1064,33 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   activa) NO soportan `product_data` inline, exigen un `product` ya
   existente — ver el gotcha dedicado más abajo. El Checkout Session del
   onboarding sigue 100% efímero como describe este punto, sin cambios.
+- **CFDI real (facturas fiscales) se emiten a mano por el portal del
+  SAT — nunca automatizado por Stripe ni ningún tercero, y nunca por el
+  monto que Stripe cobró internamente** (punto 470 addendum, 2026-11-05,
+  decisión explícita del usuario): "Solicitar factura" (Mi Cuenta →
+  Facturación de Clarvo) factura al cliente el **precio de catálogo**
+  vigente — plan + upscales activos, el mismo que ve en el sitio al
+  aplicar un plan (ej. $850 + $50 + $50 = $950, ya con IVA incluido por
+  convención de precios al público en México) — nunca `invoice.total` de
+  Stripe, que puede venir prorrateado (ej. un upscale comprado a mitad
+  de ciclo factura $25 en Stripe pero $50 de catálogo) o neto de la
+  comisión real que Stripe cobra a Clarvo (esa comisión es gasto
+  deducible interno de ADDV, invisible para el tenant). Fuente de
+  verdad: `control/utils/facturacionClarvo.js:montoCatalogoTenant()` —
+  `planes.precio_mensual`/`precio_anual` (según
+  `tenants.suscripcion_ciclo`) + `tenant_upscales_activos.monto_recurrente`
+  de cada upscale activo (el precio YA contratado al comprarlo, nunca el
+  catálogo actual si cambió después). `crearSolicitud()`
+  (`facturacionGestion.js`) nunca acepta `monto` del llamador — lo
+  recalcula siempre ahí ("nunca confiar en lo que mandó el frontend"
+  para un monto de negocio, mismo criterio que datos fiscales). **El
+  historial/tabla "Facturación de Clarvo" y el modal "Ver recibo" SÍ
+  siguen mostrando los montos REALES de Stripe por invoice** (con su PDF
+  real de respaldo) — decisión explícita de mantener separados "registro
+  real de cobro" vs. "monto de la CFDI fiscal", nunca un descuido si las
+  2 cifras no coinciden. Si se toca este flujo de nuevo, replicar el
+  mismo criterio: cualquier monto que termine en una CFDI real viene del
+  catálogo de Clarvo, nunca de Stripe directo.
 - **`payment_method_types` ya no se acepta al crear un Checkout Session**
   (confirmado real contra Stripe, 2026-10-26, ver `DOCS/confStripe.html`
   paso 5): Stripe gobierna 100% los métodos de pago habilitados desde el
@@ -1336,6 +1379,23 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   invertido. Si se necesita otra llamada backend→control en el futuro,
   replicar este patrón (`CONTROL_INTERNAL_URL` en `docker-compose.yml`,
   default `http://control:4001`) en vez de inventar uno nuevo.
+- **`control/` nunca mueve bytes de archivo directo — ni siquiera cuando
+  el operador sube el archivo ahí mismo** (punto 470, 2026-11-05,
+  "Gestión de facturas" — Control sube el ZIP de una factura real):
+  `control/` no tiene cliente S3/Garage propio (confirmado,
+  `grep -rn multer control/` y `grep -rn S3Client control/` dan cero) —
+  construir uno nuevo solo para un caso habría duplicado toda la capa de
+  storage que `backend/` ya tiene. Patrón real: el archivo llega a
+  Control como base64 en el body JSON (límite ya en 30mb en ambos
+  `server.js`, de sobra para un PDF/ZIP típico) y Control lo reenvía de
+  inmediato a una ruta interna NUEVA de backend (dueño real de Garage) —
+  mismo patrón exacto que `/internal/marca-logo/:slug` (sin `req.tenant`,
+  el slug viaja en la URL, solo storage, sin tocar ninguna BD de
+  tenant). Si se necesita un tercer caso de "Control maneja un archivo"
+  en el futuro, replicar este relay-por-base64-vía-backend antes de
+  considerar darle credenciales S3 propias a Control — mismo criterio de
+  "nunca ampliar privilegios sin decisión explícita" que ya aplica a
+  `control_app` en MySQL.
 - **Un campo "preparado pero nunca conectado" puede llevar meses en el
   código sin que nadie lo note** (punto 433): `inventarioImagen.js:guardarImagenProducto()`
   ya regresaba `pesoBytes` desde antes de este punto — ningún call site
@@ -1996,7 +2056,9 @@ cd control && npm test          # app de control, contenedor/paquete aparte
 npx jest test/integration
 
 # Regresión contra MySQL real (requiere el stack levantado)
-docker compose exec backend node scripts/verificar-mysql.js
+# OJO (punto 468): NO existe dentro del contenedor — backend/.dockerignore
+# excluye scripts/. Correr desde el HOST con DB_* + MINIO_* de .env:
+node backend/scripts/verificar-mysql.js   # (ver gotcha "verificar-mysql")
 
 # MySQL HA (segmento 8, docker-stack.yml/Swarm — ver README, sección
 # "MySQL en alta disponibilidad") — enganchar/verificar/promover réplica:

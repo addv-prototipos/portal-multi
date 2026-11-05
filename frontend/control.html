@@ -123,6 +123,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><path d="M18 17V9M13 17V5M8 17v-3" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Financiero</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-control-facturas" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+          <span>Gestión de facturas</span>
+        </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-control-recordatorios" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-width="1.8"/><path d="M12 7v5l3 3" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
           <span>Recordatorios</span>
@@ -1142,6 +1146,38 @@
             </table>
           </div>
           <p class="admin-empty-state" id="cancelaciones-empty" hidden>Todavía no hay cancelaciones registradas.</p>
+        </div>
+
+        <input type="file" id="facturas-zip-input" accept="application/zip,.zip" hidden />
+        <div id="vista-control-facturas" hidden>
+          <div class="admin-toolbar">
+            <div class="admin-toolbar-title">
+              <h1>Gestión de facturas</h1>
+              <p>Solicitudes de factura (CFDI real) de tus tenants — sube el ZIP que generes en el SAT para entregarla.</p>
+            </div>
+          </div>
+          <div class="facturas-kanban-grid">
+            <div class="financiero-kanban-col es-alerta">
+              <h3>Solicitadas</h3>
+              <p class="sum" id="facturas-kanban-count-solicitadas">0</p>
+              <div id="facturas-kanban-solicitadas"></div>
+            </div>
+            <div class="financiero-kanban-col es-neutral">
+              <h3>En proceso</h3>
+              <p class="sum" id="facturas-kanban-count-en-proceso">0</p>
+              <div id="facturas-kanban-en-proceso"></div>
+            </div>
+            <div class="financiero-kanban-col es-critico">
+              <h3>Rechazadas</h3>
+              <p class="sum" id="facturas-kanban-count-rechazadas">0</p>
+              <div id="facturas-kanban-rechazadas"></div>
+            </div>
+            <div class="financiero-kanban-col es-positivo">
+              <h3>Listas</h3>
+              <p class="sum" id="facturas-kanban-count-listas">0</p>
+              <div id="facturas-kanban-listas"></div>
+            </div>
+          </div>
         </div>
 
         <div id="vista-control-financiero" hidden>

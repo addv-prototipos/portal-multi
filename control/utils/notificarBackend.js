@@ -280,9 +280,38 @@ async function enviarCorreoBase({ destinatario, asunto, cuerpo, html }) {
   }
 }
 
+// "Solicitar factura" (punto 469) — los 2 únicos puntos donde Control
+// mueve BYTES de archivo, siempre a través de backend (dueño real de
+// Garage). Ambos devuelven el JSON crudo del lado de backend; el llamador
+// decide cómo mapear sus propios códigos de error.
+async function descargarCsfFiscal(slug) {
+  const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
+  const secreto = process.env.INTERNAL_CACHE_SECRET;
+  const res = await fetch(`${url}/internal/facturacion/csf-descargar/${encodeURIComponent(slug)}`, {
+    method: 'POST',
+    headers: { 'X-Internal-Secret': secreto || '' },
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
+}
+
+async function subirFacturaZip(slug, invoiceId, zipBase64) {
+  const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
+  const secreto = process.env.INTERNAL_CACHE_SECRET;
+  const res = await fetch(`${url}/internal/facturacion/zip-subir/${encodeURIComponent(slug)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Internal-Secret': secreto || '' },
+    body: JSON.stringify({ invoiceId, zipBase64 }),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
+}
+
 module.exports = {
   notificarInvalidacionCache,
   enviarCorreoBase,
+  descargarCsfFiscal,
+  subirFacturaZip,
   activarTenantFisico,
   crearAdminInicialFisico,
   ErrorActivacionFisica,

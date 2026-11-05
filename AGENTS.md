@@ -322,6 +322,22 @@ solo la frase en español de la UI.
   `control_tenants.tenants.db_host` — el backend (dentro de Docker)
   necesita `mysql`, no `127.0.0.1` (bug recurrente, corregir con
   `UPDATE` + restart de `backend`).
+- **`verificar-mysql.js` (punto 468): correr desde el HOST, nunca con
+  `docker compose exec`** — `backend/.dockerignore:13` excluye `scripts/`
+  de la imagen, así que el archivo NO está dentro del contenedor (el
+  comando que decía el propio encabezado del script era imposible, ya
+  corregido aquí y pendiente en el script). Requiere las variables de
+  `.env`: `DB_HOST=127.0.0.1` `DB_PORT=3306` `DB_USER=app`
+  `DB_NAME=portal_facturacion` `DB_PASSWORD` (= `MYSQL_PASSWORD`), y
+  **también** `MINIO_ENDPOINT=http://127.0.0.1:9000`
+  `MINIO_REGION=garage` + `MINIO_BUCKET/ROOT_USER/ROOT_PASSWORD` — sin
+  esas 4 de almacenamiento, `storage.eliminarArchivo` lanza por fila
+  (default `http://minio:9000` ya no existe; Garage rechaza
+  `us-east-1`), el `catch` por fila se traga el error y el script
+  reporta falsos negativos: **14 rojos en vez de 9** (verificado hoy:
+  282/296 sin ellas, 287/296 con ellas). Baseline esperado hoy:
+  287/296 con 9 rojos que son de SCRIPT desactualizado (N-14 de
+  `calidad/sonar_1.4.html`), no del producto.
 - **Tooltip único**: todo el sitio usa un solo componente
   (`[data-tooltip]`/`.campo-ayuda`, `inicializarTooltips()`) — sin build
   step, se duplica manualmente por archivo (`admin.js`/`control.js`/
@@ -488,6 +504,18 @@ solo la frase en español de la UI.
   antes de pagar, o reenviar el evento real firmado a mano
   (`stripe.webhooks.generateTestHeaderString`) al puerto interno 4001 de
   `control` si el pago ya se hizo sin listener.
+- **CFDI real se emite a mano por el portal del SAT, nunca por Stripe ni
+  terceros, y nunca por el monto que Stripe cobró internamente** (punto
+  470 addendum, 2026-11-05): "Solicitar factura" factura al cliente el
+  precio de CATÁLOGO vigente (plan + upscales activos, ya con IVA
+  incluido) — nunca `invoice.total` de Stripe (puede venir prorrateado o
+  neto de la comisión real de Stripe, que es gasto deducible interno de
+  ADDV). Fuente: `control/utils/facturacionClarvo.js:montoCatalogoTenant()`
+  (plan + `tenant_upscales_activos.monto_recurrente` de cada upscale
+  activo) — `crearSolicitud()` nunca acepta `monto` del llamador, lo
+  recalcula siempre. El historial/"Ver recibo" SÍ sigue mostrando los
+  montos reales de Stripe por invoice (decisión explícita, no un
+  descuido si difieren del monto de la CFDI).
 - **`127.0.0.1` y `localhost` son orígenes DISTINTOS para CORS/CSP**
   (punto 430): estandarizar `ONBOARDING_CORS_ORIGIN`/
   `PUBLIC_APP_BASE_URL` (`portalFac/.env`) y `clarvo-Site/.env` a la
@@ -829,7 +857,9 @@ cd control && npm test          # app de control, contenedor/paquete aparte
 npx jest test/integration
 
 # Regresión contra MySQL real (requiere el stack levantado)
-docker compose exec backend node scripts/verificar-mysql.js
+# OJO (punto 468): NO existe dentro del contenedor — backend/.dockerignore
+# excluye scripts/. Correr desde el HOST con DB_* + MINIO_* de .env:
+node backend/scripts/verificar-mysql.js   # (ver gotcha "verificar-mysql")
 
 # node --check en cualquier archivo tocado, antes de dar un cambio por bueno
 node --check backend/ruta/al/archivo.js

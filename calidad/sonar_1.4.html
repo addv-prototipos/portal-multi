@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sonar 1.4 — Análisis de calidad y seguridad · Portal de Facturación ADDV (Clarvo)</title>
+<style>
+  :root{
+    --sev-blocker:#82071E; --sev-blocker-bg:#FFEBE9;
+    --sev-critical:#CF222E; --sev-critical-bg:#FFEBE9;
+    --sev-major:#BC4C00; --sev-major-bg:#FFF1E5;
+    --sev-minor:#9A6700; --sev-minor-bg:#FFF8C5;
+    --sev-info:#0969DA; --sev-info-bg:#DDF4FF;
+    --verde:#1A7F37; --verde-bg:#DAFBE1;
+    --gris:#59636E; --borde:#D1D9E0; --fondo:#F6F8FA; --texto:#1F2328;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;background:var(--fondo);color:var(--texto);line-height:1.5;font-size:14px}
+  header{background:#0D1B2A;color:#fff;padding:26px 32px}
+  header h1{margin:0;font-size:22px;letter-spacing:.2px}
+  header .sub{color:#9FB3C8;font-size:13px;margin-top:4px}
+  .wrap{max-width:1240px;margin:0 auto;padding:24px 32px 64px}
+  h2{font-size:17px;margin:34px 0 12px;border-bottom:1px solid var(--borde);padding-bottom:6px}
+  h3{font-size:14px;margin:20px 0 8px}
+  .gate{border-radius:8px;padding:16px 20px;margin:20px 0;border:1px solid}
+  .gate.fail{background:var(--sev-blocker-bg);border-color:var(--sev-blocker);color:var(--sev-blocker)}
+  .gate.cond{background:var(--sev-major-bg);border-color:var(--sev-major);color:var(--sev-major)}
+  .gate.pass{background:var(--verde-bg);border-color:var(--verde);color:var(--verde)}
+  .gate .titulo{font-weight:700;font-size:15px;margin-bottom:4px}
+  .gate p{margin:4px 0 0;color:var(--texto)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}
+  .card{background:#fff;border:1px solid var(--borde);border-radius:8px;padding:14px}
+  .card .k{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--gris)}
+  .card .v{font-size:26px;font-weight:700;margin-top:2px}
+  .card .d{font-size:12px;color:var(--gris);margin-top:2px}
+  .rating{display:inline-block;width:30px;height:30px;border-radius:50%;color:#fff;font-weight:700;text-align:center;line-height:30px;font-size:15px}
+  .r-a{background:var(--verde)} .r-b{background:#5A9E3E} .r-c{background:var(--sev-minor)} .r-d{background:var(--sev-major)} .r-e{background:var(--sev-critical)}
+  .sev-counts{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+  .sev-badge{border-radius:20px;padding:5px 14px;font-weight:600;font-size:13px;border:1px solid}
+  .b-blocker{background:var(--sev-blocker-bg);color:var(--sev-blocker);border-color:var(--sev-blocker)}
+  .b-critical{background:var(--sev-critical-bg);color:var(--sev-critical);border-color:var(--sev-critical)}
+  .b-major{background:var(--sev-major-bg);color:var(--sev-major);border-color:var(--sev-major)}
+  .b-minor{background:var(--sev-minor-bg);color:var(--sev-minor);border-color:var(--sev-minor)}
+  .b-info{background:var(--sev-info-bg);color:var(--sev-info);border-color:var(--sev-info)}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--borde);border-radius:8px;overflow:hidden;font-size:13px}
+  th{background:#F3F4F6;text-align:left;padding:9px 10px;border-bottom:1px solid var(--borde);font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--gris)}
+  td{padding:9px 10px;border-bottom:1px solid #EAECEF;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td.id{white-space:nowrap;font-weight:600;color:var(--gris);font-size:12px}
+  td.arch{white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  .pill{display:inline-block;border-radius:12px;padding:1px 9px;font-size:11px;font-weight:600;border:1px solid}
+  .p-vuln{background:var(--sev-critical-bg);color:var(--sev-critical);border-color:var(--sev-critical)}
+  .p-smell{background:#F3F4F6;color:var(--gris);border-color:var(--borde)}
+  .p-hot{background:var(--sev-minor-bg);color:var(--sev-minor);border-color:var(--sev-minor)}
+  .p-conf{background:var(--sev-info-bg);color:var(--sev-info);border-color:var(--sev-info)}
+  .desc b.t{display:block;margin-bottom:2px}
+  .rec{color:var(--gris);margin-top:3px;display:block}
+  .rec::before{content:"Recomendación: ";font-weight:600;color:var(--texto)}
+  .ok{color:var(--verde);font-weight:700}
+  .warn{color:var(--sev-major);font-weight:700}
+  .bad{color:var(--sev-critical);font-weight:700}
+  .parcial{color:var(--sev-major);font-weight:700}
+  ul{margin:8px 0;padding-left:22px} li{margin:4px 0}
+  .owasp td:nth-child(2){font-weight:600}
+  .barra{height:9px;border-radius:5px;background:#EAECEF;overflow:hidden;min-width:120px;margin-top:5px}
+  .barra>span{display:block;height:100%}
+  .nota{background:#fff;border:1px solid var(--borde);border-left:4px solid var(--sev-info);border-radius:6px;padding:12px 16px;margin:14px 0;font-size:13px}
+  .delta{background:#fff;border:1px solid var(--borde);border-left:4px solid var(--verde);border-radius:6px;padding:12px 16px;margin:14px 0;font-size:13px}
+  footer{color:var(--gris);font-size:12px;margin-top:40px;border-top:1px solid var(--borde);padding-top:14px}
+  code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#F3F4F6;border-radius:4px;padding:0 4px;font-size:12px}
+  @media (max-width:820px){ .wrap{padding:16px} table{display:block;overflow-x:auto} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Informe de calidad y seguridad — Portal de Facturación ADDV (Clarvo)</h1>
+  <div class="sub">Análisis tipo SonarQube + revisión OWASP Top 10 (2021) · Versión 1.4 · 2026-11-04 · Alcance del producto: backend/, control/, frontend/, docker/ · 122 archivos · 88,333 líneas analizadas · <code>hostinger/</code> y <code>VULTR/</code> fuera de alcance (herramientas de despliegue, puntos 412/435/448) · Comparado contra sonar_1.3.html (1.3, 2026-10-29)</div>
+</header>
+
+<div class="wrap">
+
+  <!-- ═══════════════ COMPARATIVA VS 1.3 ═══════════════ -->
+  <h2>0. Comparativa contra la versión 1.3 (sonar_1.3.html)</h2>
+  <div class="delta">
+    <b>Las 2 condiciones de la 1.3 cerraron; aparecieron 8 hallazgos nuevos, 2 de ellos mayores.</b> Las <b>54 hallazgos con ID vigentes al cierre de la 1.3</b> (los 51 que la propia 1.3 re-estado + N-06 + N-07 + N-08) fueron <span class="ok">re-verificados hoy línea por línea</span> con el grep del patrón de cada fix y lectura de la línea exacta (nunca mensajes de commit): <b>48 cerrados</b> (todos los que estaban cerrados siguen cerrados, y se suman m-11, i-03, i-04, N-06 y N-07), <b>1 parcial</b> (N-03, con un residual nuevo trackeado como N-16) y <b>4 abiertos</b> (i-01, i-02, N-05, N-08). Cerraron las 2 condiciones de la gate: <b>N-06</b> (hoy <code>npm audit --omit=dev</code> reporta <b>0 vulnerabilidades</b> en backend y control — 15 CVEs → 0, con nodemailer 10.3.1 ya instalado en ambos paquetes) y <b>N-07</b> (hoy ambas suites están en verde: backend <b>1,382/1,382</b> y control <b>567/567</b>). El crecimiento desde la 1.3 (puntos 444-467: cupo de usuarios, gate de Términos, alta real en producción, self-healing del webhook de Stripe, Extras de upscale, isla de precios, vista Financiero) trajo <b>2 mayores nuevos</b>: <b>N-09</b> — <code>extra.nombre</code> se inyecta sin escapar en dos <code>innerHTML</code> del panel del tenant (XSS almacenado de origen cross-tenant en <code>/control</code>) — y <b>N-14</b> — el gate de regresión contra MySQL real (<code>verificar-mysql.js</code>) salió con <b>9 de 296 pruebas rojas</b> y su invocación documentada es imposible dentro del contenedor. Seis menores nuevos (N-10 a N-13, N-15, N-16). La Quality Gate se mantiene en <b>APROBADA CON CONDICIONES</b>, pero con condiciones distintas y ninguna de ellas de supply-chain: son 2 arreglos acotados.
+  </div>
+
+  <table>
+    <tr><th>Antes (1.3)</th><th>Ahora (1.4)</th><th>Delta</th></tr>
+    <tr>
+      <td>Quality Gate: <b class="warn">APROBADA CON CONDICIONES</b><br>0 blockers · 0 críticos · 2 mayores (N-06 supply-chain, N-07 tests rojos) · 2 menores (N-05, N-08)</td>
+      <td>Quality Gate: <b class="warn">APROBADA CON CONDICIONES</b><br>0 blockers · 0 críticos · 2 mayores (N-09 XSS almacenado, N-14 gate MySQL roto) · 8 menores</td>
+      <td class="desc">Las 2 condiciones viejas <span class="ok">cerraron</span> (N-06: 15 CVEs → 0 en producción; N-07: 14 rojos → 0 en ambas suites). Las 2 nuevas son <b>N-09</b> (escapar 2 variables en <code>innerHTML</code>, minutos) y <b>N-14</b> (poner al día <code>verificar-mysql.js</code> y su invocación, horas). Cero vulnerabilidades de cadena de suministro abiertas.</td>
+    </tr>
+    <tr><td>Seguridad <span class="rating r-b">B</span></td><td>Seguridad <span class="rating r-b">B</span></td><td><b>A06 vuelve a CUMPLE</b> (0 CVEs de producción en ambos paquetes; nodemailer 10.3.1 cierra la CVE cross-tenant de credenciales SMTP). <b>A03 baja de CUMPLE a PARCIAL</b> por N-09 (XSS almacenado cross-tenant) y su residual N-16. Se mantiene B.</td></tr>
+    <tr><td>Confiabilidad <span class="rating r-c">C</span></td><td>Confiabilidad <span class="rating r-b">B</span></td><td>Jest volvió a verde determinista: <b>1,949 ejecuciones, 0 rojos estables</b> (solo 1 intermitente de <code>docsEnabled</code> en 1 de 2 corridas, N-05). El retroceso nuevo está en el otro gate: <code>verificar-mysql.js</code> contra MySQL+Garage reales con <b>9 rojos</b> (todos de script desactualizado, verificados) — de C a B.</td></tr>
+    <tr><td>Mantenibilidad <span class="rating r-c">C</span></td><td>Mantenibilidad <span class="rating r-c">C</span></td><td>Los monolitos siguieron creciendo: admin.js +567 (21,814), backend/server.js +199 (11,627), admin.html +133 (6,382). Total del producto de 84,190 a 88,333 líneas (+5.0%) en 6 días y 31 commits.</td></tr>
+    <tr><td>Tests: 1,883 ejecuciones</td><td>Tests: 1,949 ejecuciones</td><td class="desc">Backend 1,382 (+8, todas en verde en la corrida limpia) · control 567 (+58, 32 suites, todas verdes). Además se corrió por primera vez el gate completo de MySQL real en esta serie: <b>287/296</b> con el entorno completo.</td></tr>
+  </table>
+
+  <div class="sev-counts">
+    <span class="sev-badge b-blocker">0 Blocker</span>
+    <span class="sev-badge b-critical">0 Críticos</span>
+    <span class="sev-badge b-major">2 Mayores (N-09, N-14)</span>
+    <span class="sev-badge b-minor">8 Menores (N-05, N-08, N-10…N-13, N-15, N-16)</span>
+    <span class="sev-badge b-info">2 Informativos abiertos (i-01, i-02)</span>
+  </div>
+
+  <!-- ═══════════════ QUALITY GATE ═══════════════ -->
+  <div class="gate cond">
+    <div class="titulo">QUALITY GATE: APROBADA CON CONDICIONES</div>
+    <p><b>Cero vulnerabilidades de cadena de suministro y cero rojos estables en Jest.</b> Los 48 hallazgos cerrados siguen cerrados (cookie <code>Secure</code>, fail-closed de ADMIN_USERS, <code>perfil='cliente'</code>, <code>hostPermitido</code>, body parser acotado, Turnstile, auditoría con <code>originalUrl</code>, escapes de atributo, 27m consistente, iframe sandbox, <code>USER appuser</code>, HSTS preload, Inter auto-hospedado), verificados con grep + lectura de línea hoy. <b>Las 2 condiciones de la gate son:</b> (1) <b>N-09</b> — escapar <code>extra.nombre</code> en los dos <code>innerHTML</code> de <code>frontend/admin.js</code> (líneas 9074 y 9472), cuyo valor viene del catálogo <code>funcionalidades_upscale</code> de <code>/control</code> y llega sin sanitizar a todos los paneles de tenant; y (2) <b>N-14</b> — poner al día <code>backend/scripts/verificar-mysql.js</code> (9 aserciones apuntan a comportamientos eliminados a propósito) y documentar/arreglar su invocación (hoy el comando del propio encabezado del script no puede funcionar dentro del contenedor). Ninguna de las dos requiere rediseño.</p>
+  </div>
+
+  <!-- ═══════════════ MÉTRICAS ═══════════════ -->
+  <h2>1. Métricas del proyecto</h2>
+  <div class="cards">
+    <div class="card"><div class="k">Seguridad</div><div class="v"><span class="rating r-b">B</span></div><div class="d">0 CVEs en producción · 1 XSS almacenado abierto (N-09)</div></div>
+    <div class="card"><div class="k">Confiabilidad (bugs)</div><div class="v"><span class="rating r-b">B</span></div><div class="d">Jest 0 rojos estables · gate MySQL 9 rojos (script)</div></div>
+    <div class="card"><div class="k">Mantenibilidad</div><div class="v"><span class="rating r-c">C</span></div><div class="d">Monolitos (+567/+199 líneas)</div></div>
+    <div class="card"><div class="k">Líneas de código</div><div class="v">88,333</div><div class="d">122 archivos (JS/HTML/CSS, sin hostinger/)</div></div>
+    <div class="card"><div class="k">Tests backend</div><div class="v">1,382/1,382</div><div class="d">69 suites — 1 intermitente en 1 de 2 corridas</div></div>
+    <div class="card"><div class="k">Tests control</div><div class="v">567/567</div><div class="d">32 suites — verde en corrida completa</div></div>
+    <div class="card"><div class="k">Rutas backend</div><div class="v">214</div><div class="d">control: 110 (Financiero, Términos, salud Stripe)</div></div>
+    <div class="card"><div class="k">Regresión MySQL</div><div class="v">287/296</div><div class="d">9 rojos, todos de script desactualizado (N-14)</div></div>
+  </div>
+
+  <table>
+    <tr><th>Categoría</th><th>Abiertos</th><th>Distribución</th></tr>
+    <tr><td>Vulnerabilidades de código propio (blocker + críticos + mayores)</td><td><span class="bad">1</span> (N-09)</td><td><div class="barra"><span style="width:14%;background:var(--sev-major)"></span></div></td></tr>
+    <tr><td>Supply-chain (dependencias con CVE)</td><td><span class="ok">0</span> (era 15 en la 1.3)</td><td><div class="barra"><span style="width:2%;background:var(--verde)"></span></div></td></tr>
+    <tr><td>Calidad de pruebas (rojos + intermitencia)</td><td><span class="warn">10</span> (9 en verificar-mysql + 1 intermitente Jest)</td><td><div class="barra"><span style="width:40%;background:var(--sev-major)"></span></div></td></tr>
+    <tr><td>Code smells / deuda técnica</td><td>4 (monolitos, i-02, N-13, N-15)</td><td><div class="barra"><span style="width:22%;background:var(--sev-minor)"></span></div></td></tr>
+    <tr><td>Configuración insegura (infra)</td><td><span class="ok">0</span></td><td><div class="barra"><span style="width:2%;background:var(--verde)"></span></div></td></tr>
+  </table>
+
+  <!-- ═══════════════ ESTADO DE LOS HALLAZGOS PREVIOS ═══════════════ -->
+  <h2>2. Estado de los 54 hallazgos con ID vigentes al cierre de la 1.3</h2>
+  <p>Cada estado fue <span class="ok">verificado</span> hoy leyendo la línea exacta del fuente actual (no mensajes de commit — la lección del punto 352). "Cerrado" = el fix sigue en el código; "Parcial" = fix con resto documentado.</p>
+
+  <h3>2.1 Críticos (6) — todos cerrados, sin regresiones</h3>
+  <table>
+    <tr><th>ID</th><th>Estado 1.3 → 1.4</th><th>Evidencia verificada hoy</th></tr>
+    <tr><td class="id">C-01</td><td>CERRADO → CERRADO</td><td class="arch">6 usos de <code>perfil = 'cliente'</code> en backend/server.js (login, mi-cuenta, desplegable de Ventas, ordenes-compra)</td></tr>
+    <tr><td class="id">C-02</td><td>CERRADO → CERRADO</td><td class="arch">fail-closed de ADMIN_USERS: 5 menciones en backend/utils/auth.js + control/utils/auth.js; suite "fail-closed solo en producción" verde</td></tr>
+    <tr><td class="id">C-03</td><td>CERRADO → CERRADO</td><td class="arch"><code>hostPermitido()</code> ×6 en backend/server.js + <code>absolute_redirect off</code> ×2 en nginx.conf.template</td></tr>
+    <tr><td class="id">C-04</td><td>CERRADO → CERRADO</td><td class="arch">Preflight en <code>hostinger/actualizar.sh</code> (fuera de alcance, se cita solo como paso de deploy): detecta los 5 <code>changeme_*</code> y aborta</td></tr>
+    <tr><td class="id">C-05</td><td>CERRADO → CERRADO</td><td class="arch">Grep de atributos <code>(data-…|aria-label|value|title)="…${escapeHtml(</code> sobre admin.js/control.js/portal.js: <b>0 matches</b>. El único <code>escapeHtml()</code> dentro de un atributo del archivo es <code>class</code> en admin.js:21681 → ver N-16</td></tr>
+    <tr><td class="id">C-06</td><td>CERRADO → CERRADO</td><td class="arch">62 usos de <code>escapeHtmlAttr()</code> en los 3 archivos; comentario de la regla intacto en admin.js:2249-2259</td></tr>
+  </table>
+
+  <h3>2.2 Mayores (19 + N-01…N-03 + N-06, N-07) — 23 cerrados, 1 parcial</h3>
+  <table>
+    <tr><th>ID</th><th>Estado 1.3 → 1.4</th><th>Evidencia verificada hoy</th></tr>
+    <tr><td class="id">M-01…M-04</td><td>CERRADOS → CERRADOS</td><td class="arch">Sin regresiones (suites de portal/CSRF/csv verdes)</td></tr>
+    <tr><td class="id">M-05</td><td>CERRADO → CERRADO</td><td class="arch"><code>jsonLimiteAmplio</code> ×3 en backend/server.js — sigue scoped a rutas de archivo, no global</td></tr>
+    <tr><td class="id">M-06</td><td>CERRADO → CERRADO</td><td class="arch"><code>verificarTurnstile</code> ×2 en control/server.js — server-side fail-closed preservado en <code>pagar/:token</code> y en el resto del onboarding</td></tr>
+    <tr><td class="id">M-07…M-15</td><td>CERRADOS → CERRADOS</td><td class="arch">Sin regresiones verificadas; las suites que cubren cada fix (incluida "fail-closed de credenciales MinIO (M-15)") salen verdes</td></tr>
+    <tr><td class="id">M-16</td><td>CERRADO → CERRADO</td><td class="arch">Mensajes genéricos al cliente + <code>console.error</code> con detalle intactos</td></tr>
+    <tr><td class="id">M-17</td><td>CERRADO → CERRADO</td><td class="arch">DOCS_ENABLED opt-in: 3 usos en backend/server.js, sin rutas de docs sin la variable</td></tr>
+    <tr><td class="id">M-18</td><td>CERRADO → CERRADO</td><td class="arch">10 menciones de <code>secure</code> en backend/utils/authUsuario.js — cookie de sesión forzada a Secure + fail-closed de arranque</td></tr>
+    <tr><td class="id">M-19</td><td>CERRADO → CERRADO</td><td class="arch">Auditoría de /control con <code>req.originalUrl</code> (2 usos), sin descartar GET (A09 cumple)</td></tr>
+    <tr><td class="id">N-01</td><td>CERRADO → CERRADO</td><td class="arch">Los 4 <code>client_max_body_size 27m</code> de nginx.conf.template consistentes</td></tr>
+    <tr><td class="id">N-02</td><td>CERRADO → CERRADO</td><td class="arch">Intermitencia de <code>docsEnabled</code> (control) no se reprodujo; la única suite de esa familia que hoy falla es la de backend, ver N-05</td></tr>
+    <tr><td class="id">N-03</td><td>CERRADO → <span class="parcial">PARCIAL</span></td><td class="arch">Apareció <b>1</b> call site nuevo con <code>escapeHtml()</code> dentro de un atributo: <code>frontend/admin.js:21681</code> (<code>class="…-${escapeHtml(h.severidad)}"</code>). El valor hoy viene de un enum del backend (<code>'media'</code>/<code>'info'</code>, inventarioImportacion.js:651/691/708), así que <b>no es explotable en el estado actual</b> — se reporta aparte como N-16 (menor) en vez de reabrir un mayor.</td></tr>
+    <tr><td class="id">N-06</td><td>MAYOR ABIERTO → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch"><code>npm audit --omit=dev</code> hoy: <b>0 vulnerabilidades</b> en backend y control (era 15). nodemailer <code>^10.3.1</code> en ambos package.json — la CVE cross-tenant de credenciales SMTP quedó resuelta con el upgrade breaking que pedía la 1.3. Con dev deps solo quedan 6 <i>low</i> (jest-cli) en cada paquete. <b>Pendiente heredado sin ejecutar</b>: la recomendación de la 1.3 de agregar <code>npm audit --omit=dev</code> al preflight de <code>hostinger/actualizar.sh</code> no se hizo (0 matches de <code>npm audit</code> en ese archivo — fuera de alcance, se anota como paso de deploy).</td></tr>
+    <tr><td class="id">N-07</td><td>MAYOR ABIERTO → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">Backend hoy: <b>69 suites / 1,382 tests en verde</b> (corrida limpia; la corrida paralela tuvo 1 intermitente, ver N-05). Control hoy: <b>32 suites / 567 tests en verde</b>. Los 14 rojos de la 1.3 no se reprodujeron.</td></tr>
+  </table>
+
+  <h3>2.3 Menores, informativos y nota (19 + 4 + 1) — 19 cerrados, 4 abiertos</h3>
+  <table>
+    <tr><th>ID</th><th>Estado 1.3 → 1.4</th><th>Evidencia verificada hoy</th></tr>
+    <tr><td class="id">m-01…m-10, m-12…m-17</td><td>CERRADOS → CERRADOS</td><td class="arch">Sin regresiones (greps de cada patrón: docs opt-in, límites, token Banxico, DUMMY_PASSWORD, throw de DB_PASSWORD, iframe sandbox — <code>sandbox=""</code> en admin.html:3140 y :5472 —, .dockerignore, 27m, contraste del pie, glifos Unicode, TTL de offline, CHECK_CONSTRAINTS)</td></tr>
+    <tr><td class="id">m-11</td><td>PARCIAL → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch"><b>El resto que quedaba ya está</b>: <code>USER appuser</code> en backend/Dockerfile:32 <b>y</b> control/Dockerfile:24, y el bind mount <code>./uploads</code> fue retirado de docker-compose.yml (solo quedan un comentario y <code>UPLOAD_DIR</code>). El pretexto documentado en la 1.3 ya no existe.</td></tr>
+    <tr><td class="id">i-01</td><td>ABIERTO → ABIERTO</td><td class="arch">Aislamiento de storage por prefijo lógico por tenant intacto (backend/utils/storage.js, <code>PREFIJO_DEFECTO</code>/<code>prefijoDeTenant</code> ×4) — mismo riesgo aceptado documentado, sin cambios</td></tr>
+    <tr><td class="id">i-02</td><td>ABIERTO → ABIERTO</td><td class="arch">Un único <code>INTERNAL_CACHE_SECRET</code> para <b>17</b> rutas <code>/internal/*</code> (18 llamadas de <code>secretoInternoValido()</code> en control/server.js; era 16 en la 1.3 — creció con el self-healing del webhook y los Extras de upscale)</td></tr>
+    <tr><td class="id">i-03</td><td>PARCIAL → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">nginx.conf.template:32 — <code>max-age=31536000; includeSubDomains; preload</code> (HSTS condicional al proto https, con <code>preload</code>), y cabeceras <code>Cross-Origin-Opener-Policy</code>/"same-origin" + <code>Cross-Origin-Resource-Policy</code> en todos los bloques de cabeceras (:111-112, :162-163, :189-190, :215-216, :393-394, :489-490, :535-536)</td></tr>
+    <tr><td class="id">i-04</td><td>ABIERTO → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">frontend/style.css ya no tiene <code>@import</code> de Google Fonts: 4 bloques <code>@font-face</code> con <code>/assets/fonts/inter-400|500|600|700.woff2</code> locales, y CSP con <code>font-src 'self'</code> + <code>style-src</code> acotado (comentario en nginx.conf.template:120-126 documenta que <code>'unsafe-inline'</code> en style-src se conserva a propósito por los ~11 atributos <code>style="…"</code>)</td></tr>
+    <tr><td class="id">N-05</td><td>ABIERTO → ABIERTO</td><td class="arch"><code>docsEnabled.test.js</code> volvió a fallar <b>1 de 2</b> corridas completas de hoy con <code>Exceeded timeout of 15000 ms</code> (la corrida que falló corrió en paralelo con la suite de control — mismo patrón de carga). El timeout ya subió a 15 s y aun así no basta bajo saturación.</td></tr>
+    <tr><td class="id">N-08</td><td>ABIERTO → ABIERTO</td><td class="arch"><code>preferenciasDashboard.test.js</code> no se reprodujo en esta ronda; se mantiene abierto por ser intermitente por diseño (mismo tratamiento que N-05)</td></tr>
+    <tr><td class="id">N-04</td><td>Nota → Nota (actualizada)</td><td class="arch">Comparados 5 pares clave por SHA-256 hoy: <b>los 5 difieren</b> (admin.js, backend/server.js, nginx.conf.template, backend/package.json, control.js) y <b><code>hostinger/control/</code> sigue sin existir</b>. Fuera de alcance por puntos 412/435/448; ver sección 4.</td></tr>
+  </table>
+
+  <!-- ═══════════════ OWASP ═══════════════ -->
+  <h2>3. Cumplimiento OWASP Top 10 (2021)</h2>
+  <table class="owasp">
+    <tr><th>Categoría</th><th>Categoría</th><th>1.3 → 1.4</th><th>Evidencia principal</th></tr>
+    <tr>
+      <td><b>A01</b></td><td>Broken Access Control</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">111 candados <code>requiereFeature()</code> en backend/server.js (siempre antes del auth), <code>perfil='cliente'</code> y fail-closed de ADMIN_USERS intactos. Las rutas nuevas de la ronda (Financiero, Términos, salud del webhook) van con <code>requireAdminAuth + requireAdminArea()</code>, y <code>control/utils/auth.js</code> sigue teniendo un único mecanismo (<code>ADMIN_USERS</code>) con <code>adminPerfil</code> siempre <code>'super'</code>.</td>
+    </tr>
+    <tr>
+      <td><b>A02</b></td><td>Cryptographic Failures</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Cookie <code>Secure</code> + fail-closed intactos; cifrado AES-256-GCM de SMTP/Garage sin cambios. <b>Mejora respecto de la 1.3: nodemailer 10.3.1 en ambos paquetes</b> — la CVE de divulgación de credenciales SMTP cross-tenant (la de mayor relevancia real en el informe anterior) quedó resuelta.</td>
+    </tr>
+    <tr>
+      <td><b>A03</b></td><td>Injection</td>
+      <td><span class="bad">PARCIAL</span><br><small>antes: CUMPLE</small></td>
+      <td class="desc"><b>Única categoría que empeora, y es de HTML/JS, no de SQL</b>: N-09 — <code>extra.nombre</code> entra crudo en dos <code>innerHTML</code> de <code>frontend/admin.js</code> (9074, 9472) con origen en el catálogo cross-tenant <code>funcionalidades_upscale</code> y sin sanitización en el servidor (control/utils/upscale.js solo normaliza longitud/valores). Residual menor N-16 (escapeHtml en un atributo). SQL parametrizado, CSV injection y escapes de texto sin regresiones.</td>
+    </tr>
+    <tr>
+      <td><b>A04</b></td><td>Insecure Design</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Body parser global acotado, alta solo vía webhook firmado y cobro antes de activar — sin cambios. El gate de Términos (punto 459) es una barrera de aceptación del administrador raíz, no un control de acceso.</td>
+    </tr>
+    <tr>
+      <td><b>A05</b></td><td>Security Misconfiguration</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Preflight de defaults, docs opt-in, 27m consistente, cookie fail-closed, webhook de Stripe con firma HMAC + idempotencia — intactos. <b>m-11 cerrado</b>: ambos servicios de aplicación corren con <code>USER appuser</code> y ya no hay bind mount huérfano. Residual: 2 defaults obsoletos de storage.js (N-15).</td>
+    </tr>
+    <tr>
+      <td><b>A06</b></td><td>Vulnerable and Outdated Components</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span><br><small>antes: PARCIAL</small></td>
+      <td class="desc"><b>La mejora más grande del informe</b>: <code>npm audit --omit=dev</code> = <b>0 vulnerabilidades</b> en backend y control (era 8 + 7). Se ejecutó el upgrade breaking de nodemailer (10.3.1) en ambos paquetes, además del fix no-breaker del resto. Solo quedan 6 <i>low</i> de dependencias de desarrollo (jest-cli) en cada paquete.</td>
+    </tr>
+    <tr>
+      <td><b>A07</b></td><td>Identification and Authentication Failures</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Política de super-admin, DUMMY_PASSWORD anti-timing, candado de unicidad de <code>usuarios.email</code> acotado a <code>perfil='cliente'</code> — intactos. Las 3 suites de auth salen verdes.</td>
+    </tr>
+    <tr>
+      <td><b>A08</b></td><td>Software and Data Integrity Failures</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Webhook de Stripe con verificación de firma + idempotencia + <b>self-healing</b> (punto 465): verifica/crea/reactiva el endpoint cada hora con manejo de errores propio. Escritura atómica del .env e iframe sandbox intactos.</td>
+    </tr>
+    <tr>
+      <td><b>A09</b></td><td>Security Logging and Monitoring Failures</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Auditoría cross-tenant con <code>req.originalUrl</code> y sin descartar GET intacta; la ubicación de la auditoría usa <code>geoip-lite</code> local (sin llamadas a terceros — ver N-13 por tamaño, no por SSRF).</td>
+    </tr>
+    <tr>
+      <td><b>A10</b></td><td>Server-Side Request Forgery</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc"><code>sincronizarDesdeOrigen()</code> sin parámetro de URL; llamadas salientes nuevas (Stripe API, API interna backend↔control) hacia hosts fijos por configuración. <code>geoip-lite</code> resuelve contra su base embebida, sin tráfico saliente.</td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ HALLAZGOS NUEVOS ═══════════════ -->
+  <h2>4. Hallazgos nuevos de la versión 1.4</h2>
+  <p>Ocho hallazgos nuevos del producto (2 mayores, 6 menores) y la actualización de la nota de herramienta (N-04), todos <span class="ok">verificados</span> con evidencia reproducible. Donde la verificación fue por lectura del flujo de error y no en vivo, se indica explícitamente.</p>
+  <table>
+    <tr><th>ID</th><th>Sev.</th><th>Archivo:línea</th><th>Tipo</th><th>Detalle y recomendación</th></tr>
+
+    <tr>
+      <td class="id">N-09</td>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Mayor</span></td>
+      <td class="arch">frontend/admin.js:9074 y :9472 <span class="ok">leídos hoy</span></td>
+      <td><span class="pill p-vuln">Vulnerabilidad (XSS almacenado)</span></td>
+      <td class="desc"><b class="t">Dos <code>innerHTML</code> insertan <code>extra.nombre</code> sin escapar: el nombre de un extra comprado viaja desde /control hasta el panel de cada tenant</b>
+        <ul>
+          <li><b>admin.js:9074</b> — <code>aplicarExtrasMiCuenta()</code> arma los chips con <code>${extra.nombre}</code> crudo dentro de un <code>innerHTML</code>.</li>
+          <li><b>admin.js:9472</b> — la tarjeta de "Ampliar mi plan → Extras" hace <code>card.innerHTML = …${extra.nombre}…</code>, también crudo (y <code>data-extra-id="${extra.id}"</code> en el atributo del botón, sin escapar).</li>
+          <li><b>Origen cross-tenant</b>: el valor sale de <code>control_tenants.funcionalidades_upscale.nombre</code> (control/utils/upscale.js:112-122), se sirve por <code>/internal/upscale/extras/*</code> y llega al panel por <code>GET /api/admin/mi-cuenta/upscale/extras</code>. <code>normalizarDatos()</code> valida longitud/tipos pero <b>no sanitiza HTML</b>.</li>
+          <li><b>Alcance</b>: lo que escriba el super-admin en /control se ejecuta como HTML/JS en la sesión de cualquier administrador de cualquier tenant. Hoy el único autor es /control (rol super), por eso es mayor y no crítico — pero es el mismo patrón que C-05/C-06 ya corrigió en 62 puntos del archivo.</li>
+        </ul>
+        <span class="rec">Escapar los 2 call sites con <code>escapeHtml()</code> (son contenido de elemento) y <code>escapeHtmlAttr()</code> para <code>data-extra-id</code>. Si se quiere defensa en profundidad, sanitizar también en el servidor al guardar/leer <code>nombre</code> en control/utils/upscale.js. Esfuerzo: minutos.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">N-10</td>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td>
+      <td class="arch">frontend/admin.js:4225 <span class="ok">leído hoy</span></td>
+      <td><span class="pill p-vuln">Vulnerabilidad (HTML crudo)</span></td>
+      <td class="desc"><b class="t">El gate de Términos y Condiciones inyecta el contenido publicado como HTML crudo</b> — <code>els.terminosGateScroll.innerHTML = data.version.contenido</code>. El contenido se redacta en un <code>&lt;textarea&gt;</code> de /control (frontend/control.js:4382) y se guarda casi sin tocar (<code>control/utils/terminosCondiciones.js:41-48</code>, solo <code>trim()</code>), así que cualquier etiqueta escrita ahí se renderiza en el overlay de todos los tenants. A diferencia de N-09, aquí el campo <b>parece</b> pensado como texto plano (no hay indicación de que se admita HTML ni sanitización), y el autor sigue siendo solo el super-admin.
+        <span class="rec">Decidir el contrato: si debe ser texto plano, escaparlo al renderizar (o escapar al publicar); si se quiere texto enriquecido, sanitizar en el servidor al publicar (allowlist de etiquetas) y mantener el <code>innerHTML</code>. Documentar la decisión en el propio archivo.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">N-11</td>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td>
+      <td class="arch">control/utils/stripeWebhookHealth.js:80 + control/server.js:677-701 <span class="ok">verificado en runtime</span></td>
+      <td><span class="pill p-hot">Manejo de errores</span></td>
+      <td class="desc"><b class="t"><code>GET /api/control/health/stripe-webhook</code> responde 500 cuando Stripe no está configurado, en vez de un estado estructurado</b>
+        <code>verificarYRepararWebhook()</code> llama <code>obtenerStripe()</code> en la línea 80, <b>fuera</b> del <code>try</code> que empieza en la 92 — si falta <code>STRIPE_SECRET_KEY</code> la excepción no se convierte en <code>{ok:false, error:…}</code> sino que sube al <code>asyncHandler</code>, que responde <code>500 "Ocurrio un error interno"</code> (control/server.js:313-322) y deja el log con "Error no controlado en la ruta". <b>Reproducido en runtime</b> dentro del contenedor con <code>-e STRIPE_SECRET_KEY=</code>: <code>THROW: ErrorOnboarding | El cobro con Stripe no está configurado todavía.</code> (no se reprodujo por HTTP porque este entorno sí tiene Stripe configurado; el GET responde 200 en vivo). El job automático de cada hora sí lo atrapa (server.js:2824) y el proceso no se cae.
+        <span class="rec">Mover <code>obtenerStripe()</code> dentro del <code>try</code> (o envolverlo) para que devuelva <code>resultado.error = 'Stripe no configurado'</code> con <code>ok:false</code> y estado HTTP 200 — una pantalla de salud debe degradar, no 500. Mismo criterio para el POST <code>/reparar</code>.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">N-12</td>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td>
+      <td class="arch">control/utils/financieroResumen.js:25-29, 66, 258-260 <span class="ok">leído hoy</span></td>
+      <td><span class="pill p-smell">Code smell (fechas)</span></td>
+      <td class="desc"><b class="t">La vista Financiero usa un periodo en UTC sobre columnas que no están todas en UTC</b>
+        <code>periodoActual()</code> toma <code>getUTCFullYear()/getUTCMonth()</code> y con esa misma cadena se comparan <b>dos bases distintas</b>: <code>tenants.creado_en/baja_en</code> (DATETIME en UTC — ahí el par coincide) y <code>gastos.fecha</code> (columna <b>DATE con fecha local</b>, escrita con la convención del punto 371, vía <code>sumaGastosMes(periodo)</code> en la línea 260). Entre las 18:00 y las 24:00 del último día de mes (UTC−6), un gasto del día siguiente queda en el mes viejo y una alta del día siguiente en el mes nuevo: KPIs de altas/bajas y el desglose de gastos del mismo mes se desfasan 6 horas en la frontera. Es exactamente el gotcha del punto 371, en una pantalla nueva.
+        <span class="rec">Usar la familia local (<code>fechas.*</code>) para el periodo de la vista y derivar el mes de <code>DATE_FORMAT</code> con la misma convención, o separar en 2 periodo (uno para columnas DATETIME en UTC, otro para la columna DATE local). Decidir cuál es la fuente de verdad del "mes" para los KPIs de /control.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">N-13</td>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td>
+      <td class="arch">backend/utils/geoIp.js:24 + backend/package.json:25 + control/package.json:20 <span class="ok">medido hoy</span></td>
+      <td><span class="pill p-smell">Code smell (dependencia)</span></td>
+      <td class="desc"><b class="t"><code>geoip-lite</code> pesa 110.1 MB instalado y está en las imágenes de AMBOS servicios, para una sola llamada</b>
+        Medido en disco: <code>backend/node_modules/geoip-lite</code> = 110.1 MB y <code>control/node_modules/geoip-lite</code> = 110.1 MB (220 MB en total entre las dos imágenes). El único uso es <code>ubicacionDesdeIp()</code> para enriquecer la bitácora de auditoría (backend/server.js:6780, control/server.js:12), con <code>require('geoip-lite')</code> en top-level, o sea: se paga el costo en el arranque de cada contenedor aunque la auditoría no tenga eventos.
+        <span class="rec">Cargar la librería perezosamente (dentro de la función) y evaluar si la ciudad/país aporta algo real a la auditoría: si solo se quiere "desde dónde entró", considerar una base mínima por país o eliminar el dato. Decisión de tamaño de imagen, no de seguridad.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">N-14</td>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Mayor</span></td>
+      <td class="arch">backend/scripts/verificar-mysql.js (4 bloques) + backend/.dockerignore:13 <span class="ok">corrido 2 veces hoy</span></td>
+      <td><span class="pill p-smell">Code smell (calidad de pruebas)</span></td>
+      <td class="desc"><b class="t">El gate de regresión contra MySQL real sale con 9 de 296 rojas y su invocación documentada es imposible: el script ya no refleja el producto</b>
+        Corrida completa con entorno completo (DB + Garage): <b>287/296</b>. Los 9 rojos se agrupan en <b>4 causas raíz, todas de script desactualizado y todas trazadas al cambio de producto que las provocó</b> (0 bugs de producto):
+        <table style="margin-top:8px;font-size:12px">
+          <tr><th>Rojos</th><th>Causa raíz</th><th>Evidencia</th></tr>
+          <tr><td>1</td><td class="desc"><code>configSmtpParaMostrar()</code> es <code>async</code> desde el commit <code>7160a10</code> (SMTP de plataforma, 2026-10-29) y el script la llama síncrona (línea 773) — recibe un <code>Promise</code> y las aserciones leen <code>undefined</code>.</td><td class="arch">email.js:177</td></tr>
+          <tr><td>1</td><td class="desc"><code>requireUsuarioAdminExacto()</code> fue <b>eliminado del producto</b> en el punto 282 (2026-09-10, cuenta de respaldo admin); el <code>require</code> de la línea 48 lo deja en <code>undefined</code> y el <code>TypeError</code> tumba <b>todo el bloque de "Segunda capa: autorización por perfil"</b> — o sea, enmascara una decena de aserciones que ni siquiera se cuentan como rojas.</td><td class="arch">auth.js:640</td></tr>
+          <tr><td>5</td><td class="desc"><code>ejecutarLimpiezaConReporte()</code> <b>ya no borra órdenes de compra</b> desde el punto 158 (2026-08-28, "retención solo tickets"); el script espera que sí (líneas 2143, 2147-2148, 2155-2157, 2208) y los 4 fallos directos arrastran el 5º (el item de la orden nunca se inserta).</td><td class="arch">ticketsCleanup.js:44-53</td></tr>
+          <tr><td>2</td><td class="desc"><b>"Link de códigos SAT" fue eliminado a propósito</b> del producto (commit <code>6bb2504</code>, 2026-09-04); <code>setConfiguracionGlobal()</code> ya no reconoce la clave ni valida su formato, así que guardarla no la devuelve y no lanza (líneas 2786-2795).</td><td class="arch">config.js:360</td></tr>
+        </table>
+
+        <b style="display:block;margin-top:10px">Dos problemas de proceso adicionales verificados hoy:</b>
+        <ul>
+          <li><b>El comando documentado no puede funcionar</b>: el encabezado del script (línea 19) dice <code>docker-compose exec backend node scripts/verificar-mysql.js</code>, pero <code>backend/.dockerignore:13</code> excluye <code>scripts</code> de la imagen — el archivo no está dentro del contenedor.</li>
+          <li><b>Depende de variables que no documenta</b>: sin <code>MINIO_ENDPOINT</code>/<code>MINIO_REGION=garage</code>/<code>MINIO_*</code>, la limpieza de tickets falla en silencio y el script reporta <b>14 rojos en vez de 9</b> (corrida de control: <b>282/296</b>). <code>storage.eliminarArchivo</code> lanza por cada ticket, el <code>catch</code> por fila se traga el error y <code>eliminados</code> queda en 0 — las 5 diferencias son falsos negativos, no regresiones.</li>
+        </ul>
+        <span class="rec">Actualizar las 9 aserciones al comportamiento actual (o eliminar las de features ya retirados), quitar del encabezado el comando imposible y documentar las variables mínimas de almacenamiento — o mejor, hacer que el script las pida/verifique al inicio con un mensaje claro. Esfuerzo: menos de una hora, sin tocar código de producto.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">N-15</td>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td>
+      <td class="arch">backend/utils/storage.js:58-59 <span class="ok">leído hoy</span></td>
+      <td><span class="pill p-conf">Configuración obsoleta</span></td>
+      <td class="desc"><b class="t">Los defaults de conexión apuntan a un servicio que ya no existe y a una región que Garage rechaza</b>
+        <code>endpoint: process.env.MINIO_ENDPOINT || 'http://minio:9000'</code> — en <code>docker-compose.yml</code> no hay ningún servicio llamado <code>minio</code> (es <code>garage</code>, punto 415). Y <code>region: process.env.MINIO_REGION || 'us-east-1'</code> es incompatible con Garage, que valida contra su <code>s3_region</code> (el propio compose ya documenta que sin <code>MINIO_REGION=garage</code> "Garage rechaza toda operación"). El compose siempre define ambas variables, así que hoy no se manifiesta en producción: <b>el riesgo es latente</b> — cualquier proceso nuevo (un script, un worker, una corrida local del gate de regresión) que arranque sin esas variables fallará contra S3 de forma confusa, que es exactamente lo que hizo falta desentrañar en N-14.
+        <span class="rec">Actualizar los defaults a la realidad actual (<code>http://garage:9000</code> y <code>MINIO_REGION=garage</code> como default, o mejor: fallar al arrancar si faltan, como ya se hace con <code>MINIO_ROOT_USER</code>/<code>MINIO_ROOT_PASSWORD</code> en producción).</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">N-16</td>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td>
+      <td class="arch">frontend/admin.js:21681 <span class="ok">leído hoy</span></td>
+      <td><span class="pill p-smell">Code smell (regla C-05)</span></td>
+      <td class="desc"><b class="t">Primer call site que rompe la regla "escapeHtmlAttr() dentro de atributos" desde que se estableció</b>
+        <code>&lt;div class="… inv-import-calidad-sev-${escapeHtml(h.severidad)}"&gt;</code> — <code>escapeHtml()</code> escapa <code>&amp; &lt; &gt;</code> pero <b>no comillas</b> (admin.js:2243-2247, comentario C-05 en :2249-2256), así que un valor con <code>"</code> rompería el atributo. Hoy <code>h.severidad</code> viene de un enum fijo del backend (<code>'media'</code>/<code>'info'</code>), por lo que <b>no es explotable en el estado actual</b> — por eso N-03 queda parcial y este hallazgo es menor. Los demás campos del mismo bloque sí están bien escapados (<code>escapeHtml</code> en elemento, <code>escapeHtmlAttr</code> en <code>data-columna</code>).
+        <span class="rec">Cambiar a <code>escapeHtmlAttr()</code> (una palabra) y, de paso, agregar el grep de regresión <code>="…${escapeHtml(</code> a la suite para que no vuelva a aparecer en silencio.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">N-04</td>
+      <td><span class="sev-badge b-info" style="padding:2px 9px">Nota (fuera de alcance)</span></td>
+      <td class="arch">hostinger/frontend/* y hostinger/backend/* <span class="ok">verificado por hash SHA-256</span></td>
+      <td><span class="pill p-conf">Herramienta de despliegue</span></td>
+      <td class="desc"><b class="t">hostinger/ sigue desfasado — no es un hallazgo del producto (puntos 412/435/448)</b>
+        Comparados 5 pares clave por SHA-256 hoy: <b>los 5 difieren</b> (frontend/admin.js, backend/server.js, frontend/nginx.conf.template, backend/package.json, frontend/control.js) y <b><code>hostinger/control/</code> sigue sin existir</b> — el paquete de despliegue no incluye el tercer servicio, que ya maneja onboarding, Stripe, el SMTP de plataforma y el self-healing del webhook (punto 465). <code>VULTR/</code> existe como carpeta de operación del despliegue productivo (clarvo.mx) y también queda fuera de alcance.
+        <span class="rec">Como paso del proceso de deploy: regenerar hostinger/ por CONTENIDO desde su fuente antes de publicar y decidir si el paquete pasa a incluir control/ (o documentar que /control vive en otro servidor vía CONTROL_UPSTREAM_HOST, que la arquitectura ya soporta).</span></td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ DEUDA TÉCNICA ═══════════════ -->
+  <h2>5. Deuda técnica y code smells</h2>
+  <table>
+    <tr><th>Impacto</th><th>Localización</th><th>Detalle y recomendación</th></tr>
+    <tr>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Alto</span></td>
+      <td class="arch">frontend/admin.js (21,814)<br>backend/server.js (11,627)<br>frontend/admin.css (10,667)<br>frontend/admin.html (6,382)</td>
+      <td class="desc"><b class="t">Monolitos siguieron creciendo</b> — admin.js +567 y server.js +199 líneas desde la 1.3 (214 rutas top-level en un solo archivo). Cada ronda hace más caro el siguiente cambio y ya hay 4 archivos por encima de 6,000 líneas. <span class="rec">Extraer rutas del backend a routers por dominio; dividir admin.js por vistas. Sin urgencia de seguridad.</span></td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Alto</span></td>
+      <td class="arch">backend/scripts/verificar-mysql.js</td>
+      <td class="desc"><b class="t">El gate de regresión de MySQL real está degradado (N-14)</b> — 9 rojas por expectativas viejas, una decena de aserciones de autorización enmascaradas por un <code>require</code> de función eliminada, comando de invocación imposible y variables de almacenamiento sin documentar. Es el único gate que prueba el camino real contra MySQL+Garage; hoy da más ruido que señal.</td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Medio</span></td>
+      <td class="arch">docsEnabled.test.js<br>preferenciasDashboard.test.js</td>
+      <td class="desc"><b class="t">2 suites intermitentes (N-05 + N-08)</b> — N-05 se reprodujo hoy con timeout de 15 s bajo carga paralela (ya se le subió el timeout y no bastó); N-08 no se reprodujo. <span class="rec">Subir a 20 s o correr las suites de integración con <code>--maxWorkers=2</code>, y tratar ambas como un solo trabajo.</span></td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Medio</span></td>
+      <td class="arch">backend/node_modules + control/node_modules</td>
+      <td class="desc"><b class="t">geoip-lite de 110.1 MB en cada imagen (N-13)</b> — solo para enriquecer la ubicación de la bitácora de auditoría, cargado en el arranque de ambos servicios.</td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-info" style="padding:2px 9px">Bajo</span></td>
+      <td class="arch">control/server.js (17 rutas /internal)</td>
+      <td class="desc"><b class="t">Un solo <code>INTERNAL_CACHE_SECRET</code> (i-02)</b> — siguió creciendo (16 → 17 rutas) con el self-healing del webhook y los Extras de upscale. Mismo secreto para backend→control y control→backend.</td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-info" style="padding:2px 9px">Bajo</span></td>
+      <td class="arch">frontend/admin.js<br>control.js · portal.js · dashboard.js</td>
+      <td class="desc"><b class="t">Duplicación a propósito de helpers y boilerplate</b> — convención del proyecto sin bundler, sin cambios.</td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ FORTALEZAS ═══════════════ -->
+  <h2>6. Fortalezas verificadas en esta ronda</h2>
+  <ul>
+    <li><b>Las 2 condiciones de la 1.3 se cerraron en 6 días con evidencia</b>: las 15 CVEs de producción pasaron a 0 (incluido el upgrade breaking de nodemailer 10.3.1 en ambos paquetes) y los 14 tests rojos a 0 (backend 1,382/1,382, control 567/567). La recomendación anterior se ejecutó completa, no a medias.</li>
+    <li><b>m-11 cerrado de punta a punta</b>: <code>USER appuser</code> en ambos Dockerfiles y el bind mount <code>./uploads</code> retirado de docker-compose.yml — el pretexto que la 1.3 documentó ya no existe.</li>
+    <li><b>Hardening de cabeceras y tipografía completado</b>: HSTS con <code>preload</code>, cabeceras COOP/CORP en todos los bloques, Inter auto-hospedado con <code>@font-face</code> local y CSP <code>font-src 'self'</code> — cero dependencias de terceros en la hoja crítica.</li>
+    <li><b>Cero regresiones de seguridad en los 48 hallazgos cerrados</b>: re-verificados con el grep de cada patrón de fix + lectura de línea (no mensajes de commit). La remediación de los ciclos 1.0 a 1.3 se sostiene.</li>
+    <li><b>Primera corrida real y completa del gate de MySQL en esta serie</b>: stack Docker levantado y healthy, <code>/api/health</code> → 200, <code>/api/public/planes</code> → 200, token de reactivación inválido → 400 con mensaje genérico, y el endpoint de salud del webhook de Stripe → 200 en vivo (mod prueba). Además se logró reproducir en runtime el fallo de N-11 dentro del contenedor en vez de solo suponerlo por lectura.</li>
+    <li><b>El rojo del gate de MySQL se explicó por completo, sin ningún bug de producto</b>: las 9 fallas se trazaron a 4 features retiradas/cambiadas a propósito, con el commit y la fecha de cada cambio — exactamente el tipo de ruido que un gate desactualizado debe separar antes de que alguien lo confunda con una regresión.</li>
+    <li><b>Proceso de incidente del punto 465 con calidad de ingeniería</b>: self-healing del webhook (verificar/crear/reactivar cada hora con manejo de errores propio), credenciales guardadas como candidatas en BD con orden explícito <code>process.env</code> primero, y hallazgos de privilegios de MySQL confirmados con <code>SHOW GRANTS</code> en el servidor real.</li>
+  </ul>
+
+  <!-- ═══════════════ ROADMAP ═══════════════ -->
+  <h2>7. Plan de remediación priorizado (v1.4)</h2>
+  <table>
+    <tr><th>Fase</th><th>Plazo</th><th>Acciones</th><th>IDs</th></tr>
+    <tr>
+      <td><b>Fase A — Cerrar la gate</b><br><small style="color:var(--gris);font-weight:400">Las 2 condiciones</small></td>
+      <td>Horas</td>
+      <td class="desc">
+        1. Escapar los 2 <code>innerHTML</code> de <code>extra.nombre</code> (<code>escapeHtml</code> en elemento, <code>escapeHtmlAttr</code> para <code>data-extra-id</code>) y, si se quiere, sanitizar <code>nombre</code> al guardar en control/utils/upscale.js.<br>
+        2. Actualizar las 9 aserciones de <code>verificar-mysql.js</code> al comportamiento actual, quitar el comando de invocación imposible del encabezado y documentar (o exigir al inicio) las variables <code>MINIO_*</code>.
+      </td>
+      <td class="arch">N-09,<br>N-14</td>
+    </tr>
+    <tr>
+      <td><b>Fase B — Correcciones acotadas</b><br><small style="color:var(--gris);font-weight:400">Sin rediseño</small></td>
+      <td>1 día</td>
+      <td class="desc">
+        N-16: cambiar <code>escapeHtml</code> → <code>escapeHtmlAttr</code> en admin.js:21681 + grep de regresión en la suite.<br>
+        N-11: mover <code>obtenerStripe()</code> dentro del <code>try</code> para que la pantalla de salud degrade a <code>ok:false</code> en vez de 500.<br>
+        N-15: actualizar los defaults de <code>storage.js</code> a la realidad de Garage (o fallar al arranque si faltan).<br>
+        N-10: decidir el contrato del contenido de Términos (texto escapado vs. HTML sanitizado en el servidor).
+      </td>
+      <td class="arch">N-16, N-11,<br>N-15, N-10</td>
+    </tr>
+    <tr>
+      <td><b>Fase C — Estabilidad y tamaño</b><br><small style="color:var(--gris);font-weight:400">Diferencia entre A/B y C</small></td>
+      <td>1-2 días</td>
+      <td class="desc">
+        N-12: unificar el criterio de "mes" en la vista Financiero (DATETIME UTC vs. DATE local, gotcha del punto 371).<br>
+        N-13: carga perezosa de <code>geoip-lite</code> + decisión sobre si la ciudad aporta a la auditoría.<br>
+        N-05 + N-08: timeouts/serialización de las suites de integración (tratarlas como un solo trabajo).<br>
+        i-02: secretos <code>/internal/*</code> por familia (backend vs control) o rotación documentada.
+      </td>
+      <td class="arch">N-12, N-13,<br>N-05, N-08, i-02</td>
+    </tr>
+    <tr>
+      <td><b>Fase D — Continuo</b><br><small style="color:var(--gris);font-weight:400">Deuda estructural</small></td>
+      <td>Continuo</td>
+      <td class="desc">
+        Routers por dominio en backend/server.js; división de admin.js por vistas; regenerar hostinger/ por contenido y decidir si incluye control/ (N-04, paso de deploy).
+      </td>
+      <td class="arch">deuda, N-04</td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ METODOLOGÍA ═══════════════ -->
+  <h2>8. Metodología y alcance</h2>
+  <div class="nota">
+    <b>Qué se hizo:</b> re-estado de los 54 hallazgos con ID vigentes al cierre de la 1.3 contra el código actual (HEAD <code>1f005b6</code>, 2026-11-04, árbol limpio, 31 commits desde el <code>7160a10</code> que analizó la 1.3), con búsqueda dirigida y lectura de la línea exacta de cada fix, no confiando en mensajes de commit. Ejecución real de ambas suites Jest completas (backend <b>2 corridas</b>: una con 1 intermitente de <code>docsEnabled</code> corriendo en paralelo con control y una limpia de 69 suites / 1,382 tests; control <b>1 corrida</b> de 32 suites / 567 tests, todas verdes). <code>npm audit --omit=dev</code> en ambos paquetes (0 vulnerabilidades) y <code>npm audit</code> completo (6 <i>low</i> de dev en cada uno). Greps de regresión de los patrones de cada hallazgo cerrado (atributos HTML, <code>escapeHtmlAttr</code>, <code>COOKIE_SECURE</code>, <code>client_max_body_size</code>, Turnstile, auditoría con <code>originalUrl</code>, iframe sandbox, docs opt-in, <code>requiereFeature</code>, HSTS/COOP/CORP, <code>@font-face</code>, <code>USER appuser</code>, bind mount), más una verificación programática del orden de los 111 candados <code>requiereFeature()</code> contra <code>requireAdminAuth</code>/<code>requireUserAuth</code> en backend/server.js: <b>0 violaciones reales</b> (el único candidato era la palabra <code>requireUserAuth</code> dentro de un comentario). <b>Primera corrida del gate de regresión contra MySQL real de esta serie</b> (<code>backend/scripts/verificar-mysql.js</code>), 2 veces: 282/296 sin variables de almacenamiento y 287/296 con ellas — las 5 diferencias se diagnosticaron con una sonda que reprodujo el <code>throw</code> real de <code>storage.eliminarArchivo</code> (endpoint por default inexistente y región incompatible con Garage), y los 9 rojos restantes se clasificaron uno por uno contra el commit que cambió el comportamiento. Stack Docker real levantado y verificado por HTTP (health, planes, reactivación con token inválido, endpoint de salud del webhook de Stripe → 200), más una prueba de runtime dentro del contenedor con <code>STRIPE_SECRET_KEY</code> vacía para confirmar el <code>throw</code> de N-11. Conteo de métricas sobre backend/, control/, frontend/ y docker/ con extensiones .js/.html/.css/.template excluyendo node_modules, test, scripts y .trash (122 archivos / 88,333 líneas: backend 37/21,727 · control 48/10,223 · frontend 36/56,113 · docker 1/270). Conteo de rutas con <code>app.&lt;método&gt;(</code> al inicio de línea en cada server.js (214 backend, 110 control). Comparación SHA-256 de 5 pares clave contra <code>hostinger/</code>.<br><br>
+    <b>Alcance:</b> por decisión del usuario (puntos 412/435, formalizada y extendida a <code>VULTR/</code> en el punto 448), las carpetas <code>hostinger/</code> (paquete de despliegue para yt.addv.com.mx) y <code>VULTR/</code> (operación del despliegue productivo en Vultr/clarvo.mx) están <b>fuera de alcance</b>: son herramientas de despliegue temporales, reescribibles y regenerables — <b>se ignoran siempre</b> en análisis de calidad, métricas y Quality Gate. Su desfase se reporta como nota operativa (N-04), nunca como hallazgo de calidad. El alcance del producto es SIEMPRE: backend/, control/, frontend/ y docker/.<br><br>
+    <b>Qué NO cubre:</b> no es un pentest dinámico — N-09 y N-10 son sinks de HTML verificados por lectura del flujo de datos y de la fuente, no explotados; N-11 se verificó en runtime (el <code>throw</code>) pero no por HTTP 500 porque este entorno sí tiene Stripe configurado; N-12 es un desfase de frontera de mes que no se pudo observar en vivo (hoy no hay cambio de mes); no se midió cobertura; i-01 se mantuvo sin cambios por decisión de riesgo aceptado previa; los tamaños de geoip-lite se midieron en disco, no en memoria residente ni en tiempo de arranque.<br><br>
+    <b>Recomendación:</b> cerrar las 2 condiciones de la gate (Fase A: escapar los 2 sinks de N-09 y poner al día el gate de MySQL de N-14 — ambas en horas) y programar la Fase B como limpieza de una semana. La lección de esta ronda es de proceso, no de seguridad: el único gate que prueba el camino real contra MySQL+Garage quedó desfasado en silencio mientras las suites Jest estaban en verde, y solo se detectó al correrlo de nuevo.
+  </div>
+
+  <footer>
+    Informe generado 2026-11-04 · Portal de Facturación ADDV (Clarvo) · Análisis tipo SonarQube + OWASP Top 10 (2021) · Versión 1.4 — 54 hallazgos con ID de la 1.3 re-estado (48 cerrados, 1 parcial, 4 abiertos + 1 nota) + 8 nuevos (N-09 XSS almacenado, N-14 gate MySQL, N-10 a N-13 y N-15/N-16 menores) + 1 nota de herramienta de despliegue actualizada (N-04, fuera de alcance por puntos 412/435/448 — hostinger/ y VULTR/ siempre ignoradas en análisis de calidad) · Archivo autocontenido (sin dependencias externas) · Comparable lado a lado con <code>sonar_1.3.html</code> (2026-10-29), <code>sonar_1.2.html</code> (2026-10-22), <code>sonar_1.1.html</code> (2026-10-19) y <code>sonar.html</code> (1.0, 2026-10-13).
+  </footer>
+</div>
+
+</body>
+</html>

@@ -43,6 +43,8 @@ const {
   listarUsuariosAdminTenant,
   reasignarRaizTenant,
   ErrorReasignarRaiz,
+  descargarCsfFiscal,
+  subirFacturaZip,
 } = require('./utils/notificarBackend');
 const { swaggerSpec } = require('./utils/swagger');
 const swaggerUi = require('swagger-ui-express');
@@ -91,6 +93,7 @@ const {
   ErrorUpscaleCompra, simularCompraUpscale, confirmarCompraUpscale,
   listarExtrasDisponibles, confirmarCompraExtra, listarExtrasActivos,
 } = require('./utils/tenantUpscaleCompra');
+const { listarFacturasTenant } = require('./utils/facturacionClarvo');
 const {
   ErrorCancelacion,
   obtenerEstadoCancelacion,
@@ -141,6 +144,15 @@ const {
   historialUtilidad,
   utilidadAcumulada,
 } = require('./utils/financieroResumen');
+const {
+  ErrorFacturacionGestion,
+  crearSolicitud: crearSolicitudFactura,
+  listarSolicitudesKanban,
+  obtenerSolicitud: obtenerSolicitudFactura,
+  marcarEnProceso: marcarSolicitudEnProceso,
+  marcarRechazada: marcarSolicitudRechazada,
+  marcarLista: marcarSolicitudLista,
+} = require('./utils/facturacionGestion');
 
 const PORT = Number(process.env.PORT || 4001);
 // Auditoría 2026-09-03 (hallazgo #9, mismo criterio que backend/server.js):
@@ -1924,6 +1936,33 @@ app.post('/internal/upscale/extras/activos', asyncHandler(async (req, res) => {
   res.json({ ok: true, extras });
 }));
 
+// "Facturación de Clarvo" en Mi Cuenta (backend/ está autenticado, pero
+// stripe_customer_id y el historial real de invoices viven en Control) —
+// mismo patrón backend->control que /internal/upscale/* arriba.
+app.post('/internal/facturacion/historial', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
+  const facturas = await listarFacturasTenant(slug);
+  res.json({ ok: true, facturas });
+}));
+
+// "Solicitar factura" — backend ya validó que los datos fiscales están
+// completos antes de llamar aquí (ver POST /api/admin/mi-cuenta/facturacion/solicitar);
+// Control solo guarda la solicitud (dueño real del ciclo de vida cross-tenant).
+app.post('/internal/facturacion/solicitudes', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  try {
+    const solicitud = await crearSolicitudFactura(req.body || {});
+    res.json({ ok: true, ...solicitud });
+  } catch (err) {
+    if (err instanceof ErrorFacturacionGestion) {
+      return res.status(err.codigo === 'ya_existe' ? 409 : 400).json({ error: err.message, codigo: err.codigo });
+    }
+    throw err;
+  }
+}));
+
 // ---------- Cancelación de suscripción con retención (A2+A1) + encuesta de salida (C1) ----------
 // Mismo patrón backend->control que /internal/upscale/* arriba — el
 // admin raíz está autenticado en backend/, pero stripe_subscription_id,
@@ -2496,6 +2535,99 @@ app.post(
   })
 );
 
+// ---------- "Gestión de facturas" (punto 469, propuesta 3 — Kanban) ----------
+app.get(
+  '/api/control/facturacion/solicitudes',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    res.json({ solicitudes: await listarSolicitudesKanban() });
+  })
+);
+
+app.post(
+  '/api/control/facturacion/solicitudes/:id/en-proceso',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      await marcarSolicitudEnProceso(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ErrorFacturacionGestion) {
+        return res.status(err.codigo === 'no_encontrada' ? 404 : 400).json({ error: err.message, codigo: err.codigo });
+      }
+      throw err;
+    }
+  })
+);
+
+app.post(
+  '/api/control/facturacion/solicitudes/:id/rechazar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      await marcarSolicitudRechazada(Number(req.params.id), (req.body || {}).motivo);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ErrorFacturacionGestion) {
+        return res.status(err.codigo === 'no_encontrada' ? 404 : 400).json({ error: err.message, codigo: err.codigo });
+      }
+      throw err;
+    }
+  })
+);
+
+// Sube el ZIP real (recibido como base64 del formulario de /control) —
+// Control nunca lo guarda, lo reenvía de inmediato a backend (dueño de
+// Garage) y solo marca "lista" si ese reenvío tuvo éxito.
+app.post(
+  '/api/control/facturacion/solicitudes/:id/zip',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { zipBase64, nombreArchivo } = req.body || {};
+    if (!zipBase64) return res.status(400).json({ error: 'Falta el contenido del ZIP (base64).' });
+    try {
+      const solicitud = await obtenerSolicitudFactura(id);
+      if (!solicitud) return res.status(404).json({ error: 'Solicitud no encontrada.' });
+      const { ok, status, data } = await subirFacturaZip(solicitud.tenant_slug, solicitud.invoice_id, zipBase64);
+      if (!ok) return res.status(status).json({ error: data.error || 'No se pudo guardar el ZIP en el backend.' });
+      await marcarSolicitudLista(id, nombreArchivo || `${solicitud.invoice_id}.zip`);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ErrorFacturacionGestion) {
+        return res.status(err.codigo === 'no_encontrada' ? 404 : 400).json({ error: err.message, codigo: err.codigo });
+      }
+      throw err;
+    }
+  })
+);
+
+// Previsualización de la CSF del tenant — relay de bytes desde backend
+// (Control nunca los guarda). Responde el PDF directo para que el
+// navegador lo abra inline, nunca JSON.
+app.get(
+  '/api/control/facturacion/solicitudes/:id/csf',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const solicitud = await obtenerSolicitudFactura(Number(req.params.id));
+    if (!solicitud) return res.status(404).json({ error: 'Solicitud no encontrada.' });
+    const { ok, status, data } = await descargarCsfFiscal(solicitud.tenant_slug);
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudo obtener la CSF.' });
+    res.setHeader('Content-Type', data.contentType || 'application/pdf');
+    res.send(Buffer.from(data.base64, 'base64'));
+  })
+);
+
 // ---------- Punto 247: gestión de super admins (ADMIN_USERS en .env) ----------
 // Híbrido: super = ADMIN_USERS (.env) + usuarios perfil super en BD (si los hay),
 // pero la alta/edición/baja de ADMIN_USERS solo se hace aquí, en /control,
@@ -2646,7 +2778,7 @@ app.use((req, res) => {
 
 async function iniciar() {
   await asegurarTablaAuditoria();
-  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores, asegurarTablaStripeEventos, asegurarTablaUpscale, asegurarTablaUpscaleActivos, asegurarTablaCancelacionesEncuesta, asegurarTablasTerminos, asegurarTablaReactivacionTokens, asegurarTablaFinanciero } = require('./scripts/ensureSchema');
+  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores, asegurarTablaStripeEventos, asegurarTablaUpscale, asegurarTablaUpscaleActivos, asegurarTablaCancelacionesEncuesta, asegurarTablasTerminos, asegurarTablaReactivacionTokens, asegurarTablaFinanciero, asegurarTablaSolicitudesFactura } = require('./scripts/ensureSchema');
   // asegurarTablasSucursales() debe correr ANTES de
   // asegurarColumnasCicloVidaTenant(): esta última hace un UPDATE sobre
   // `tenants.grupo_sucursal_id`, columna que crea asegurarTablasSucursales
@@ -2667,6 +2799,7 @@ async function iniciar() {
   await asegurarTablasTerminos(obtenerPool());
   await asegurarTablaReactivacionTokens(obtenerPool());
   await asegurarTablaFinanciero(obtenerPool());
+  await asegurarTablaSolicitudesFactura(obtenerPool());
 
   app.listen(PORT, () => {
     console.log(`Control escuchando en el puerto ${PORT}`);

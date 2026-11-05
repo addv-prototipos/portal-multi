@@ -4495,7 +4495,7 @@
 
             <div class="micuenta-url-bar" id="micuenta-url-bar" hidden>
               <div class="micuenta-url-bar-info">
-                <span class="micuenta-empresa-label">URL de acceso del tenant</span>
+                <span class="micuenta-empresa-label">Link de acceso a tu negocio</span>
                 <a id="micuenta-url-tenant" href="#" target="_blank" rel="noopener"></a>
               </div>
               <button type="button" class="btn btn-secondary" id="btn-copiar-url-micuenta">Copiar enlace</button>
@@ -4619,17 +4619,74 @@
             <button type="button" class="micuenta-disco-aviso-cta" id="btn-micuenta-usuarios-comprar">Comprar usuarios</button>
           </div>
 
-          <!-- Facturación de Clarvo (autofactura de ADDV) — visual, ligado
-               al punto 272 Fase 2 (confirmado con el usuario: ADDV SÍ se
-               autofactura, pero depende de Stripe, todavía sin construir). -->
+          <!-- Facturación de Clarvo — historial real de cobros de la
+               suscripción, leído de Stripe vía Control (punto 469).
+               Reemplaza el placeholder "Próximamente" del punto 272
+               Fase 2 (self-factura CFDI vía SAT sigue sin construir —
+               eso es "Solicitar factura" dentro del modal de recibo,
+               ver botón más abajo). Solo la cuenta raíz ve el
+               contenido real (mismo candado que "Datos de pago"); el
+               resto ve micuentaFacturacionVacia con ese aviso. -->
           <section class="micuenta-card micuenta-card-ancha" id="micuenta-facturacion-card" hidden>
-            <h2 class="micuenta-card-titulo">Facturación de Clarvo <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="ADDV se autofacturará cada cobro de suscripción (confirmado) — depende de Stripe, punto 272 Fase 2, todavía sin construir.">Próximamente</span></h2>
-            <div class="admin-empty admin-empty-rica">
+            <h2 class="micuenta-card-titulo">Facturación de Clarvo</h2>
+            <div class="admin-empty admin-empty-rica" id="micuenta-facturacion-vacia">
               <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <p class="admin-empty-titulo">Sin comprobantes todavía</p>
-              <p>Se generarán aquí cuando el cobro de la suscripción esté activo.</p>
+              <p class="admin-empty-titulo" id="micuenta-facturacion-vacia-titulo">Sin comprobantes todavía</p>
+              <p id="micuenta-facturacion-vacia-texto">Se generarán aquí cuando el cobro de la suscripción esté activo.</p>
+            </div>
+            <div class="facturacion-table-wrap" id="micuenta-facturacion-tabla-wrap" hidden>
+              <div class="table-scroll">
+                <table class="facturacion-table">
+                  <thead>
+                    <tr><th>Mes cobrado</th><th>Incluye</th><th>Monto</th><th>Estado</th><th></th></tr>
+                  </thead>
+                  <tbody id="micuenta-facturacion-tbody"></tbody>
+                </table>
+              </div>
             </div>
           </section>
+        </div>
+
+        <!-- Modal "Ver recibo" — detalle de un cobro de Clarvo + acción
+             "Solicitar factura" (punto 469). Mismo .modal-overlay con
+             blur de toda la app (style.css), igual que los modales de
+             Ventas/Cortes. -->
+        <div class="modal-overlay" id="facturacion-recibo-modal-overlay" hidden>
+          <div class="modal ticket-modal" role="dialog" aria-modal="true" aria-labelledby="facturacion-recibo-titulo">
+            <div class="ticket-modal-header">
+              <div class="ticket-modal-header-title">
+                <h2 id="facturacion-recibo-titulo">Recibo de cobro</h2>
+                <p id="facturacion-recibo-folio" class="micuenta-suscripcion-texto"></p>
+              </div>
+              <button type="button" class="btn-icon" id="btn-cerrar-facturacion-recibo-modal" aria-label="Cerrar"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+            </div>
+            <div class="ticket-modal-body facturacion-recibo-body">
+              <div class="facturacion-recibo-estado-row">
+                <span class="pill" id="facturacion-recibo-pill"></span>
+                <span id="facturacion-recibo-fecha" class="micuenta-suscripcion-texto"></span>
+              </div>
+              <div id="facturacion-recibo-lineas" class="facturacion-recibo-lineas"></div>
+              <div class="facturacion-recibo-linea facturacion-recibo-total">
+                <span>Total</span>
+                <span id="facturacion-recibo-total"></span>
+              </div>
+              <div id="facturacion-factura-aviso" class="field-error aviso-cuota" hidden>
+                <p id="facturacion-factura-aviso-texto"></p>
+              </div>
+              <!-- Zona dinámica de "Solicitar factura" (punto 469) — un solo
+                   contenedor, renderFacturacionZonaSolicitud() decide qué
+                   mostrar según sinCsf/datosListos/solicitada/en_proceso/
+                   lista/rechazada. Input real de CSF, nunca simulado. -->
+              <div id="facturacion-solicitud-zona" class="facturacion-solicitud-zona"></div>
+              <input type="file" id="facturacion-csf-input" accept="application/pdf" hidden />
+              <div class="facturacion-recibo-acciones">
+                <a id="facturacion-recibo-pdf" class="btn btn-secondary" href="#" target="_blank" rel="noopener" hidden>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 21h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  Descargar recibo
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Footer Clarvo Site Market — visual, ligado al punto 272. -->

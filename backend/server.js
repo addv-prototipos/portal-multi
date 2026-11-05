@@ -860,6 +860,48 @@ app.delete('/internal/marca-logo/:slug', (req, res) => {
     });
 });
 
+// ---------- "Solicitar factura" (punto 469+, gestión real en /control) ----------
+// Primera llamada control->backend que mueve BYTES de archivo (no solo
+// datos) — mismo mecanismo de siempre (secreto compartido), pero
+// backend sigue siendo el ÚNICO que toca Garage: Control nunca tiene
+// credenciales de storage propias, solo orquesta el ciclo de vida de la
+// solicitud (ver control/utils/facturacionGestion.js) y reenvía bytes a
+// través de estos 2 endpoints.
+const FACTURA_ZIP_MAX_MB = 20;
+
+app.post('/internal/facturacion/csf-descargar/:slug', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const slug = String(req.params.slug || '').toLowerCase();
+  if (validarSlug(slug)) return res.status(400).json({ error: 'Slug inválido.' });
+  const existe = await storage.existeArchivo(slug, 'csf-fiscal', 'constancia.pdf');
+  if (!existe) return res.status(404).json({ error: 'Este tenant todavía no ha subido su CSF.' });
+  const { stream, contentType } = await storage.obtenerArchivo(slug, 'csf-fiscal', 'constancia.pdf');
+  const partes = [];
+  for await (const parte of stream) partes.push(parte);
+  res.json({ ok: true, base64: Buffer.concat(partes).toString('base64'), contentType });
+}));
+
+app.post('/internal/facturacion/zip-subir/:slug', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const slug = String(req.params.slug || '').toLowerCase();
+  if (validarSlug(slug)) return res.status(400).json({ error: 'Slug inválido.' });
+  const { invoiceId, zipBase64 } = req.body || {};
+  if (!invoiceId || !/^[A-Za-z0-9_-]+$/.test(invoiceId)) return res.status(400).json({ error: 'invoiceId inválido.' });
+  if (!zipBase64) return res.status(400).json({ error: 'Falta el contenido del ZIP (base64).' });
+  let buffer;
+  try {
+    buffer = Buffer.from(zipBase64, 'base64');
+  } catch (err) {
+    return res.status(400).json({ error: 'El contenido del ZIP no es un base64 válido.' });
+  }
+  if (buffer.length === 0) return res.status(400).json({ error: 'El ZIP está vacío.' });
+  if (buffer.length > FACTURA_ZIP_MAX_MB * 1024 * 1024) {
+    return res.status(413).json({ error: `El ZIP excede el tamaño máximo permitido de ${FACTURA_ZIP_MAX_MB} MB.` });
+  }
+  await storage.guardarArchivo(slug, 'facturas-clarvo', `${invoiceId}.zip`, buffer, 'application/zip');
+  res.json({ ok: true });
+}));
+
 // ---------- Favicon del tenant (segmento "Look & Feel") ----------
 // Mismo patrón que el logo de marca: la imagen vive en MinIO (key
 // "marca/<slug>/favicon") y se referencia en el tema como ruta relativa
@@ -5136,6 +5178,7 @@ app.get(
         razonSocial: config.razon_social_compania || '',
         rfc: config.rfc_compania || '',
         regimenFiscal: config.regimen_fiscal_compania || '',
+        codigoPostal: config.codigo_postal_compania || '',
         claveSat: config.clave_sat || '',
         zonaHorariaId: config.zona_horaria,
         zonaHorariaEtiqueta: zona ? zona.etiqueta : config.zona_horaria,
@@ -5593,6 +5636,90 @@ app.get(
     });
     if (!ok) return res.status(status).json({ error: data.error || 'No se pudo consultar tu suscripción.', codigo: data.codigo });
     res.json(data);
+  })
+);
+
+// "Facturación de Clarvo" en Mi Cuenta — historial real de cobros de la
+// suscripción, leído de Stripe vía Control (nunca se duplica local).
+// Misma cuenta raíz que ve "Datos de pago"/puede cancelar la suscripción.
+app.get(
+  '/api/admin/mi-cuenta/facturacion',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await exigirAdminRaizConTenant(req, res))) return;
+    const { ok, status, data } = await llamarControlInterno('/internal/facturacion/historial', {
+      slug: req.tenant.slug,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudo cargar tu historial de cobros.' });
+    res.json(data);
+  })
+);
+
+// "Solicitar factura" (punto 469, propuesta 3 de las 9 simuladas —
+// Kanban en Control, implementada). Candado real en 2 capas: (1) datos
+// fiscales completos — se vuelven a leer de config AQUÍ, nunca se
+// confía en lo que mandó el frontend (mismo criterio que cualquier otro
+// candado de negocio); (2) exigirAdminRaizConTenant, mismo que
+// "Datos de pago" — solo la cuenta raíz puede pedir una factura real.
+// `monto` NUNCA llega del frontend — Control lo recalcula siempre del
+// precio de catálogo (plan + upscales activos), nunca lo que Stripe
+// cobró internamente (ver facturacionClarvo.js:montoCatalogoTenant).
+app.post(
+  '/api/admin/mi-cuenta/facturacion/solicitar',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await exigirAdminRaizConTenant(req, res))) return;
+    const { invoiceId, periodoEtiqueta } = req.body || {};
+    if (!invoiceId || !periodoEtiqueta) {
+      return res.status(400).json({ error: 'Falta información del cobro a facturar.' });
+    }
+    const config = await getConfiguracionGlobal();
+    const razonSocial = config.razon_social_compania || '';
+    const rfc = config.rfc_compania || '';
+    const regimenFiscal = config.regimen_fiscal_compania || '';
+    const codigoPostal = config.codigo_postal_compania || '';
+    if (!razonSocial || !rfc || !regimenFiscal || !codigoPostal) {
+      return res.status(400).json({
+        error: 'Completa tus datos fiscales (sube tu CSF) antes de solicitar una factura.',
+        codigo: 'DATOS_FISCALES_INCOMPLETOS',
+      });
+    }
+    const { ok, status, data } = await llamarControlInterno('/internal/facturacion/solicitudes', {
+      slug: req.tenant.slug,
+      invoiceId,
+      periodoEtiqueta,
+      razonSocial,
+      rfc,
+      regimenFiscal,
+      codigoPostal,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudo enviar tu solicitud de factura.', codigo: data.codigo });
+    res.json(data);
+  })
+);
+
+// Descarga del ZIP real que Control ya subió — backend es el único que
+// toca Garage, Control nunca guarda bytes (ver /internal/facturacion/*
+// arriba). 404 si todavía no existe, nunca un error genérico — el
+// frontend usa esto para decidir si mostrar el botón de descarga.
+app.get(
+  '/api/admin/mi-cuenta/facturacion/zip',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await exigirAdminRaizConTenant(req, res))) return;
+    const invoiceId = String(req.query.invoiceId || '');
+    if (!invoiceId || !/^[A-Za-z0-9_-]+$/.test(invoiceId)) {
+      return res.status(400).json({ error: 'invoiceId inválido.' });
+    }
+    const prefijo = storage.prefijoTenant(req);
+    const existe = await storage.existeArchivo(prefijo, 'facturas-clarvo', `${invoiceId}.zip`);
+    if (!existe) return res.status(404).json({ error: 'La factura todavía no está lista.' });
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="factura-${invoiceId}.zip"`);
+    await storage.enviarArchivoARespuesta(prefijo, 'facturas-clarvo', `${invoiceId}.zip`, res);
   })
 );
 
@@ -6409,13 +6536,23 @@ app.post(
       // contribuyente (el caso más común siendo 626 RESICO).
       const razonSocial = extraerNombreRazonSocial(textoPdf) || '';
       const tipoPersona = determinarTipoPersona(regimenesFiscales, razonSocial, textoPdf);
+      // Punto 469: código postal — lo único que "Solicitar factura"
+      // necesita que esta ruta todavía no guardaba (el resto de este
+      // flujo ya existía para la barra de sesión).
+      const codigoPostal = extraerCodigoPostal(textoPdf) || '';
 
       const actualizado = await setConfiguracionGlobal({
         rfc_compania: rfc,
         razon_social_compania: razonSocial,
         regimen_fiscal_compania: regimenFiscalTexto,
         tipo_persona_compania: tipoPersona,
+        codigo_postal_compania: codigoPostal,
       });
+      // Se guarda el PDF en Garage (key fija por tenant, se sobreescribe
+      // en cada subida — igual que el logo de marca) para que Control
+      // pueda previsualizarlo al atender una solicitud de factura
+      // (GET interno, nunca se expone al público).
+      await storage.guardarArchivo(storage.prefijoTenant(req), 'csf-fiscal', 'constancia.pdf', req.file.buffer, 'application/pdf');
       res.json({
         ...actualizado,
         regimenes_encontrados: regimenesFiscales,

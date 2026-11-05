@@ -224,6 +224,7 @@
     btnVistaAccesos: document.getElementById('btn-vista-control-accesos'),
     btnVistaUpscale: document.getElementById('btn-vista-control-upscale'),
     btnVistaFinanciero: document.getElementById('btn-vista-control-financiero'),
+    btnVistaFacturas: document.getElementById('btn-vista-control-facturas'),
     btnVistaRecordatorios: document.getElementById('btn-vista-control-recordatorios'),
     btnVistaCupones: document.getElementById('btn-vista-control-cupones'),
     btnVistaCancelaciones: document.getElementById('btn-vista-control-cancelaciones'),
@@ -253,6 +254,16 @@
     vistaAccesos: document.getElementById('vista-control-accesos'),
     vistaUpscale: document.getElementById('vista-control-upscale'),
     vistaFinanciero: document.getElementById('vista-control-financiero'),
+    vistaFacturas: document.getElementById('vista-control-facturas'),
+    facturasKanbanSolicitadas: document.getElementById('facturas-kanban-solicitadas'),
+    facturasKanbanEnProceso: document.getElementById('facturas-kanban-en-proceso'),
+    facturasKanbanRechazadas: document.getElementById('facturas-kanban-rechazadas'),
+    facturasKanbanListas: document.getElementById('facturas-kanban-listas'),
+    facturasKanbanCountSolicitadas: document.getElementById('facturas-kanban-count-solicitadas'),
+    facturasKanbanCountEnProceso: document.getElementById('facturas-kanban-count-en-proceso'),
+    facturasKanbanCountRechazadas: document.getElementById('facturas-kanban-count-rechazadas'),
+    facturasKanbanCountListas: document.getElementById('facturas-kanban-count-listas'),
+    facturasZipInput: document.getElementById('facturas-zip-input'),
     financieroError: document.getElementById('financiero-error'),
     financieroKpis: document.getElementById('financiero-kpis'),
     financieroUtilidadMes: document.getElementById('financiero-utilidad-mes'),
@@ -3720,6 +3731,10 @@
       els.btnVistaFinanciero.classList.toggle('is-active', vista === 'financiero');
       els.btnVistaFinanciero.setAttribute('aria-selected', String(vista === 'financiero'));
     }
+    if (els.btnVistaFacturas) {
+      els.btnVistaFacturas.classList.toggle('is-active', vista === 'facturas');
+      els.btnVistaFacturas.setAttribute('aria-selected', String(vista === 'facturas'));
+    }
     if (els.btnVistaRecordatorios) {
       els.btnVistaRecordatorios.classList.toggle('is-active', vista === 'recordatorios');
       els.btnVistaRecordatorios.setAttribute('aria-selected', String(vista === 'recordatorios'));
@@ -3745,6 +3760,7 @@
     if (els.vistaAccesos) els.vistaAccesos.hidden = vista !== 'accesos';
     if (els.vistaUpscale) els.vistaUpscale.hidden = vista !== 'upscale';
     if (els.vistaFinanciero) els.vistaFinanciero.hidden = vista !== 'financiero';
+    if (els.vistaFacturas) els.vistaFacturas.hidden = vista !== 'facturas';
     if (els.vistaRecordatorios) els.vistaRecordatorios.hidden = vista !== 'recordatorios';
     if (els.vistaCupones) els.vistaCupones.hidden = vista !== 'cupones';
     if (els.vistaCancelaciones) els.vistaCancelaciones.hidden = vista !== 'cancelaciones';
@@ -3765,6 +3781,7 @@
     }
     if (vista === 'upscale') cargarUpscale();
     if (vista === 'financiero') cargarFinanciero();
+    if (vista === 'facturas') cargarFacturasControl();
     if (vista === 'recordatorios') cargarRecordatorios();
     if (vista === 'cupones') cargarReporteCupones();
     if (vista === 'cancelaciones') cargarReporteCancelaciones();
@@ -3781,6 +3798,7 @@
   if (els.btnVistaAccesos) els.btnVistaAccesos.addEventListener('click', () => cambiarVistaPrincipalControl('accesos'));
   if (els.btnVistaUpscale) els.btnVistaUpscale.addEventListener('click', () => cambiarVistaPrincipalControl('upscale'));
   if (els.btnVistaFinanciero) els.btnVistaFinanciero.addEventListener('click', () => cambiarVistaPrincipalControl('financiero'));
+  if (els.btnVistaFacturas) els.btnVistaFacturas.addEventListener('click', () => cambiarVistaPrincipalControl('facturas'));
   if (els.btnVistaRecordatorios) els.btnVistaRecordatorios.addEventListener('click', () => cambiarVistaPrincipalControl('recordatorios'));
   if (els.btnVistaCupones) els.btnVistaCupones.addEventListener('click', () => cambiarVistaPrincipalControl('cupones'));
   if (els.btnVistaCancelaciones) els.btnVistaCancelaciones.addEventListener('click', () => cambiarVistaPrincipalControl('cancelaciones'));
@@ -3789,6 +3807,161 @@
     const btn = e.target.closest('[data-vista]');
     if (btn) cambiarVistaPrincipalControl(btn.dataset.vista);
   });
+
+  // ---------- "Gestión de facturas" (punto 469, propuesta 3 — Kanban) ----------
+  let facturasZipIdActivo = null;
+
+  async function cargarFacturasControl() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const resp = await fetch(`${API_BASE}/facturacion/solicitudes`, { headers: { Authorization: authHeader } });
+      if (!resp.ok) throw new Error('No se pudieron cargar las solicitudes de factura.');
+      const data = await resp.json();
+      renderKanbanFacturas(Array.isArray(data.solicitudes) ? data.solicitudes : []);
+    } catch (err) {
+      showToast(err.message || 'No se pudieron cargar las solicitudes de factura.', true);
+    }
+  }
+
+  function facturaTicketHtml(s) {
+    return `
+      <div class="facturas-ticket" data-id="${s.id}">
+        <div class="facturas-ticket-empresa">${escapeHtml(s.nombreEmpresa)}</div>
+        <div class="facturas-ticket-sub">Folio ${escapeHtml(s.folio)} · ${escapeHtml(s.periodoEtiqueta)} · ${formatMoneyMXN(s.monto)}</div>
+        <div class="facturas-ticket-fiscal">${escapeHtml(s.razonSocial)}<br>${escapeHtml(s.rfc)} · CP ${escapeHtml(s.codigoPostal)}</div>
+        ${s.estado === 'rechazada' ? `<div class="facturas-ticket-fiscal" style="color:var(--color-error);">Motivo: ${escapeHtml(s.motivoRechazo || '')}</div>` : ''}
+        ${s.estado === 'lista' ? `<div class="facturas-ticket-fiscal">${escapeHtml(s.facturaZipNombre || '')}</div>` : ''}
+        <div class="facturas-ticket-acciones">
+          <button type="button" class="btn-link btn-ver-csf-factura" data-id="${s.id}">Ver CSF</button>
+          ${s.estado === 'solicitada' ? `<button type="button" class="btn btn-secondary btn-en-proceso-factura" data-id="${s.id}">Marcar en proceso</button>` : ''}
+          ${(s.estado === 'solicitada' || s.estado === 'en_proceso') ? `<button type="button" class="btn btn-primary btn-subir-zip-factura" data-id="${s.id}">Subir factura.zip</button>` : ''}
+          ${(s.estado === 'solicitada' || s.estado === 'en_proceso') ? `<button type="button" class="btn btn-danger btn-rechazar-factura" data-id="${s.id}">Rechazar</button>` : ''}
+        </div>
+        <div class="facturas-ticket-rechazo-form" id="facturas-rechazo-form-${s.id}" hidden>
+          <textarea id="facturas-rechazo-motivo-${s.id}" placeholder="Motivo del rechazo — el tenant lo verá tal cual"></textarea>
+          <div class="facturas-ticket-acciones">
+            <button type="button" class="btn btn-danger btn-confirmar-rechazo-factura" data-id="${s.id}">Confirmar rechazo</button>
+            <button type="button" class="btn-link btn-cancelar-rechazo-factura" data-id="${s.id}">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderKanbanFacturas(solicitudes) {
+    const porEstado = { solicitada: [], en_proceso: [], rechazada: [], lista: [] };
+    solicitudes.forEach((s) => { if (porEstado[s.estado]) porEstado[s.estado].push(s); });
+    const mapaCols = {
+      solicitada: [els.facturasKanbanSolicitadas, els.facturasKanbanCountSolicitadas],
+      en_proceso: [els.facturasKanbanEnProceso, els.facturasKanbanCountEnProceso],
+      rechazada: [els.facturasKanbanRechazadas, els.facturasKanbanCountRechazadas],
+      lista: [els.facturasKanbanListas, els.facturasKanbanCountListas],
+    };
+    Object.keys(mapaCols).forEach((estado) => {
+      const [contenedor, contador] = mapaCols[estado];
+      const items = porEstado[estado];
+      contador.textContent = String(items.length);
+      contenedor.innerHTML = items.length
+        ? items.map(facturaTicketHtml).join('')
+        : '<p class="facturas-kanban-empty">Nada aquí todavía.</p>';
+    });
+    document.querySelectorAll('.btn-en-proceso-factura').forEach((btn) => {
+      btn.addEventListener('click', () => facturaEnProceso(Number(btn.dataset.id)));
+    });
+    document.querySelectorAll('.btn-rechazar-factura').forEach((btn) => {
+      btn.addEventListener('click', () => { document.getElementById(`facturas-rechazo-form-${btn.dataset.id}`).hidden = false; });
+    });
+    document.querySelectorAll('.btn-cancelar-rechazo-factura').forEach((btn) => {
+      btn.addEventListener('click', () => { document.getElementById(`facturas-rechazo-form-${btn.dataset.id}`).hidden = true; });
+    });
+    document.querySelectorAll('.btn-confirmar-rechazo-factura').forEach((btn) => {
+      btn.addEventListener('click', () => facturaRechazar(Number(btn.dataset.id)));
+    });
+    document.querySelectorAll('.btn-subir-zip-factura').forEach((btn) => {
+      btn.addEventListener('click', () => { facturasZipIdActivo = Number(btn.dataset.id); els.facturasZipInput.click(); });
+    });
+    document.querySelectorAll('.btn-ver-csf-factura').forEach((btn) => {
+      btn.addEventListener('click', () => facturaVerCsf(Number(btn.dataset.id)));
+    });
+  }
+
+  async function facturaEnProceso(id) {
+    const authHeader = getAuthHeader();
+    try {
+      const resp = await fetch(`${API_BASE}/facturacion/solicitudes/${id}/en-proceso`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'No se pudo marcar en proceso.');
+      await cargarFacturasControl();
+    } catch (err) {
+      showToast(err.message || 'No se pudo marcar en proceso.', true);
+    }
+  }
+
+  async function facturaRechazar(id) {
+    const motivo = document.getElementById(`facturas-rechazo-motivo-${id}`).value;
+    const authHeader = getAuthHeader();
+    try {
+      const resp = await fetch(`${API_BASE}/facturacion/solicitudes/${id}/rechazar`, {
+        method: 'POST',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ motivo }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'No se pudo rechazar la solicitud.');
+      showToast('Solicitud rechazada.');
+      await cargarFacturasControl();
+    } catch (err) {
+      showToast(err.message || 'No se pudo rechazar la solicitud.', true);
+    }
+  }
+
+  els.facturasZipInput.addEventListener('change', async () => {
+    const archivo = els.facturasZipInput.files[0];
+    els.facturasZipInput.value = '';
+    const id = facturasZipIdActivo;
+    facturasZipIdActivo = null;
+    if (!archivo || !id) return;
+    const authHeader = getAuthHeader();
+    try {
+      const zipBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+        reader.onerror = reject;
+        reader.readAsDataURL(archivo);
+      });
+      const resp = await fetch(`${API_BASE}/facturacion/solicitudes/${id}/zip`, {
+        method: 'POST',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zipBase64, nombreArchivo: archivo.name }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'No se pudo subir la factura.');
+      showToast('Factura entregada — el tenant ya puede descargarla.');
+      await cargarFacturasControl();
+    } catch (err) {
+      showToast(err.message || 'No se pudo subir la factura.', true);
+    }
+  });
+
+  async function facturaVerCsf(id) {
+    const authHeader = getAuthHeader();
+    try {
+      const resp = await fetch(`${API_BASE}/facturacion/solicitudes/${id}/csf`, { headers: { Authorization: authHeader } });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || 'No se pudo obtener la CSF.');
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    } catch (err) {
+      showToast(err.message || 'No se pudo obtener la CSF.', true);
+    }
+  }
 
   // ---------- Punto en curso: Upscale + Configurar Stripe ----------
   let upscaleEditandoId = null;

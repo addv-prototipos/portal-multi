@@ -10272,6 +10272,28 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   font-weight: 700;
   color: var(--color-accent-dark);
 }
+
+/* .micuenta-suscripcion-texto nace para el fondo navy de
+   .micuenta-card-navy (texto blanco) — reusada tal cual en tarjetas
+   blancas (Datos de pago, Facturación de Clarvo) el texto queda blanco
+   sobre blanco, invisible. Override scoped a tarjetas NO navy, nunca se
+   toca la regla base (seguiría rompiendo la navy). */
+.micuenta-card:not(.micuenta-card-navy) .micuenta-suscripcion-texto {
+  color: var(--color-ink-soft);
+}
+
+/* "Datos de pago": único CTA de la tarjeta, sin formulario arriba —
+   centrado y con ancho propio en vez de estirarse "gratis" al ancho de
+   la columna angosta del grid de 2 columnas (se veía como un botón
+   sin estilo, de borde a borde). */
+#btn-micuenta-actualizar-pago {
+  display: block;
+  width: fit-content;
+  margin: 18px auto 14px;
+}
+#micuenta-pago-card .micuenta-suscripcion-texto {
+  text-align: center;
+}
 @media (max-width: 900px) {
   .micuenta-grid { grid-template-columns: 1fr; }
   .micuenta-empresa-grid { grid-template-columns: 1fr 1fr; }
@@ -10379,6 +10401,47 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 }
 .micuenta-disco-aviso-cta:hover { filter: brightness(1.1); }
 .micuenta-disco-aviso-cta:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* "Facturación de Clarvo" en Mi Cuenta (punto 469) — tabla de estado de
+   cuenta real (propuesta 1 del Artifact de 8 propuestas) + modal "Ver
+   recibo". Pills propias en vez de reusar .estatus-pendiente/.pill-green
+   porque necesitan los 3 estados (pagado/pendiente/vencido) juntos y
+   consistentes entre sí — .estatus-activo/.estatus-pendiente del resto
+   del sitio no definen un tercer tono de error a propósito. */
+.facturacion-table-wrap { overflow: hidden; }
+.facturacion-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.facturacion-table th {
+  text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+  text-transform: uppercase; color: var(--color-ink-soft); padding: 0 14px 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+.facturacion-table td { padding: 13px 14px; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+.facturacion-table tr:last-child td { border-bottom: none; }
+.facturacion-mes { font-weight: 600; }
+.facturacion-extras { color: var(--color-ink-soft); font-size: 12px; margin-top: 2px; }
+.facturacion-monto { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+.pill svg { width: 13px; height: 13px; flex-shrink: 0; }
+.pill-pagado { background: #E4F6ED; color: #1FAE6B; }
+.pill-pendiente { background: var(--color-warn-soft); color: var(--color-warn); }
+.pill-vencido { background: var(--color-error-soft); color: var(--color-error); }
+
+.facturacion-recibo-body { display: flex; flex-direction: column; gap: 14px; }
+.facturacion-recibo-estado-row { display: flex; align-items: center; gap: 10px; }
+.facturacion-recibo-lineas { border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; }
+.facturacion-recibo-linea {
+  display: flex; justify-content: space-between; gap: 10px; padding: 10px 14px;
+  font-size: 13px; border-bottom: 1px solid var(--color-border);
+}
+.facturacion-recibo-lineas .facturacion-recibo-linea:last-child { border-bottom: none; }
+.facturacion-recibo-total {
+  border: none; border-top: 2px solid var(--color-ink); padding-top: 12px;
+  font-weight: 700; font-size: 16px;
+}
+.facturacion-recibo-acciones { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.facturacion-solicitud-zona { border-top: 1px solid var(--color-border); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.facturacion-solicitud-linea { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 /* Propuesta B5 (elegida): modal de compra de upscale con línea de tiempo. */
 .upscale-modal { max-width: 440px; }
@@ -11012,6 +11075,22 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 .financiero-tenant-row .chip.es-positivo { background: #DCEFE3; color: #146C43; }
 .financiero-tenant-row .chip.es-alerta { background: var(--color-warn-soft); color: var(--color-warn); }
 .financiero-tenant-row .chip.es-critico { background: var(--color-error-soft); color: var(--color-error); }
+
+/* "Gestión de facturas" (punto 469, propuesta 3 implementada) — reusa
+   .financiero-kanban-col para las 4 columnas, estas son solo las
+   tarjetas/ticket de adentro. */
+.facturas-kanban-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 1100px) { .facturas-kanban-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .facturas-kanban-grid { grid-template-columns: 1fr; } }
+.facturas-ticket { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 10px; font-size: 12.5px; }
+.facturas-ticket-empresa { font-weight: 700; font-size: 13px; }
+.facturas-ticket-sub { color: var(--color-ink-soft); font-size: 11.5px; margin: 2px 0 8px; }
+.facturas-ticket-fiscal { color: var(--color-ink-soft); font-size: 11px; margin-bottom: 8px; line-height: 1.5; }
+.facturas-ticket-acciones { display: flex; flex-wrap: wrap; gap: 6px; }
+.facturas-ticket-acciones .btn, .facturas-ticket-acciones .btn-link { font-size: 11px; padding: 5px 9px; }
+.facturas-ticket-rechazo-form { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.facturas-ticket-rechazo-form textarea { font-family: inherit; font-size: 12px; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 6px; resize: vertical; min-height: 54px; }
+.facturas-kanban-empty { color: var(--color-ink-soft); font-size: 11.5px; padding: 8px 2px; }
 /* Paleta categórica para "Gasto por categoría" — deliberadamente distinta
    de los 4 colores semánticos ya usados en Ventas/Facturado/Gastos (ver
    .resumen-fin-chart-barra-ventas y vecinos), para no hacer pensar que

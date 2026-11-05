@@ -957,9 +957,44 @@ async function asegurarTablaFinanciero(db) {
   `);
 }
 
+// Punto 469+ — ciclo de vida de "Solicitar factura" (CFDI real, vía SAT)
+// desde Mi Cuenta hasta el ZIP que Control sube. UNIQUE(tenant_slug,
+// invoice_id): un tenant no puede abrir 2 solicitudes para el MISMO cobro
+// — si la rechazan, reenviar reutiliza la misma fila (nunca una fila
+// nueva), mismo criterio que "un ticket, una bitácora" del resto del
+// sitio. Los datos fiscales (razón social/RFC/régimen/CP) se guardan
+// como SNAPSHOT del momento de la solicitud — si el tenant corrige su
+// CSF después, la solicitud ya enviada conserva los datos con los que se
+// generó, nunca se actualiza sola.
+async function asegurarTablaSolicitudesFactura(db) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS tenant_solicitudes_factura (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenant_slug VARCHAR(80) NOT NULL,
+      folio VARCHAR(20) NOT NULL,
+      invoice_id VARCHAR(60) NOT NULL,
+      periodo_etiqueta VARCHAR(40) NOT NULL,
+      monto DECIMAL(10,2) NOT NULL,
+      razon_social VARCHAR(255) NOT NULL,
+      rfc VARCHAR(20) NOT NULL,
+      regimen_fiscal VARCHAR(255) NOT NULL,
+      codigo_postal VARCHAR(10) NOT NULL,
+      estado ENUM('solicitada','en_proceso','lista','rechazada') NOT NULL DEFAULT 'solicitada',
+      motivo_rechazo TEXT NULL,
+      factura_zip_nombre VARCHAR(255) NULL,
+      creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_solicitud_tenant_invoice (tenant_slug, invoice_id),
+      UNIQUE KEY uq_solicitud_folio (folio),
+      KEY idx_solicitud_estado (estado)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
 module.exports = {
   asegurarColumnasCicloVidaTenant,
   asegurarTablaFinanciero,
+  asegurarTablaSolicitudesFactura,
   asegurarTablaApiCredenciales,
   asegurarTablasSucursales,
   asegurarTablaPlanes,

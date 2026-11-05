@@ -27899,3 +27899,218 @@ funcional en vivo del tour (requiere una cuenta que nunca lo haya visto,
 no reproducible fácil contra la BD de desarrollo ya sembrada).
 
 Archivos: `frontend/admin.js`.
+
+## Punto 469 — "Subir de plan" (Ampliar tu plan, Mi Cuenta): ofrecía TODO el catálogo superior en vez del siguiente plan único (4 nov 2026, CERRADO)
+
+**Reporte del usuario**: en el tab "Subir de plan" del modal de upscale
+veía los 4 planes completos (Solicita/Controla/Crece/Domina) con
+Solicita marcado "Recomendado", aunque el tenant ya tuviera un plan
+asignado. Pedido explícito: ofrecer solo el siguiente plan en orden de
+precio (Solicita→Controla→Crece→Domina), y si el tenant tiene un plan
+personalizado (fuera de catálogo), ofrecer Crece fijo por defecto.
+
+**Causa real**: `control/utils/upgradePlan.js:listarOpcionesSubirPlan()`
+ya filtraba `orden > planActual.orden`, pero devolvía TODAS las filas
+restantes (no solo la siguiente) marcando `recomendado: i===0` — y en
+el caso sin `plan_id` (personalizado) caía a "listar TODOS los planes
+activos", recomendando el más barato (Solicita) en vez de Crece.
+
+**Fix**: la función ahora regresa como máximo 1 opción —
+`ORDER BY orden ASC LIMIT 1` sobre `orden > planActual.orden` cuando
+hay plan asignado; si no hay plan (`plan_id` NULL, personalizado),
+resuelve Crece vía `resolverPlanPorClave('crece', db)`
+(`control/utils/onboardingConversion.js`, mismo mapa clave→nombre que ya
+usa el onboarding público) en vez de reinventar una búsqueda por nombre
+nueva. Frontend (`frontend/admin.js:cargarOpcionesPlan`) no se tocó —
+ya soporta 0/1/N opciones sin cambios. `confirmarSubirPlan()` sin
+cambios (sigue aceptando cualquier `planId` válido).
+
+Verificado: `node --check control/utils/upgradePlan.js` limpio, suite
+`control` completa 457/457 en verde (sin tests dedicados a esta función
+antes de este punto — no había ninguno que cubriera esta lógica).
+
+**Sin desplegar a producción ni probado con clics reales** — cambio
+puramente de backend/control, el usuario pidió el fix, no el deploy.
+
+Archivos: `control/utils/upgradePlan.js`.
+
+## Punto 470 — "Facturación de Clarvo" real en Mi Cuenta + "Solicitar factura" (CFDI real) con gestión en Kanban en /control (4-5 nov 2026, CERRADO)
+
+Reemplaza el placeholder "Próximamente" de la tarjeta "Facturación de
+Clarvo" (punto 272 Fase 2) por 2 features reales, en 2 rondas:
+
+**Ronda 1 — estado de cuenta real (propuesta 1 de 8 propuestas vía
+Artifact, aprobada por el usuario)**: tabla de cobros reales de Stripe
+(mes, plan+extras, monto, estado pagado/pendiente/vencido) + modal "Ver
+recibo" (mismo `.modal-overlay` con blur de toda la app) con desglose de
+líneas, total, link al PDF real de Stripe (`invoice.hosted_invoice_url`).
+`control/utils/facturacionClarvo.js:listarFacturasTenant()` — lee
+`stripe.invoices.list({customer})` directo, **nunca se duplica en BD
+local** (Stripe ya es la fuente de verdad, mismo criterio que el resto de
+pagos). Ruta interna `POST /internal/facturacion/historial` (control) +
+`GET /api/admin/mi-cuenta/facturacion` (backend, gateado con
+`exigirAdminRaizConTenant`, mismo candado que "Datos de pago"). La
+descripción de línea que Stripe genera sola trae un paréntesis de precio
+redundante (`"... (at $799.00 / month)"`) — se recorta solo para mostrar
+(`limpiarDescripcionLinea()`), el monto real nunca se toca.
+
+**Ronda 2 — "Solicitar factura" real (propuesta 3 de 9 propuestas
+simuladas — Kanban en Control — elegida y probada antes de implementar
+vía el mismo Artifact)**: el botón "Solicitar factura" dentro del modal
+de recibo ahora sí dispara el flujo real, no un aviso. Candado en 2
+capas, ambas honestas (nunca fingen un estado que no existe):
+
+1. **Datos fiscales**: reusa `POST /api/admin/config/constancia-compania`
+   (YA existía para la barra de sesión, punto previo sin numerar — grep
+   primero antes de construir uno nuevo, mismo criterio ya documentado en
+   el punto 449) — se le agregó extracción de **código postal**
+   (`extraerCodigoPostal`, ya existía en `pdfExtract.js`, nunca se
+   guardaba) y **guardado del PDF en Garage**
+   (`storage.guardarArchivo(slug, 'csf-fiscal', 'constancia.pdf', ...)`,
+   key fija, se sobreescribe — mismo patrón que el logo de marca). Nueva
+   columna `configuracion_global.codigo_postal_compania`
+   (`backend/utils/config.js`, valida 5 dígitos). El gate real
+   (`facturacionTieneDatosFiscales()`, frontend) exige razón social + RFC
+   real (no `SINFISCAL-*`) + régimen + CP — el servidor vuelve a validar
+   los 4 campos en `POST /api/admin/mi-cuenta/facturacion/solicitar`
+   antes de llamar a Control, nunca confía en lo que mandó el cliente.
+2. **Cobro pagado**: solo se puede solicitar sobre un `invoice` con
+   `estado === 'pagado'` — no tiene sentido una CFDI de un cobro que
+   todavía no se cobró.
+
+**Ciclo de vida real, tabla nueva en `control_tenants`**
+(`tenant_solicitudes_factura` — folio, invoice_id, snapshot fiscal del
+momento de la solicitud, estado
+`solicitada|en_proceso|lista|rechazada`, `UNIQUE(tenant_slug,
+invoice_id)` — un tenant no puede abrir 2 solicitudes para el mismo
+cobro; rechazar+reenviar reutiliza la misma fila). Dueño del ciclo de
+vida: `control/utils/facturacionGestion.js` (Control, "quien tiene acceso
+a la información", decisión del usuario). Kanban real en `/control` →
+"Gestión de facturas" (4 columnas: Solicitadas/En proceso/
+Rechazadas/Listas, reusa `.financiero-kanban-col` del punto 467) con 4
+acciones por ticket: Marcar en proceso, Rechazar (motivo obligatorio,
+visible tal cual al tenant), Subir factura.zip, Ver CSF.
+
+**Patrón nuevo — Control nunca toca bytes de archivo, ni siquiera para
+subir el ZIP que el operador adjunta ahí mismo**: `control/` no tiene
+cliente S3 propio (nunca lo tuvo, confirmado `grep -rn multer control/`
+y `grep -rn S3Client control/` → cero resultados) — construir uno nuevo
+solo para esto habría duplicado toda la capa de storage que `backend/`
+ya tiene. En vez de eso, los 2 únicos movimientos de bytes
+(CSF→previsualizar, ZIP→entregar) van **siempre a través de backend**
+(dueño real de Garage): Control recibe/envía el archivo como base64 en
+el body JSON (límite ya en 30mb en ambos `server.js`, de sobra para un
+PDF/ZIP de este tamaño) y reenvía a 2 rutas internas nuevas de backend
+(`POST /internal/facturacion/csf-descargar/:slug`,
+`POST /internal/facturacion/zip-subir/:slug`, mismo patrón exacto que
+`/internal/marca-logo/:slug` — sin `req.tenant`, el slug llega directo
+en la URL). Esta es la **primera vez que Control mueve bytes de archivo
+reales** (hasta ahora todas las llamadas control↔backend eran solo
+datos/JSON) — si se necesita un tercer caso similar en el futuro,
+replicar este patrón (base64 relay a través de backend) antes de
+considerar darle credenciales S3 propias a Control.
+
+**Verificación real completa, de punta a punta, con clics reales
+(chrome-devtools + Edge, tenant de prueba real `prueba-renovacion-crece-mensual`
+con `stripe_customer_id` e invoices reales de Stripe test mode)**: CSF de
+prueba generada a mano (PDF mínimo pero válido, construido byte a byte
+con los 4 objetos+xref correctos — `pdf-parse` lo lee igual que uno real)
+con texto que pasa `pareceConstanciaFiscal()` y los 4 extractores
+reales → subida real → "Identidad de la empresa" se actualiza sola en
+Mi Cuenta (razón social/RFC/régimen) → "Solicitar factura" real → folio
+real generado (`SOL-XXXX-XXXXXXXX`) → aparece en el Kanban de `/control`
+en "Solicitadas" con los datos fiscales correctos → "Ver CSF" abre el
+PDF real en pestaña nueva (relay de bytes confirmado, no un mock) →
+"Marcar en proceso" → sube un ZIP de prueba real → ticket pasa a
+"Listas" → de vuelta en Mi Cuenta, el modal ya muestra "Factura lista" +
+"Descargar factura ZIP" → clic real, `GET .../facturacion/zip?invoiceId=...`
+responde 200 (confirmado en Network, no solo visualmente). Suite Jest
+completa sin regresión (backend 809/809, control 457/457).
+
+**Alcance del formato "Incluye"**: la descripción de línea real de
+Stripe para este tenant de prueba es literal "Clarvo - Prueba Renovacion
+Crece Mensual" (nombre del producto que el checkout de ese tenant
+específico generó) — en producción con nombres de plan reales
+(Solicita/Controla/Crece/Domina) se vería más limpio sin cambiar nada de
+código, es dato real tal cual Stripe lo tiene, no un defecto del
+feature.
+
+Archivos: `control/scripts/ensureSchema.js`,
+`control/utils/facturacionGestion.js` (nuevo),
+`control/utils/facturacionClarvo.js`, `control/utils/notificarBackend.js`,
+`control/server.js`, `backend/server.js`, `backend/utils/config.js`,
+`frontend/admin.html`, `frontend/admin.js`, `frontend/admin.css`,
+`frontend/control.html`, `frontend/control.js`.
+
+**Sin desplegar a producción todavía** — implementado y probado en
+Docker local, el usuario no ha pedido el deploy para este cambio.
+
+**Addendum (5 nov 2026) — corrección real del monto a facturar, pedida
+explícita por el usuario**: hasta este addendum, `monto` en
+`tenant_solicitudes_factura` era `factura.total` — el monto REAL que
+Stripe cobró por ESE invoice puntual, que puede venir prorrateado (ej.
+$49.64 por un upscale comprado a mitad de ciclo) o neto de la comisión
+de Stripe. El usuario fue explícito: **las CFDI reales se emiten a mano
+por el portal del SAT, nunca por Stripe ni ningún tercero** — y al
+cliente se le factura el **precio de catálogo** (el mismo que ve en el
+sitio al aplicar un plan/upscale: ej. Plan Panadero $850 + Usuario
+adicional $50 + Espacio adicional $50 = $950, ya con IVA incluido por
+convención de precios al público en México). La comisión real que
+Stripe cobra a Clarvo es gasto deducible interno de ADDV, invisible
+para el tenant — nunca se mezcla con lo que se le factura a él.
+
+Fix: nueva función `control/utils/facturacionClarvo.js:montoCatalogoTenant()`
+— suma `planes.precio_mensual`/`precio_anual` (según
+`tenants.suscripcion_ciclo`) + `tenant_upscales_activos.monto_recurrente`
+de cada upscale activo (el precio YA contratado/congelado al comprarlo,
+nunca el precio de catálogo actual si cambió después — mismo criterio
+de snapshot que el resto del proyecto). `crearSolicitud()`
+(`facturacionGestion.js`) ya NO acepta `monto` del llamador — lo
+recalcula siempre aquí mismo ("nunca confiar en lo que mandó el
+frontend" para un monto de negocio, mismo criterio que datos fiscales).
+`backend/server.js`/`frontend/admin.js`: se quitó el `monto` que viajaba
+desde el frontend — ya no se pide ni se manda.
+
+**Decisión de alcance, confirmada con el usuario vía pregunta directa**:
+el historial/tabla "Facturación de Clarvo" y el modal "Ver recibo" SIGUEN
+mostrando los montos REALES de Stripe por invoice (con su PDF real de
+Stripe como respaldo) — nunca se tocó esa parte. Solo el monto que viaja
+a "Solicitar factura" (y lo que termina en el Kanban de `/control`) usa
+el precio de catálogo. Las 2 cifras pueden diferir a propósito (registro
+real de cobro vs. monto de la CFDI fiscal) — decisión explícita, no un
+descuido.
+
+**Validado real, end-to-end** (coordinado con la sesión que construyó el
+punto 470 — pausada antes de este addendum): tenant de prueba nuevo
+(`prueba-factura-catalogo`, creado y eliminado solo para esta prueba) +
+Checkout real de Stripe test mode (Plan Panadero, $850) vía navegador
+(chrome-devtools, tarjeta 4242) + compra real de upscale "Usuario
+adicional" ($50, cobro inmediato vía Subscription real) →
+`listarFacturasTenant()` confirmó 2 invoices reales de Stripe ese mes
+($850 y $50, ya separados) → `POST .../facturacion/solicitar` sobre el
+invoice de $850 guardó `monto=900.00` en
+`tenant_solicitudes_factura` (= $850 + $50 de catálogo, ni $850 ni $50
+de ningún invoice individual de Stripe). Registro de prueba vieja
+(`prueba-renovacion-crece-mensual`, `monto=799.00`, sin upscales activos
+en ese momento así que no exponía el bug) borrado antes de la prueba
+nueva, por pedido explícito del usuario. 11 tests unitarios nuevos
+(`facturacionClarvo.test.js`, `facturacionGestion.test.js`) + suite
+completa sin regresión (578 control + 1382 backend).
+
+**Gotcha nuevo, no relacionado con esta corrección pero encontrado al
+limpiar el tenant de prueba**: `DROP DATABASE` del tenant de prueba
+falló con `Access denied for user 'app_tenant_drop'` — el usuario MySQL
+`app_tenant_drop` no existe en este entorno Docker local (mismo hueco de
+privilegios ya documentado para servidores nuevos, puntos 442/450/465 —
+nunca antes expuesto en local porque nadie había probado un borrado
+completo aquí). El tenant de prueba quedó en `estado='baja'` (archivado,
+invisible en listados normales, inofensivo) en vez de eliminado físico —
+si una sesión futura necesita borrar tenants de prueba en este entorno
+local, crear primero el usuario `app_tenant_drop` con el mismo `GRANT
+DROP` ya documentado para Vultr, o aceptar que quedan en Papelera.
+
+Archivos (addendum): `control/utils/facturacionClarvo.js`,
+`control/utils/facturacionGestion.js`, `backend/server.js`,
+`frontend/admin.js`, `control/test/unit/facturacionClarvo.test.js`
+(nuevo), `control/test/unit/facturacionGestion.test.js` (nuevo),
+`PROJECT_STATE.md` (este addendum).

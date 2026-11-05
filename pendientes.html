@@ -643,7 +643,7 @@
   </section>
 
   <section>
-    <h2>Auditoría de seguridad SonarQube + OWASP (sonar.html / sonar_1.1.html) <span class="count">2 pendientes, 6 cerrados</span></h2>
+    <h2>Auditoría de seguridad SonarQube + OWASP (sonar.html / sonar_1.1.html … sonar_1.4.html) <span class="count">6 pendientes, 7 cerrados</span></h2>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
@@ -731,6 +731,13 @@
             <td class="col-item">2 pasos de deploy pendientes en <code>hostinger/</code> (N-04 + B.3 de sonar_1.3)</td>
             <td class="col-detalle"><code>hostinger/</code> nunca se toca sin que el usuario lo pida explícito (regla fija, ver memoria del proyecto) — por eso ninguno de estos 2 se tocó en el punto 454: (1) regenerar <code>hostinger/</code> por CONTENIDO desde su fuente y decidir si el paquete pasa a incluir <code>control/</code> (hoy no existe ahí, aunque es parte de la arquitectura desde el segmento 9b) o documentar que corre en otro servidor vía <code>CONTROL_UPSTREAM_HOST</code>; (2) agregar <code>npm audit --omit=dev</code> al preflight de <code>hostinger/actualizar.sh</code> para que el chequeo de vulnerabilidades sea un gate permanente del deploy, no una corrida manual ocasional.</td>
             <td class="col-estado"><span class="pill pill-amber">Sin tocar — requiere que el usuario lo pida explícito</span></td>
+          </tr>
+          <tr data-app="admin,control" data-id="sec-sonar-14-remediacion">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="sec-sonar-14-remediacion" aria-label="Marcar completado"></td>
+            <td class="col-punto">468</td>
+            <td class="col-item">Remediación de <code>calidad/sonar_1.4.html</code> — Fase A (condiciones de la gate)</td>
+            <td class="col-detalle"><b>Fase A (horas) — cierra la gate:</b> (1) <b>N-09</b> escapar <code>extra.nombre</code> en los 2 <code>innerHTML</code> de <code>frontend/admin.js</code> (líneas 9074 y 9472, con <code>escapeHtml()</code> en elemento y <code>escapeHtmlAttr()</code> para <code>data-extra-id</code>) — XSS almacenado de origen cross-tenant en <code>control_tenants.funcionalidades_upscale</code>; (2) <b>N-14</b> poner al día <code>backend/scripts/verificar-mysql.js</code> (9 aserciones apuntan a comportamientos eliminados a propósito — SMTP async, <code>requireUsuarioAdminExacto</code> borrado, limpieza que ya no borra órdenes, "Link de códigos SAT"), quitar el comando de invocación imposible del encabezado (el <code>scripts/</code> no está en la imagen por <code>.dockerignore</code>) y documentar/exigir las variables <code>MINIO_*</code>. <b>Fase B (1 día):</b> N-16 (<code>escapeHtmlAttr</code> en admin.js:21681 + grep de regresión), N-11 (mover <code>obtenerStripe()</code> dentro del <code>try</code> para que la pantalla de salud no dé 500), N-15 (defaults obsoletos de <code>storage.js</code>: <code>minio:9000</code>/<code>us-east-1</code> → Garage), N-10 (contrato del contenido de Términos: escapar vs. sanitizar). <b>Fase C (1-2 días):</b> N-12 (periodo UTC vs. DATE local en Financiero, gotcha punto 371), N-13 (geoip-lite de 110 MB en cada imagen, carga perezosa), N-05+N-08 (suites intermitentes), i-02 (separar). Detalle completo en el informe y en PROJECT_STATE.md punto 468.</td>
+            <td class="col-estado"><span class="pill pill-amber">Sin empezar — gate con condiciones</span></td>
           </tr>
         </tbody>
       </table>

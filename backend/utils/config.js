@@ -231,6 +231,9 @@ const DEFAULTS_CONFIG_GLOBAL = {
   razon_social_compania: '',
   regimen_fiscal_compania: '',
   tipo_persona_compania: null, // 'fisica' | 'moral' | null (todavía no se ha subido una constancia)
+  // Punto 469: código postal — se extrae de la misma CSF, requerido para
+  // "Solicitar factura" (CFDI real) junto con razón social/RFC/régimen.
+  codigo_postal_compania: '',
   clave_sat: '',
   // Correo al que se envían los reportes (automáticos, justo antes del
   // borrado por retención, y manuales, con el botón "Enviar reporte") —
@@ -315,6 +318,9 @@ async function getConfiguracionGlobal() {
     }
     if (parsed.tipo_persona_compania === 'fisica' || parsed.tipo_persona_compania === 'moral') {
       resultado.tipo_persona_compania = parsed.tipo_persona_compania;
+    }
+    if (typeof parsed.codigo_postal_compania === 'string') {
+      resultado.codigo_postal_compania = parsed.codigo_postal_compania.trim();
     }
     // "clave_sat" reemplaza al nombre anterior "codigo_sat" — se lee el
     // nombre nuevo si ya existe, y si no, se cae de vuelta al nombre
@@ -461,6 +467,13 @@ async function setConfiguracionGlobal(cambios) {
       cambios.tipo_persona_compania === 'fisica' || cambios.tipo_persona_compania === 'moral'
         ? cambios.tipo_persona_compania
         : null;
+  }
+  if (cambios.codigo_postal_compania !== undefined) {
+    const cp = typeof cambios.codigo_postal_compania === 'string' ? cambios.codigo_postal_compania.trim() : '';
+    if (cp && !/^\d{5}$/.test(cp)) {
+      throw new Error('El código postal debe ser de 5 dígitos.');
+    }
+    nuevo.codigo_postal_compania = cp;
   }
 
   if (cambios.clave_sat !== undefined) {
