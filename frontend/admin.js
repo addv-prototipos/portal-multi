@@ -3046,10 +3046,17 @@
     cargarSucursalesHermanas();
     // Primeros pasos (Fase 2 UX): la vista "Inicio" de fiscal no siempre
     // dispara cambiarVistaPrincipal() al iniciar sesión (ya es la vista
-    // activa por defecto, sin necesidad de redirigir) — se llama aquí
-    // también para no depender de eso. verificarDatosFiscalesFaltantes()
-    // la vuelve a llamar en cuanto ese dato esté listo.
-    renderOnboardingChecklist();
+    // activa por defecto, sin necesidad de redirigir) — hace falta
+    // llamar a renderOnboardingChecklist() igual, pero NO aquí: en este
+    // punto cargarInicio() todavía ni se invocó (eso lo hace quien llama
+    // a showDashboard(), después de que esta función regresa), así que
+    // el recorrido guiado se armaba apuntando a tarjetas con los
+    // valores en 0 de la plantilla estática — se veían vacías hasta
+    // refrescar la página a mano. Movido a después del `await
+    // cargarInicio()` real en cada llamador (ver entrarAlPanel() y el
+    // flujo de "verificar sesión guardada"), para que el recorrido
+    // nazca ya con los datos reales puestos. verificarDatosFiscalesFaltantes()
+    // la vuelve a llamar en cuanto ese dato esté listo, sin cambios.
   }
 
   // §58: switcher de sucursales — solo se muestra si este tenant pertenece
@@ -3134,6 +3141,13 @@
     if (perfil !== 'administrador') {
       await cargarInicio();
     }
+    // Hasta aquí ya existen los datos reales de "Inicio" (si este perfil
+    // los usa) — recién ahora se arma el checklist "Primeros pasos" y,
+    // si aplica, el recorrido guiado. Antes esto vivía DENTRO de
+    // showDashboard(), antes de que cargarInicio() siquiera arrancara —
+    // el recorrido apuntaba a tarjetas todavía en 0 (la plantilla
+    // estática), que no se corregían solas hasta refrescar la página.
+    renderOnboardingChecklist();
   }
 
   // Credenciales del intento de login en curso — solo viven en memoria
@@ -10398,7 +10412,7 @@
     els.inicioInventarioSlot.hidden = false;
     els.invEstadoToolbar.hidden = false;
     els.reportesVistaEstadoInventario.hidden = false;
-    cargarEstadoInventario();
+    return cargarEstadoInventario();
   }
 
   // Punto 362 (2026-10-02, ver PROJECT_STATE.md): "Inicio" con datos
@@ -10568,15 +10582,18 @@
     els.btnInicioResumenReintentar.addEventListener('click', () => cargarInicioResumen());
   }
 
+  // Devuelve la promesa real del fetch (antes no — `await cargarInicio()`
+  // en el llamador resolvía al toque sin de verdad esperar nada, porque
+  // esta función ni era async ni regresaba la promesa interna; el tour
+  // de bienvenida se armaba sobre datos que ni habían llegado todavía).
   function cargarInicio() {
     els.inicioInventarioSlot.hidden = true;
     els.inicioSubtitulo.hidden = true;
     els.inicioTituloBienvenida.textContent = usuarioSesionActual ? `¡Bienvenido, ${usuarioSesionActual}!` : '¡Bienvenido!';
     if (perfilActual === 'inventario') {
-      cargarInicioInventario();
-      return;
+      return cargarInicioInventario();
     }
-    cargarInicioResumen();
+    return cargarInicioResumen();
   }
 
   if (els.btnInicioVerVentas) els.btnInicioVerVentas.addEventListener('click', () => cambiarVistaPrincipal('ordenes'));
@@ -23251,7 +23268,12 @@
                 const vistaActivaId = Object.keys(botonesPorVista).find(
                   (v) => botonesPorVista[v] && botonesPorVista[v].classList.contains('is-active')
                 );
-                if (vistaActivaId === 'inicio') cargarInicio();
+                if (vistaActivaId === 'inicio') {
+                  // Mismo criterio que entrarAlPanel(): el checklist/
+                  // recorrido se arma DESPUÉS de que los datos reales ya
+                  // llegaron, nunca antes.
+                  cargarInicio().then(renderOnboardingChecklist);
+                }
               }
             });
           }

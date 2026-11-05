@@ -27698,3 +27698,181 @@ cualquier `DELETE` en `control_tenants`).
    al ÚLTIMO DÍA DEL MES PASADO, nunca a "ayer" sin más — "ayer" puede
    caer dentro del mes en curso y filtrar hacia KPIs que se presumían
    100% reales.
+
+## Punto 468 — Análisis de calidad v1.4 (`calidad/sonar_1.4.html`): 54 hallazgos re-estado (48 cerrados) + 8 nuevos, gate APROBADA CON CONDICIONES (4 nov 2026, CERRADO)
+
+Informe incremental de la serie tipo SonarQube, en `calidad/sonar_1.4.html`
+(autocontenido, mismo formato que `sonar_1.3.html`). Alcance del producto
+SIEMPRE: `backend/`, `control/`, `frontend/`, `docker/` (122 archivos /
+88,333 líneas, `.js/.html/.css/.template` sin `node_modules`/`test`/
+`scripts`/`.trash`); `hostinger/` y `VULTR/` fuera de alcance por puntos
+412/435/448 — solo como nota N-04, nunca en métricas ni gate. HEAD
+`1f005b6` (2026-11-04), árbol limpio, 31 commits desde el `7160a10` que
+analizó la 1.3.
+
+**Gate: APROBADA CON CONDICIONES** — Ratings: Seguridad B, Confiabilidad
+B (era C), Mantenibilidad C. 0 blockers · 0 críticos · 2 mayores (N-09,
+N-14) · 8 menores (N-05, N-08, N-10…N-13, N-15, N-16) · 2 informativos
+abiertos (i-01, i-02) · 1 parcial (N-03) · 1 nota (N-04).
+
+**Re-estado de los 54 hallazgos con ID vigentes al cierre de la 1.3**
+(verificado con grep del patrón de cada fix + lectura de la línea exacta,
+nunca mensajes de commit — lección del punto 352): **48 cerrados**
+(incluidos los 5 nuevos de esta ronda: **m-11** — `USER appuser` en
+backend/Dockerfile:32 y control/Dockerfile:24 + bind mount `./uploads`
+retirado de docker-compose.yml; **i-03** — HSTS
+`max-age=31536000; includeSubDomains; preload` + COOP/CORP en todos los
+bloques de nginx.conf.template; **i-04** — 4 `@font-face` de Inter locales
+en style.css, sin `@import` de Google Fonts, CSP `font-src 'self'`;
+**N-06** y **N-07**, las 2 condiciones de la 1.3), **1 parcial** (N-03,
+con 1 residual → N-16) y **4 abiertos** (i-01, i-02, N-05, N-08).
+
+**Las 2 condiciones de la 1.3 cerraron con evidencia**:
+- **N-06 supply-chain**: `npm audit --omit=dev` hoy = **0 vulnerabilidades**
+  en backend y control (era 15: 8+7), con `nodemailer ^10.3.1` ya en
+  ambos package.json — la CVE cross-tenant de credenciales SMTP resuelta
+  con el upgrade breaking. Con dev deps solo quedan 6 *low* (jest-cli)
+  por paquete. **Pendiente heredado sin ejecutar**: el `npm audit
+  --omit=dev` recomendado para el preflight de `hostinger/actualizar.sh`
+  no se agregó (0 matches — fuera de alcance, anotado como paso de deploy
+  en pendientes.html).
+- **N-07 tests**: backend **69 suites / 1,382 tests** en verde (corrida
+  limpia; 1 intermitente en 1 de 2 corridas, ver N-05) y control
+  **32 suites / 567 tests** en verde. Total **1,949 ejecuciones**.
+
+**8 hallazgos nuevos (2 mayores, 6 menores)**, todos verificados hoy:
+- **N-09 (Mayor) — XSS almacenado cross-tenant**: `frontend/admin.js:9074`
+  y `:9472` inyectan `extra.nombre` crudo en `innerHTML` (y
+  `data-extra-id` en un atributo, sin escapar). El valor sale de
+  `control_tenants.funcionalidades_upscale` (control/utils/upscale.js
+  `normalizarDatos()`, valida longitud/tipos pero NO sanitiza HTML), se
+  sirve por `/internal/upscale/extras/*` y llega al panel del tenant —
+  lo que escriba el super-admin en /control se ejecuta como HTML en la
+  sesión de cualquier admin de cualquier tenant. Hoy solo el rol super
+  puede escribirlo, por eso Mayor y no Crítico. Fix: `escapeHtml()` en
+  elemento + `escapeHtmlAttr()` en el atributo (minutos).
+- **N-14 (Mayor) — gate de MySQL real degradado**: `verificar-mysql.js`
+  corrió 2 veces contra el stack real: **287/296 con el entorno completo**
+  (282/296 sin variables de almacenamiento) → **9 rojos en 4 causas raíz,
+  TODAS de script desactualizado, 0 bugs de producto**: (1) 1 rojo —
+  `configSmtpParaMostrar()` es `async` desde `7160a10` y el script la
+  llama síncrona (email.js:177); (2) 1 rojo — `requireUsuarioAdminExacto()`
+  fue eliminado del producto en el punto 282, el `require` de la línea 48
+  deja `undefined` y el `TypeError` tumba todo el bloque de autorización
+  (enmascara una decena de aserciones); (3) 5 rojos —
+  `ejecutarLimpiezaConReporte()` ya no borra órdenes desde el punto 158
+  (ticketsCleanup.js:44-53); (4) 2 rojos — "Link de códigos SAT" se
+  eliminó a propósito en `6bb2504` (2026-09-04, config.js:360). Además
+  2 problemas de proceso: el comando del encabezado (línea 19,
+  `docker-compose exec backend node scripts/...`) es **imposible** porque
+  `backend/.dockerignore:13` excluye `scripts` de la imagen; y sin
+  `MINIO_ENDPOINT`/`MINIO_REGION=garage`/`MINIO_*` la limpieza falla en
+  silencio y el script reporta 14 rojos (las 5 diferencias son falsos
+  negativos: `storage.eliminarArchivo` lanza por fila, el `catch` se lo
+  traga y `eliminados` queda en 0 — diagnosticado reproduciendo el
+  `throw` real con una sonda).
+- **N-10 (Menor)**: el gate de Términos inyecta
+  `data.version.contenido` como HTML crudo (`admin.js:4225`); el
+  contenido se redacta en un textarea de /control y se guarda solo con
+  `trim()` (terminosCondiciones.js:41-48). Decidir el contrato (texto
+  escapado vs. HTML sanitizado en servidor).
+- **N-11 (Menor)**: `GET /api/control/health/stripe-webhook` responde
+  500 cuando falta `STRIPE_SECRET_KEY` — `stripeWebhookHealth.js:80`
+  llama `obtenerStripe()` fuera del `try` de la línea 92; **reproducido
+  en runtime** dentro del contenedor con `-e STRIPE_SECRET_KEY=`
+  (`THROW: ErrorOnboarding` → `asyncHandler` 500). En vivo responde 200
+  (Stripe configurado); el job horario sí lo atrapa.
+- **N-12 (Menor)**: la vista Financiero usa `periodoActual()` en UTC
+  (getUTC*, financieroResumen.js:25-29) para comparar contra
+  `tenants.creado_en/baja_en` (DATETIME UTC — correcto) Y contra
+  `gastos.fecha` (DATE local, vía `sumaGastosMes` línea 260) → desfase
+  de 6 h en la frontera de mes. Es el gotcha del punto 371 en una
+  pantalla nueva.
+- **N-13 (Menor)**: `geoip-lite` pesa **110.1 MB en backend Y 110.1 MB
+  en control** (220 MB en total entre las 2 imágenes), `require` en
+  top-level (geoIp.js:24) para una sola llamada (`ubicacionDesdeIp`).
+  Carga perezosa + decidir si la ciudad aporta.
+- **N-15 (Menor)**: defaults obsoletos en `backend/utils/storage.js:58-59`
+  (`http://minio:9000` ya no existe — es `garage`; `us-east-1` lo
+  rechaza Garage). El compose siempre define ambas variables, así que es
+  riesgo LATENTE para procesos nuevos (scripts/workers/expectativas del
+  gate) — la misma causa raíz de la mitad de N-14.
+- **N-16 (Menor)**: primer call site que rompe la regla C-05 —
+  `admin.js:21681` usa `escapeHtml(h.severidad)` dentro de un atributo
+  `class="…"`; `escapeHtml` no comilla-escapa. No explotable hoy (enum
+  del backend: `'media'`/`'info'`) — por eso N-03 queda PARCIAL y este
+  es menor. Fix: una palabra (`escapeHtmlAttr`) + grep de regresión.
+- **N-04 actualizada** (nota, fuera de alcance): 5 pares clave
+  comparados por SHA-256 contra `hostinger/` → **los 5 difieren**, y
+  `hostinger/control/` **sigue sin existir**.
+
+**OWASP**: A03 Injection baja de CUMPLE a **PARCIAL** (N-09 + N-16, es
+HTML/JS no SQL); A06 sube de PARCIAL a **CUMPLE** (0 CVEs de
+producción); el resto CUMPLE. Verificación programática de las 111 rutas
+`requiereFeature()` contra `requireAdminAuth`/`requireUserAuth`:
+**0 violaciones de orden** (el único candidato era un comentario).
+
+**Ejecuciones reales de esta ronda**: Jest backend 2 corridas (log en
+`%TEMP%\jest-backend-1.4.log` / `jest-backend-1.4b.log`), control 1
+(`jest-control-1.4.log`), `npm audit` completo y `--omit=dev` en ambos
+paquetes, `verificar-mysql.js` 2 veces (`%TEMP%\verificar-mysql-1.4.log`),
+stack Docker real verificado por HTTP (`/api/health` 200,
+`/api/public/planes` 200, reactivación con token inválido → 400
+genérico, `GET /api/control/health/stripe-webhook` 200 en vivo modo
+prueba). Sonda temporal creada y eliminada (no va al repo).
+
+**Roadmap del informe**: Fase A (horas) = N-09 + N-14; Fase B (1 día) =
+N-16, N-11, N-15, N-10; Fase C (1-2 días) = N-12, N-13, N-05+N-08,
+i-02; Fase D (continuo) = monolitos + N-04. Fila de remediación
+agregada a `pendientes.html` (`sec-sonar-14-remediacion`). Gotcha nuevo
+documentado en AGENTS.md/CLAUDE.md: correr `verificar-mysql.js` desde el
+host requiere `DB_*` + `MINIO_*` (con `MINIO_REGION=garage`) y el
+`scripts/` no está en la imagen de backend por `.dockerignore`.
+
+## Punto 468 — "Inicio" de /admin: el recorrido guiado se armaba sobre datos en 0, nunca se corregían solos (requerían refresh) (4 nov 2026, CERRADO)
+
+Usuario reportó (con captura real, tenant "Panes"): la pantalla de
+Inicio (Tickets hoy/Ventas hoy/Gastos hoy/Movs. de inventario) se queda
+en 0 tras pasar el recorrido guiado de bienvenida — hay que refrescar
+la página a mano para ver los números reales.
+
+**Causa raíz real, confirmada leyendo el código (no reproducida en vivo
+— el tour solo se dispara una vez por cuenta en la vida, la cuenta de
+prueba local ya lo había visto)**: dos bugs combinados.
+
+1. `showDashboard()` llamaba a `renderOnboardingChecklist()` (que
+   dispara el tour si aplica) de forma SÍNCRONA, antes de que quien la
+   llama (`entrarAlPanel()`) siquiera invocara `cargarInicio()` — el
+   tour se armaba apuntando a tarjetas con el valor `0` de la plantilla
+   HTML estática, no con datos reales.
+2. `cargarInicio()` ni era `async` ni regresaba la promesa interna de
+   `cargarInicioResumen()`/`cargarInicioInventario()` — el
+   `await cargarInicio()` en `entrarAlPanel()` resolvía al instante sin
+   esperar de verdad el fetch, así que aunque se hubiera movido el
+   orden, el `await` no habría servido de nada.
+
+**Fix**: `cargarInicio()` ahora regresa la promesa real (ambas ramas,
+inventario y resumen general); `cargarInicioInventario()` regresa la de
+`cargarEstadoInventario()`. Se quitó la llamada prematura a
+`renderOnboardingChecklist()` de dentro de `showDashboard()`; ahora
+vive en los 2 lugares que SÍ saben cuándo los datos reales ya llegaron:
+`entrarAlPanel()` (login nuevo, después de `await cargarInicio()`) y el
+flujo de "verificar sesión guardada" al refrescar la página
+(`cargarInicio().then(renderOnboardingChecklist)`). Nunca se tocó
+`cambiarVistaPrincipal()` (línea con el mismo patrón para las demás
+vistas) — fuera de alcance a propósito, el reporte era específico de
+Inicio.
+
+**Lección reusable**: una función que llama a un `fetch` async pero ni
+es `async` ni hace `return` de esa llamada, hace que cualquier
+`await miFuncion()` del lado del llamador sea un no-op silencioso —
+parece que espera, pero no espera nada. Si una función envuelve una
+llamada async "de paso", siempre `return` (o `async`+`await`) esa
+promesa, aunque el valor de retorno no se use hoy.
+
+**Sin desplegar a producción todavía** — el usuario no lo pidió para
+este cambio, solo el reporte del bug. `node --check` limpio; sin prueba
+funcional en vivo del tour (requiere una cuenta que nunca lo haya visto,
+no reproducible fácil contra la BD de desarrollo ya sembrada).
+
+Archivos: `frontend/admin.js`.
