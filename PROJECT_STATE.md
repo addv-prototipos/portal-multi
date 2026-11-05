@@ -27514,6 +27514,29 @@ Archivos: `control/utils/reactivacionTenant.js` (nuevo),
 `backend/test/unit/auth.test.js`, `CLAUDE.md`, `PROJECT_STATE.md` (este
 punto).
 
+**Addendum (4 nov 2026)**: pedido explícito del usuario con 2 capturas
+marcadas a mano — mover la tarjeta "Datos de pago" al hueco vacío que
+dejaba el grid de 2 columnas de Mi Cuenta (junto a "Seguridad"/
+"Sesiones activas"/"Notificaciones críticas"). Causa del hueco:
+`.micuenta-grid` es `grid-template-columns: 1fr 1fr` sin
+`grid-auto-flow: dense` — con 3 tarjetas angostas seguidas
+(2fa/sesiones/notif) y la 4ª (`micuenta-pago-card`) marcada
+`micuenta-card-ancha` (span completo) viviendo más abajo, el
+auto-placement no podía rellenar la celda vacía de la fila 2.
+Fix: se reubicó `#micuenta-pago-card` (HTML, sin tocar `admin.js`) justo
+después de "Notificaciones críticas" y se le quitó `micuenta-card-ancha`
+— cae angosta, llena el hueco exacto. Validado con captura real
+(chrome-devtools, tenant `panes` logueado) contra las 2 referencias del
+usuario: coincide. **Hallazgo adicional, corregido con aprobación del
+usuario en el mismo paso**: el badge "Vista previa" + el tooltip "todavía
+no se conecta con Stripe de verdad" de esta misma tarjeta habían quedado
+desactualizados por el propio trabajo de este punto (Stripe ya cobra de
+verdad desde el Checkout real) — retirado el badge y reescrito el texto
+del estado "sin configurar" ("Se crea automáticamente la primera vez que
+actualices tu método de pago o actives tu suscripción."). Sin cambios en
+`admin.js` ni en el backend — solo copy/posición en `admin.html`. Suite
+backend relevante (131 tests, `mi-cuenta`/`admin`) sin regresiones.
+
 ## Punto 467 — "Financiero" en /control: KPIs reales, ciclo de vida, upscale, retención, BI de crecimiento, utilidad neta mensual + acumulada, gasto operativo manual (4 nov 2026, CERRADO)
 
 Vista nueva, cross-tenant, exclusiva de `/control` (nunca `/admin` ni
