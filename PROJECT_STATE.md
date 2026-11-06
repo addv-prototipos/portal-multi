@@ -28594,3 +28594,57 @@ Archivos: `backend/server.js`, `frontend/admin.js`, `frontend/admin.html`,
 `frontend/admin.css`, `frontend/control.js`, `control/server.js`,
 `control/utils/facturacionGestion.js`, `control/utils/notificarBackend.js`,
 `control/scripts/ensureSchema.js`.
+
+## Punto 475 — Limpieza automática de Docker en el VPS de producción (timer semanal, 5-6 nov 2026, CERRADO)
+
+Pedido explícito del usuario: "genera un agente e instálalo en el
+servidor, para cuando haya que hacer limpieza y no quede basura en el
+server" — tras el hallazgo del punto 473 (addendum 2, 26 contenedores
+donde solo 8 eran reales, 19 de residuo de redeploys). En vez de un
+subagente de Claude, se instaló un **agente real del sistema operativo**
+(systemd timer, corre solo, sin depender de ninguna sesión de Claude
+activa) — interpretación correcta del pedido: "agente" aquí es
+automatización operativa en el servidor, no un prompt/subagente de IA
+(`/prompt-master` se invocó en el pedido del usuario pero no aplicaba —
+no había ningún prompt que redactar o mejorar, CLAUDE.md ya documenta
+que esa skill solo se activa para eso explícitamente).
+
+**Alcance deliberadamente angosto — solo lo que Docker documenta como
+100% seguro, nunca toca nada en uso**:
+1. `docker container prune -f` — solo contenedores YA detenidos, nunca
+   uno corriendo.
+2. `docker image prune -f` (SIN `-a`) — solo imágenes "dangling"
+   (huérfanas, sin tag), nunca una imagen con tag en uso aunque esté
+   "vieja".
+3. `docker builder prune -f` — solo caché de build, cero riesgo
+   funcional (el próximo build solo tarda más).
+
+**Deliberadamente fuera de alcance, sin decisión explícita**:
+`docker volume prune` (riesgo real de borrar un volumen con datos),
+`docker system prune -a` (borraría imágenes con tag que no estén en uso
+en ESTE momento pero podrían necesitarse para un rollback rápido),
+cualquier limpieza de `/mnt/blockstorage/backups` (los dumps de MySQL
+no tienen política de retención definida todavía — borrarlos a ciegas
+sería un riesgo real, no una limpieza de rutina).
+
+**Instalado como systemd timer** (no cron — ya hay 16 timers de sistema
+en este VPS, mismo mecanismo, logs van al journal + archivo propio):
+`/opt/clarvo/scripts/limpieza-docker.sh` + `clarvo-limpieza.service`
+(oneshot) + `clarvo-limpieza.timer` (`OnCalendar=Sun *-*-* 04:00:00`,
+`RandomizedDelaySec=900` para no chocar en el segundo exacto con otros
+timers del sistema, `Persistent=true` para que corra en cuanto el VPS
+vuelva a estar arriba si se perdió la ventana por un reinicio). Log
+propio en `/var/log/clarvo-limpieza.log` (antes/después de
+`docker system df`, para poder auditar cuánto se liberó cada corrida).
+
+**Verificado real con una corrida manual** (`systemctl start
+clarvo-limpieza.service`) antes de confiar en el timer: liberó **12.75
+GB** de caché de build (de 13.5 GB a 749.9 MB) — disco raíz del VPS
+pasó de 26 GB usados (58%) a 14 GB usados (32%). `systemctl list-timers`
+confirma la próxima corrida programada (domingo). Checksums de los 3
+archivos verificados idénticos contra el servidor antes de activar.
+
+Archivos: `VULTR/limpieza-docker.sh`, `VULTR/clarvo-limpieza.service`,
+`VULTR/clarvo-limpieza.timer` (los 3 gitignored — solo en el servidor y
+como referencia local, mismo criterio que `docker-stack.yml`/
+`nginx-host-clarvo.mx.conf`).
