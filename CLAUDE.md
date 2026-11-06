@@ -2149,6 +2149,22 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   dentro de otra con la misma clase debe pasar por este mismo chequeo —
   nunca asumir que un selector pensado para hermanos de nivel superior
   es seguro con nesting.
+- **Mismo riesgo de nesting, versión CSS puro** (punto 481, addendum,
+  2026-11-06): `.config-modal-main-body .admin-config-toggle {
+  pointer-events: none; ... }` (anula el acordeón propio de cada
+  tarjeta de NIVEL SUPERIOR del modal de Configuraciones, porque ahí ya
+  lo gobierna el nav de la izquierda) usaba selector DESCENDIENTE —
+  alcanzaba también el botón de `retencion-config-card` (anidada dentro
+  de `facturacion-toggle-card`), que SÍ necesita seguir siendo un
+  acordeón funcional. Efecto real: el botón se veía y comportaba como
+  texto plano (sin chevron, `pointer-events:none`), aunque el fix de
+  visibilidad de arriba ya mostraba la tarjeta. Fix: `>` directo entre
+  `.config-modal-main-body` y `.admin-config-card` en los 4 selectores
+  — alcanza solo las tarjetas que son hijas DIRECTAS del contenedor,
+  nunca una anidada más abajo. Cualquier regla CSS que "apague el
+  comportamiento propio de las tarjetas de nivel superior" de un
+  contenedor debe usar `>` directo, nunca descendiente, si existe
+  alguna tarjeta anidada que deba conservar su propio comportamiento.
 - **Un flag de validación client-side calculado una sola vez al
   login/carga nunca se refresca solo** (punto 481): `datosFiscalesCompletos`
   (`frontend/admin.js`) se computaba únicamente en

@@ -879,6 +879,17 @@ solo la frase en español de la UI.
     .admin-config-card con closest() y heredar su estado activo antes de
     comparar el id propio. Cualquier tarjeta nueva anidada necesita el
     mismo chequeo.
+  - Mismo riesgo, version CSS puro (punto 481 addendum): la regla que
+    vuelve inerte el acordeón propio de cada tarjeta de nivel superior
+    del modal (.config-modal-main-body .admin-config-toggle {
+    pointer-events:none; ... }) usaba selector descendiente, asi que
+    tambien apagaba el boton de retencion-config-card (anidada), que SI
+    necesita seguir siendo acordeon funcional — se veia como texto
+    plano sin chevron. Fix: cambiar a > directo entre
+    .config-modal-main-body y .admin-config-card en los 4 selectores.
+    Cualquier regla que apague el comportamiento propio de tarjetas de
+    nivel superior debe usar > directo, nunca descendiente, si hay una
+    tarjeta anidada que deba conservar su propio comportamiento.
   - Flag de validacion client-side calculado una sola vez al login nunca
     se refresca solo (punto 481): datosFiscalesCompletos
     (frontend/admin.js) solo se recalculaba en la carga inicial — guardar

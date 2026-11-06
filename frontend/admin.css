@@ -2062,17 +2062,22 @@
   background: transparent;
 }
 .config-modal-main-body .admin-config-card.is-active-config-section { display: block; }
-.config-modal-main-body .admin-config-toggle {
+.config-modal-main-body > .admin-config-card > .admin-config-toggle {
   pointer-events: none;
   cursor: default;
   padding: 0 0 10px;
 }
-.config-modal-main-body .admin-config-chevron { display: none; }
-.config-modal-main-body .admin-config-toggle-label {
+.config-modal-main-body > .admin-config-card > .admin-config-toggle .admin-config-chevron { display: none; }
+.config-modal-main-body > .admin-config-card > .admin-config-toggle .admin-config-toggle-label {
   font-family: var(--font-display);
   font-size: 15px;
 }
-.config-modal-main-body .admin-config-toggle-label svg { display: none; }
+.config-modal-main-body > .admin-config-card > .admin-config-toggle .admin-config-toggle-label svg { display: none; }
+/* Scope con `>` directo a propósito (punto 481, addendum): el selector
+   descendiente original también apagaba el toggle de retencion-config-card
+   (anidada, nunca es hijo DIRECTO de config-modal-main-body) — su botón
+   quedaba con pointer-events:none y el chevron oculto, así que solo se
+   veía el texto del título sin ninguna forma de expandirlo. */
 /* Visibilidad real la maneja JS quitando/poniendo `hidden` (ver
    seleccionarSeccionConfig en admin.js) — el atributo `hidden` gana con
    `!important` sin importar cualquier `display` que se intente forzar

@@ -29180,3 +29180,33 @@ este punto; queda en el working tree/commit local hasta que lo
 solicite.
 
 Archivos: `backend/server.js`, `frontend/admin.js`, `frontend/admin.html`.
+
+**Addendum (mismo día)**: el usuario reportó, después de que el fix #1
+de arriba ya mostraba la tarjeta, que solo veía el TEXTO "Borrado
+automático de tickets" sin ninguna forma de interactuar con ella (sin
+chevron, sin cursor de botón). Causa real, distinta a la del fix #1:
+`.config-modal-main-body .admin-config-toggle { pointer-events: none;
+...}` (CSS que vuelve inerte el header-acordeón de cada tarjeta de
+NIVEL SUPERIOR del modal, porque ahí la navegación de la izquierda ya
+cumple esa función) usa selector DESCENDIENTE, así que también apaga
+el botón propio de `retencion-config-card` — anidada, pero igual
+alcanzada por el descendiente porque Css no distingue profundidad.
+Resultado: `pointer-events:none` + chevron/ícono con `display:none` =
+el botón se veía y se comportaba como texto plano, no como acordeón.
+Fix: los 4 selectores de `frontend/admin.css` (~línea 2065) cambiaron
+de `.config-modal-main-body .admin-config-toggle` a
+`.config-modal-main-body > .admin-config-card > .admin-config-toggle`
+(combinador `>` directo) — así solo alcanza el toggle de una tarjeta
+que es HIJA DIRECTA de `.config-modal-main-body` (las 12 tarjetas de
+nivel superior), nunca el de una tarjeta anidada dos niveles más
+abajo. Validado real: el botón ahora expande/colapsa con chevron
+visible, badge "Desactivado", input "Días antes de eliminar un
+ticket" y botón "Guardar" — todo funcional. Docker `frontend`
+reconstruido y recreado para reflejar el CSS.
+
+**Patrón a replicar**: cualquier regla CSS pensada para "apagar/anular
+el comportamiento propio de las tarjetas de nivel superior de este
+contenedor" debe usar `>` directo entre el contenedor y la tarjeta —
+un selector descendiente alcanza también cualquier tarjeta anidada
+más abajo que SÍ necesita conservar su comportamiento interactivo
+propio.
