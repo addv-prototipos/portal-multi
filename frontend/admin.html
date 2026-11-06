@@ -4919,23 +4919,27 @@
         "Ventas" e "Inventarios" además dependen de sus interruptores globales propios (Configuraciones) — si están apagados, no se muestran a nadie sin importar el perfil.
       </p>
 
+      <p class="panel-subtitle admin-config-subtitle">
+        Pasa el mouse (o Tab) sobre un punto con el indicador naranja para ver el detalle de esa celda.
+      </p>
+
       <div class="tabla-perfiles-wrap">
         <table class="tabla-perfiles">
           <thead>
             <tr>
               <th scope="col">Perfil</th>
-              <th scope="col">Inicio</th>
-              <th scope="col">Tickets</th>
-              <th scope="col">Constancias</th>
-              <th scope="col">Resumen financiero</th>
-              <th scope="col">Ventas</th>
-              <th scope="col">Cuentas por cobrar</th>
-              <th scope="col">Gastos</th>
-              <th scope="col">Inventarios</th>
-              <th scope="col">Usuarios</th>
-              <th scope="col">Reportes</th>
-              <th scope="col">Proveedores</th>
-              <th scope="col">Configuraciones</th>
+              <th scope="col" class="th-modulo">Inicio</th>
+              <th scope="col" class="th-modulo">Tickets</th>
+              <th scope="col" class="th-modulo">Constancias</th>
+              <th scope="col" class="th-modulo">Resumen financiero</th>
+              <th scope="col" class="th-modulo">Ventas</th>
+              <th scope="col" class="th-modulo">Cuentas por cobrar</th>
+              <th scope="col" class="th-modulo">Gastos</th>
+              <th scope="col" class="th-modulo">Inventarios</th>
+              <th scope="col" class="th-modulo">Usuarios</th>
+              <th scope="col" class="th-modulo">Reportes</th>
+              <th scope="col" class="th-modulo">Proveedores</th>
+              <th scope="col" class="th-modulo">Configuraciones</th>
             </tr>
           </thead>
           <tbody>
@@ -4944,104 +4948,80 @@
                 <span class="perfil-badge perfil-administrador">Administrador</span>
                 <span class="perfil-descripcion">Creado desde "Crear usuario"</span>
               </td>
-              <td class="celda-acceso-si">
-                <span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span>
-                <span class="detalle-acceso">Solo lectura — sin "Gestionar"/"Ver todas"</span>
-              </td>
-              <td class="celda-acceso-si">
-                <span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span>
-                <span class="detalle-acceso">Lectura — las acciones (marcar listo, eliminar, subir factura) siguen exclusivas de Fiscal</span>
-              </td>
-              <td class="celda-acceso-si">
-                <span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span>
-                <span class="detalle-acceso">Lectura</span>
-              </td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si">
-                <span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span>
-                <span class="detalle-acceso">Configuraciones fiscales, Configuración Reportes, Ventas, Inventarios</span>
-              </td>
+              <td><span class="punto-acceso es-si tiene-nota" tabindex="0" data-tooltip="Solo lectura — sin &quot;Gestionar&quot;/&quot;Ver todas&quot;" aria-label="Sí — Solo lectura, sin Gestionar/Ver todas"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si tiene-nota" tabindex="0" data-tooltip="Lectura — las acciones (marcar listo, eliminar, subir factura) siguen exclusivas de Fiscal" aria-label="Sí — Lectura, las acciones siguen exclusivas de Fiscal"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si tiene-nota" tabindex="0" data-tooltip="Lectura" aria-label="Sí — Lectura"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si tiene-nota" tabindex="0" data-tooltip="Configuraciones fiscales, Configuración Reportes, Ventas, Inventarios" aria-label="Sí — Configuraciones fiscales, Configuración Reportes, Ventas, Inventarios"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
             </tr>
             <tr>
               <td>
                 <span class="perfil-badge perfil-fiscal">Fiscal</span>
                 <span class="perfil-descripcion">Creado desde "Crear usuario"</span>
               </td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-si">
-                <span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span>
-                <span class="detalle-acceso">Campos obligatorios, Configuraciones fiscales</span>
-              </td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-si tiene-nota" tabindex="0" data-tooltip="Campos obligatorios, Configuraciones fiscales" aria-label="Sí — Campos obligatorios, Configuraciones fiscales"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
             </tr>
             <tr>
               <td>
                 <span class="perfil-badge perfil-ventas">Ventas</span>
                 <span class="perfil-descripcion">Creado desde "Crear usuario"</span>
               </td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no">
-                <span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span>
-                <span class="detalle-acceso">Solo lectura de IVA/zona horaria (para el total de la venta) y del buscador de productos si Inventarios está activo — nunca entra a Configuraciones ni a Inventarios.</span>
-              </td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no tiene-nota" tabindex="0" data-tooltip="Solo lectura de IVA/zona horaria (para el total de la venta) y del buscador de productos si Inventarios está activo — nunca entra a Configuraciones ni a Inventarios." aria-label="No — solo lectura de IVA/zona horaria y del buscador de productos si Inventarios está activo">—</span></td>
             </tr>
             <tr>
               <td>
                 <span class="perfil-badge perfil-inventario">Inventario</span>
                 <span class="perfil-descripcion">Creado desde "Crear usuario"</span>
               </td>
-              <td class="celda-acceso-si">
-                <span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span>
-                <span class="detalle-acceso">Muestra "Estado del inventario", no el resumen de tickets</span>
-              </td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no">
-                <span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span>
-                <span class="detalle-acceso">"Estado del inventario" vive en su Inicio, no como pestaña de Reportes</span>
-              </td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td><span class="punto-acceso es-si tiene-nota" tabindex="0" data-tooltip="Muestra &quot;Estado del inventario&quot;, no el resumen de tickets" aria-label="Sí — Muestra Estado del inventario, no el resumen de tickets"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-si" aria-label="Sí"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no tiene-nota" tabindex="0" data-tooltip="&quot;Estado del inventario&quot; vive en su Inicio, no como pestaña de Reportes" aria-label="No — Estado del inventario vive en su Inicio, no como pestaña de Reportes">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
+              <td><span class="punto-acceso es-no" aria-label="No">—</span></td>
             </tr>
             <tr>
               <td>
                 <span class="perfil-badge perfil-cliente">Cliente</span>
                 <span class="perfil-descripcion">Solo entra a login.html</span>
               </td>
-              <td class="celda-acceso-no" colspan="12">
-                <span class="detalle-acceso detalle-acceso-ancho">Sin acceso al panel de administración — este perfil solo puede iniciar sesión en el portal de usuario (login.html y sus páginas).</span>
+              <td colspan="12">
+                <span class="detalle-acceso-ancho">Sin acceso al panel de administración — este perfil solo puede iniciar sesión en el portal de usuario (login.html y sus páginas).</span>
               </td>
             </tr>
           </tbody>

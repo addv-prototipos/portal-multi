@@ -29210,3 +29210,68 @@ contenedor" debe usar `>` directo entre el contenedor y la tarjeta —
 un selector descendiente alcanza también cualquier tarjeta anidada
 más abajo que SÍ necesita conservar su comportamiento interactivo
 propio.
+
+## Punto 482 - opencode: agentes, memoria operativa y skill addv-web-app dual (6 nov 2026, CERRADO en localhost)
+
+**Contexto**: el usuario pidió generar agentes de opencode que aprendan
+cómo trabaja Claude Code en este repo, que la memoria viva en
+`opencode.md`, que aprendan el despliegue real a Vultr y que la skill
+`D:\srv\addv-web-app` replique la configuración actual para guiar tanto a
+Claude como a opencode. Es una decisión de entorno/operación, no una
+feature de producto: no tocó backend, control ni frontend.
+
+**Creado en `portalFac`**:
+- `opencode.jsonc` — `instructions: ["opencode.md"]`,
+  `default_agent: "addv-orchestrator"`, permisos por herramienta,
+  `external_directory` para las rutas de skills/repos y MCP
+  `chrome-devtools` habilitado; `claude-flow`/`idea` documentados y
+  deshabilitados por costo de arranque.
+- `opencode.md` — memoria operativa: protocolo de 8 pasos, reglas no
+  negociables, cómo razona Claude, mapa del proyecto, comandos, gotchas,
+  runbook Vultr sin secretos, inventario de skills/configuración, lectura
+  de Claude Mem y plan de olas paralelas.
+- `.opencode/agent/` — 6 agentes: `addv-orchestrator` (primary),
+  `claude-memory`, `vultr-operator`, `skills-sync`, `project-auditor` y
+  `docs-keeper` (subagentes).
+- `.opencode/command/` — `/addv` (protocolo) y `/plan-parallel` (olas).
+
+**Actualizado en `D:\srv\addv-web-app`**: `SKILL.md` reescrita como skill
+dual Claude Code + opencode, con estructura de documentación real de este
+proyecto (raíz, no `addv/`), inventario de skills y estado real de
+herramientas al 2026-11-06, configuración exacta de ambos agentes, roster
+y olas, y runbook Vultr resumido. Nuevas referencias:
+`references/opencode-setup.md`, `references/vultr-runbook.md` y
+`references/agents/*.md` (plantillas de los 6 agentes). Sincronizada a
+`C:\Users\Antonio\.claude\skills\addv-web-app\SKILL.md` y
+`C:\Users\Antonio\.agents\skills\addv-web-app\SKILL.md`; las 3 copias
+quedaron con el MISMO SHA256
+`6DE92EC1712C12ACFF22D1B24D3399D96E3034671AA715AEE0B8BACD8D29C1D4`.
+
+**Decisiones de diseño**:
+- La estructura de documentación de Clarvo se respeta en la raíz
+  (`AGENTS.md`, `CLAUDE.md`, `PROJECT_STATE.md`, `cmem.md`, `README.md`);
+  la regla de `addv/` de la skill se aplica solo a proyectos nuevos o que
+  ya la usen, nunca moviendo archivos de este repo sin confirmación.
+- Claude Mem es solo lectura desde opencode (no hay MCP `mem-search`); la
+  fuente de verdad sigue siendo `cmem.md` + `PROJECT_STATE.md`.
+- Los secretos no se copiaron: siguen en `.env` y
+  `VULTR/prodDoc.html`; el runbook los referencia, no los reproduce.
+- Después de cambiar `opencode.jsonc` o los agentes hay que reiniciar
+  opencode; no recarga en caliente.
+
+**Validación real (local, sin Docker nuevo)**:
+- `opencode.jsonc` parseado como JSONC (comentarios removidos): OK,
+  `default_agent=addv-orchestrator`.
+- Frontmatter YAML de los 6 agentes y 2 comandos validado con `js-yaml`
+  de `backend/node_modules`: 8/8 OK, todos con `description`.
+- Frontmatter de las 3 copias de `SKILL.md`: `name=addv-web-app`,
+  descripción de 1009 caracteres, OK.
+- `Get-FileHash` de las 3 copias: idéntico.
+- Búsqueda de secretos en los archivos nuevos: solo coincidencias de la
+  palabra "secretos" y nombres de variables (`MYSQL_ROOT_PASSWORD`), sin
+  valores reales.
+
+**Pendiente**: reiniciar opencode para que cargue agentes/comandos; no se
+desplegó nada a producción (no se pidió). `opencode.md` y `AGENTS.md` /
+`CLAUDE.md` deben actualizarse en el mismo cambio si una regla persistente
+cambia.

@@ -6580,12 +6580,17 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .estatus-http-error { background: var(--color-error-soft); color: var(--color-error); }
 
 /* ---------- Tabla "Perfiles y roles de acceso" (solo para "admin") ----------
-   Diseñada para escanearse de un vistazo: cada columna es un área del
-   panel, cada fila un perfil, y el ícono de check/el guion responde de inmediato "¿puede
-   entrar aquí?" sin tener que leer texto. El detalle fino (CUÁLES
-   tarjetas de Configuraciones) se agrega como texto secundario
-   más pequeño, subordinado al símbolo — no compite con la respuesta
-   principal de la celda. */
+   Punto 481 (propuesta 1 de 5, elegida por el usuario, 2026-11-06):
+   reemplaza la versión anterior (texto de detalle siempre visible debajo
+   de cada ✓, min-width:1100px, scroll horizontal casi garantizado) por
+   una matriz compacta — encabezados de módulo en vertical (una sola
+   palabra de ancho por columna) y el detalle fino (CUÁLES tarjetas de
+   Configuraciones, qué acción queda exclusiva de otro perfil) se mueve
+   al tooltip único del sitio ([data-tooltip]/inicializarTooltips(), ya
+   inicializado al arrancar — ningún JS nuevo) en vez de ocupar espacio
+   permanente. Un punto con detalle lleva un indicador de color
+   (.tiene-nota) para que se note que hay más información sin tener que
+   pasar el mouse por los 60 puntos uno por uno. */
 .tabla-perfiles-wrap {
   overflow-x: auto;
   border: 1px solid var(--color-border);
@@ -6594,8 +6599,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .tabla-perfiles {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
-  min-width: 1100px;
+  font-size: 12px;
 }
 .tabla-perfiles thead th {
   text-align: left;
@@ -6603,19 +6607,31 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   color: var(--color-ink-soft);
   font-weight: 700;
   font-size: 11px;
-  text-transform: uppercase;
   letter-spacing: 0.03em;
-  padding: 11px 14px;
+  padding: 10px 10px;
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
 }
-.tabla-perfiles thead th:first-child { border-top-left-radius: var(--radius-md); }
+.tabla-perfiles thead th:first-child { border-top-left-radius: var(--radius-md); min-width: 148px; }
 .tabla-perfiles thead th:last-child { border-top-right-radius: var(--radius-md); }
+.tabla-perfiles thead th.th-modulo {
+  text-align: center;
+  text-transform: none;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  height: 160px;
+  padding: 10px 2px 8px;
+  font-size: 10.5px;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
 .tabla-perfiles tbody td {
-  padding: 12px 14px;
+  padding: 9px 10px;
   border-bottom: 1px solid var(--color-border);
   vertical-align: middle;
+  text-align: center;
 }
+.tabla-perfiles tbody td:first-child { text-align: left; }
 .tabla-perfiles tbody tr:last-child td { border-bottom: none; }
 .tabla-perfiles tbody tr:nth-child(even) { background: rgba(33, 38, 31, 0.015); }
 
@@ -6627,31 +6643,37 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   font-weight: 400;
 }
 
-.icono-acceso {
+.punto-acceso {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  font-size: 13px;
-  font-weight: 700;
+  position: relative;
 }
-.celda-acceso-si .icono-acceso { background: var(--color-accent-soft); color: var(--color-accent-dark); }
-.celda-acceso-no .icono-acceso { background: var(--color-bg); color: var(--color-ink-soft); }
+.punto-acceso.es-si { background: var(--color-accent-soft); color: var(--color-accent-dark); }
+.punto-acceso.es-no { color: var(--color-ink-soft); font-size: 13px; }
+.punto-acceso.tiene-nota { cursor: help; }
+.punto-acceso.tiene-nota::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-warn);
+  border: 1.5px solid var(--color-surface, #fff);
+}
+.punto-acceso:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
-.detalle-acceso {
-  display: block;
-  font-size: 10px;
-  color: var(--color-ink-soft);
-  margin-top: 3px;
-  line-height: 1.4;
-  max-width: 150px;
-}
 .detalle-acceso-ancho {
-  max-width: none;
+  display: block;
   font-size: 11.5px;
   font-style: italic;
+  color: var(--color-ink-soft);
+  line-height: 1.5;
 }
 
 /* Utilidad de accesibilidad: visible para lectores de pantalla, oculta
