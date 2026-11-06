@@ -275,7 +275,16 @@ module.exports = function metricsRouter() {
           contenedoresTotal: contenedores.length,
           contenedoresCorriendo: contenedores.filter((c) => c.estado === 'running').length,
           contenedoresDetenidos: contenedores.filter((c) => c.estado !== 'running').length,
-          contenedoresConProblema: contenedores.filter((c) => c.salud === 'unhealthy').length,
+          // Bug real encontrado en producción (punto 473, addendum):
+          // Docker conserva el ÚLTIMO healthcheck conocido de un
+          // contenedor incluso después de que se detiene — sin filtrar
+          // por "running" primero, una tarea VIEJA de Swarm (dejada por
+          // un `docker service update --force` anterior, nunca borrada
+          // sola) que haya fallado su healthcheck justo antes de
+          // apagarse se contaba como "con problema" para siempre,
+          // aunque ya ni siquiera exista de verdad. Solo cuenta
+          // problemas de contenedores que SÍ están corriendo ahora.
+          contenedoresConProblema: contenedores.filter((c) => c.estado === 'running' && c.salud === 'unhealthy').length,
           cpuHostNucleos: typeof info?.NCPU === 'number' ? info.NCPU : null,
           memHostTotalMb: aMegabytes(info?.MemTotal),
           healthChecks: checks,
