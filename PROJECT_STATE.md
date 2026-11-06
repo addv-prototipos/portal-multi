@@ -28648,3 +28648,66 @@ Archivos: `VULTR/limpieza-docker.sh`, `VULTR/clarvo-limpieza.service`,
 `VULTR/clarvo-limpieza.timer` (los 3 gitignored — solo en el servidor y
 como referencia local, mismo criterio que `docker-stack.yml`/
 `nginx-host-clarvo.mx.conf`).
+
+## Punto 476 — Ajuste estético del tablero de Kerberos + ampliación a 5 checks de salud (6 nov 2026, CERRADO)
+
+Pedido explícito del usuario con 2 capturas: (1) mover la tarjeta
+"Estado general de Clarvo" (antes la primera sección del tablero) para
+que quede justo antes de "Contenedores Docker" — la sección donde de
+verdad agrupa con el resto de salud de infraestructura — en vez de
+abrir la página; (2) dentro de esa tarjeta, monitorear por separado
+sitio clarvo.mx, admin, portal de clientes, control y backend, más un
+indicador de % de salud agregada.
+
+**Reordenamiento**: `kerberos/public/dashboard.html` — orden nuevo
+Resumen → Rendimiento → Estado general → Contenedores → Mapa (antes
+Estado general iba primero). `#pagenav` actualizado al mismo orden.
+
+**5 checks reales, no 3** (`kerberos/routes/metrics.js:SERVICIOS_HEALTH`):
+antes eran `backend`/`control`/`frontend` (frontend = solo el nginx
+interno, sin verificar rutas reales). Ahora: `sitio` (clarvo.mx raíz),
+`admin` (`/admin`) y `portal` (`/login`) se verifican DE PUNTA A PUNTA
+contra la URL pública real, a través del nginx del host — detectan un
+problema de ruteo/nginx específico de una de las dos superficies
+(admin vs. portal) aunque el proceso `backend` interno siga vivo, cosa
+que el check viejo de "frontend" nunca podía distinguir. `control` y
+`backend` siguen contra su propio healthcheck interno
+(`http://control:4001/health`, `http://backend:4000/api/health`).
+
+**Gotcha nuevo, ya corregido**: `revisarServicio()` solo tenía
+`require('http')` — una URL `https://` se habría conectado con el
+módulo equivocado (texto plano contra el puerto por default 80, nunca
+443, sin TLS). Ahora el módulo (`http`/`https`) y el puerto por
+default (80/443) se eligen según `destino.protocol`.
+
+**% de salud agregada**: nuevo `#estado-general-pct` (24px, al lado
+derecho del semáforo) — `disponibles / checks.length` redondeado,
+mismo color semántico que el dot (verde/ámbar/rojo/gris). Reset
+explícito a `—` en el catch de `cargarSalud()` (mismo patrón que el
+resto de los avisos de sección).
+
+**Env vars nuevas** (`docker-compose.yml` dev + `VULTR/docker-stack.yml`
+prod, gitignored este último): `SITE_HEALTH_URL`, `ADMIN_HEALTH_URL`,
+`PORTAL_HEALTH_URL` reemplazan a `FRONTEND_HEALTH_URL` (retirada). En
+dev apuntan al `frontend` interno (`http://frontend:80/`, `/admin`,
+`/login` — no hay dominio público en local); en producción apuntan a
+`https://clarvo.mx/`, `/admin`, `/login` reales.
+
+**Verificado real antes de desplegar** (chrome-devtools contra el
+stack local, Docker Desktop): login real, orden de secciones
+confirmado visualmente, los 5 chips de servicio con sus 5 nombres
+correctos, badge de `100%` en verde cuando los 5 responden — capturas
+de pantalla completas antes de tocar producción.
+
+**Desplegado a producción** (mismo patrón ya usado todo el día:
+`git archive HEAD -- kerberos | gzip`, extraído en
+`/opt/clarvo/kerberos`, `docker-stack.yml` actualizado vía `scp` con
+checksum idéntico, `docker build` + `docker stack deploy` +
+`docker service update --force clarvo_kerberos`). Checksums de los 3
+estáticos (`dashboard.html/css/js`) verificados idénticos contra
+`https://clarvo.mx/kerberos/*` después del deploy (normalizando
+CRLF/LF — `git archive` en Windows aplica la conversión de
+`core.autocrlf` al exportar, el contenido real es idéntico byte a
+byte una vez normalizado; no es una desviación real, ya documentado
+como gotcha operativo de esta sesión). Logs del contenedor en
+producción limpios, sin errores, tras el redeploy.

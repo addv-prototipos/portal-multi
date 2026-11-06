@@ -272,6 +272,15 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   veces no recoge cambios de archivo — usar `--no-cache` seguido de
   `up -d --force-recreate <servicio>` cuando un cambio no aparece al
   probar.
+- **`git archive HEAD -- <paths> | gzip` en Windows exporta con CRLF,
+  aunque el blob commiteado esté en LF** (punto 476, 6 nov 2026): el
+  checksum del archivo extraído en el VPS NUNCA va a coincidir contra
+  `git show HEAD:<path> | md5sum` sin normalizar — no es un deploy
+  corrupto, es `core.autocrlf` del Git de Windows aplicando la misma
+  conversión que usaría un `checkout` normal, también al exportar. Antes
+  de alarmarse por un checksum que no cuadra tras un deploy, comparar
+  con `tr -d '\r'` de ambos lados (remoto Y `git show`) antes de asumir
+  que el contenido real difiere.
 - **`docker compose restart <servicio>` nunca re-lee `env_file`/`.env`**
   (punto 403, hallazgo M-11, 2026-10-16): solo reinicia el proceso
   dentro del contenedor YA existente — un cambio en una variable que
