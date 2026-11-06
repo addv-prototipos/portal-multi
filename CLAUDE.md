@@ -1418,6 +1418,23 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   sin diagonal) dentro del handler antes de redirigir, `next()` en
   cualquier otro caso — nunca asumir que una sola ruta Express cubre la
   distinción bare/con-diagonal por sí sola.
+- **El grupo dueño de `/var/run/docker.sock` NO es el mismo en Docker
+  Desktop (Windows/Mac) que en un Linux real** (punto 473, addendum):
+  Docker Desktop monta el socket como grupo "root" (GID 0) visto desde
+  dentro del contenedor; un Linux real (cualquier VPS de producción) usa
+  `root:docker`, típicamente GID **999** — un grupo totalmente distinto.
+  Una imagen que solo agrega su usuario no-root a `root(0)` (probado y
+  funcionando en Docker Desktop) truena con `EACCES` en producción, sin
+  ningún error al hacer build — solo se ve en los logs del contenedor ya
+  corriendo (`docker logs`, spam de `EACCES /var/run/docker.sock`).
+  Patrón correcto (`kerberos/Dockerfile`): `ARG DOCKER_GID` (default
+  999) + agregar el usuario a un grupo adicional con ese GID (reusar uno
+  existente si ya hay uno con ese GID, el nombre no importa, solo el
+  número), SIN quitar la membresía a root(0) que ya cubre Docker
+  Desktop. Antes de dar por buena cualquier imagen que monte el socket
+  de Docker, verificar `ls -la /var/run/docker.sock` en el host REAL de
+  destino — nunca asumir que "ya funcionaba en local" es evidencia
+  suficiente cuando local es Docker Desktop y destino es Linux real.
 - **Un campo "preparado pero nunca conectado" puede llevar meses en el
   código sin que nadie lo note** (punto 433): `inventarioImagen.js:guardarImagenProducto()`
   ya regresaba `pesoBytes` desde antes de este punto — ningún call site

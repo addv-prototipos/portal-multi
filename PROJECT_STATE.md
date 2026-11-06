@@ -28313,6 +28313,34 @@ Archivos: `kerberos/` (app completa), `control/utils/kerberosEnv.js`,
 (gitignored, solo en el servidor), `VULTR/nginx-host-clarvo.mx.conf`
 (gitignored, solo en el servidor).
 
+**Addendum (5 nov 2026, mismo día, reportado por el usuario con
+capturas reales): tercer bug, "Contenedores Docker" y "Datos del
+servidor" vacíos en producción — `EACCES /var/run/docker.sock`.** El
+Dockerfile original asumía que el socket montado pertenece al grupo
+"root" visto desde dentro del contenedor — cierto en Docker Desktop
+(Windows/Mac, donde se probó primero y funcionó), **falso en un Linux
+real**: `ls -la /var/run/docker.sock` en el VPS de producción muestra
+`root:docker`, GID **999**, un grupo totalmente distinto de
+root(GID 0). `appuser` nunca pertenecía a ese grupo → el cliente HTTP
+contra el socket (`kerberos/utils/dockerClient.js`) fallaba con EACCES
+antes de poder mandar ninguna petición, sin importar que la app en sí
+estuviera bien — confirmado en los logs reales del contenedor
+(`docker logs`, spam de `EACCES /var/run/docker.sock`). Fix:
+`kerberos/Dockerfile` ahora acepta `ARG DOCKER_GID` (default `999`, el
+valor real confirmado en este VPS) y agrega `appuser` a un grupo
+adicional con ese GID (reusa un grupo existente si ya hay uno con ese
+GID — en Alpine local coincidió con un grupo preexistente llamado
+"ping", el nombre no importa, solo el GID numérico) — mantiene también
+la membresía a root(0) de antes, así que Docker Desktop local sigue
+funcionando igual. Verificado real tras el fix: `docker exec ... node -e
+"...socketPath:'/var/run/docker.sock'..."` devuelve `200` con los 26
+contenedores reales del host, cero EACCES en logs nuevos. **Lección
+reusable**: cuando una app se prueba primero en Docker Desktop
+(Windows/Mac) y luego se despliega a un Linux real, nunca asumir que el
+grupo dueño del socket de Docker es el mismo en ambos — verificar
+`ls -la /var/run/docker.sock` en el host real de destino antes de dar
+por buena una imagen que ya "funcionaba en local".
+
 ## Punto 474 — Gate de Términos y Condiciones nunca aparecía en producción: `terminos_versiones` real estaba vacía (5 nov 2026, CERRADO)
 
 **Reporte del usuario**: en `https://clarvo.mx/mi-negocio/admin` el login
