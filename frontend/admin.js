@@ -2684,8 +2684,17 @@
   let reglasExpiracionProductos = ['30d'];
 
   const RESTRICCIONES_PERFIL = {
+    // Punto en curso: Administrador (dueño del tenant) no podía ver
+    // "Tickets" ni "Constancias" — exclusivo de fiscal desde que esas
+    // vistas existen, sin ninguna razón de negocio para negarle la
+    // LECTURA de un módulo que su propio plan ya paga (gobernado en
+    // /control). Backend ya deja pasar 'administrador' en los GET de
+    // ambas vistas (requireAdminArea('administrador','fiscal')); los
+    // POST/PUT de acciones (marcar listo, eliminar, subir factura,
+    // etc.) siguen exclusivos de fiscal — administrador entra en modo
+    // lectura real, no edición.
     administrador: {
-      vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'auditoria', 'promociones', 'configuraciones'],
+      vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'auditoria', 'promociones', 'configuraciones', 'tickets', 'constancias'],
       tarjetasConfigPermitidas: ['facturacion-toggle-card', 'global-config-card', 'marca-tema-card', 'ticket-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card', 'notif-toggle-card', 'suscripcion-config-card'],
     },
     // Punto 360 (2026-10-02): "lectura-reportes" se agregó aquí porque el
@@ -5394,6 +5403,17 @@
       // pero que la barra de sesión sigue necesitando para mostrarse
       // completa.
       aplicarInfoFiscalBarra(data);
+      // Bug real reportado ("aunque configure todo, el aviso sale una y
+      // otra vez"): guardar la Clave SAT aquí actualizaba la barra de
+      // sesión pero NUNCA recalculaba `datosFiscalesCompletos` — esa
+      // variable solo se calculaba una vez, al cargar la página, así que
+      // el aviso bloqueante de mostrarAvisoFiscalSiFalta() seguía viendo
+      // el valor viejo ("falta") para siempre, sin importar cuántas veces
+      // se guardara de verdad. Con la respuesta fresca del servidor
+      // (misma forma que recibe verificarDatosFiscalesFaltantes al
+      // login), el aviso deja de reaparecer en cuanto los datos sí están
+      // completos.
+      verificarDatosFiscalesFaltantes(data);
     } catch (err) {
       els.globalConfigError.textContent = 'No se pudo conectar con el servidor.';
     } finally {
@@ -5453,6 +5473,11 @@
       aplicarInfoFiscalBarra(data);
       aplicarRegimenFiscalCompaniaBox(data.regimen_fiscal_compania);
       aplicarRazonSocialCompaniaBox(data.razon_social_compania);
+      // Mismo bug/fix que en "Guardar cambios" (ver ahí abajo): subir la
+      // constancia ya trae el RFC fresco en `data`, pero nunca recalculaba
+      // `datosFiscalesCompletos` — el aviso bloqueante seguía viendo el
+      // valor viejo ("falta") para siempre tras este guardado exitoso.
+      verificarDatosFiscalesFaltantes(data);
 
       const tipoPersonaTexto = textoTipoPersona(data.tipo_persona_compania);
       showToast(
@@ -8917,9 +8942,24 @@
   function seleccionarSeccionConfig(idTarjeta) {
     const seccion = CONFIG_SECCIONES.find((s) => s.id === idTarjeta);
     if (!seccion) return;
+    // Bug real encontrado (punto en curso): este querySelectorAll seleccionaba
+    // CUALQUIER `.admin-config-card`, incluida `retencion-config-card`
+    // (anidada DENTRO de `facturacion-toggle-card` desde el punto 475) — su
+    // propio id nunca coincide con `idTarjeta`, así que quedaba marcada
+    // "inactiva" y forzada a `display:none` (regla
+    // `.config-modal-main-body .admin-config-card`, necesita
+    // `.is-active-config-section` para contrarrestarla — ver admin.css) cada
+    // vez que se abría CUALQUIER sección, dejando el borrado automático de
+    // tickets invisible para siempre sin importar su propio acordeón interno
+    // (`btn-toggle-retencion`). Fix: una tarjeta ANIDADA se activa junto con
+    // su tarjeta contenedora (nunca comparando su propio id) — su propio
+    // botón interno sigue controlando solo si SU `.admin-config-body` está
+    // colapsado, nunca si la tarjeta completa existe en pantalla.
     document.querySelectorAll('#config-modal-main-body .admin-config-card').forEach((el) => {
-      const activo = el.id === idTarjeta;
+      const padreAnidado = el.parentElement.closest('.admin-config-card');
+      const activo = padreAnidado ? padreAnidado.id === idTarjeta : el.id === idTarjeta;
       el.classList.toggle('is-active-config-section', activo);
+      if (padreAnidado) return;
       // El acordeón viejo (ahora inerte, ver admin.css) era quien le
       // quitaba/ponía `hidden` a esta caja al hacer clic — sin eso, se
       // quedaba oculta para siempre (el atributo `hidden` gana con

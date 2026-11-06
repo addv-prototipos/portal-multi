@@ -29072,3 +29072,111 @@ Archivos: `control/utils/facturacionClarvo.js`,
 `control/utils/facturacionGestion.js`,
 `control/test/unit/facturacionClarvo.test.js`, `backend/server.js`,
 `frontend/admin.html`, `frontend/admin.js`, `frontend/admin.css`.
+
+## Punto 481 — 3 bugs reales: tarjeta de retención de tickets invisible, Administrador sin lectura de Tickets/Constancias, aviso fiscal pegajoso que nunca se refrescaba (6 nov 2026, CERRADO en localhost)
+
+Sesión continuación. El usuario reportó 3 cosas en un solo mensaje + 1
+interrupción a media sesión con un 4to bug.
+
+**1) "No encuentro el eliminado automático de tickets"**: investigación de
+`git log` confirmó que el código NUNCA se borró — sigue completo en
+`backend/server.js` (3 rutas `/api/admin/config/tickets-retencion`) y en
+el frontend (card `retencion-config-card`, el aviso en el portal de
+clientes). Causa real: bug de visibilidad en
+`seleccionarSeccionConfig()` (`frontend/admin.js`), introducido como
+efecto colateral de la sesión que movió esta tarjeta DENTRO de
+"Módulo Gestión de facturas" (commit c3d95b3, nunca verificado
+visualmente después del movimiento). El selector
+`querySelectorAll('#config-modal-main-body .admin-config-card')` itera
+TODAS las tarjetas con esa clase, incluida la anidada
+`#retencion-config-card` (misma clase que su padre
+`#facturacion-toggle-card`) — como el id de la anidada nunca coincide
+con `idTarjeta`, quedaba `display:none` para siempre sin importar qué
+sección estuviera activa. Fix: detectar si el elemento tiene un
+ancestro `.admin-config-card` y heredar su estado activo de ese
+ancestro en vez de comparar el id propio; además no tocar el
+`.admin-config-body` de la anidada (tiene su propio botón de
+toggle/colapso interno, independiente). **Patrón a replicar**: cualquier
+tarjeta anidada dentro de otra con la MISMA clase necesita este mismo
+chequeo de ancestro — nunca asumir que un selector pensado para
+hermanos de nivel superior es seguro para un árbol con nesting.
+Verificado real en Docker: la tarjeta "Borrado automático de tickets" y
+su input "Días antes de eliminar un ticket" + botón Guardar ya
+renderizan y funcionan.
+
+**2) Administrador sin lectura de Tickets/Constancias**: 9 rutas GET en
+`backend/server.js` usaban `requireAdminArea('fiscal')` sin ninguna
+razón de negocio para excluir al perfil `administrador` (el de mayor
+privilegio del tenant) — se agregó `'administrador'` a cada allowlist
+(solo las 9 rutas GET; las de escritura/acción — marcar listo, eliminar,
+subir factura — siguen exclusivas de Fiscal, por la palabra "lectura"
+explícita del usuario):
+`/api/admin/config/campos-obligatorios`, `/api/admin/catalogos/uso-cfdi`,
+`/api/admin/registros`, `/api/admin/archivo/:id`,
+`/api/admin/config/tickets-retencion`,
+`/api/admin/tickets/pendientes-sin-contador`,
+`/api/admin/tickets/usuarios-actualizado-por`,
+`/api/admin/tickets/:id/imagen`, `/api/admin/tickets/:id/factura`.
+**Backend-only no basta** (gotcha ya documentado arriba en este
+archivo) — se agregó también `'tickets'` y `'constancias'` a
+`RESTRICCIONES_PERFIL.administrador.vistasPermitidas` en
+`frontend/admin.js`, o el sidebar seguiría ocultando esas 2 vistas
+aunque el backend ya las permitiera. Tabla "Perfiles y roles de acceso"
+(`frontend/admin.html`) actualizada: Administrador/Tickets y
+Administrador/Constancias pasan de "No"/`—` a "Sí", con nota
+"Lectura — las acciones (marcar listo, eliminar, subir factura) siguen
+exclusivas de Fiscal" y "Lectura" respectivamente.
+
+**3) (interrupción a media sesión) "Falta configurar los datos
+fiscales" reaparecía una y otra vez pese a ya estar todo configurado**:
+`datosFiscalesCompletos` (flag de módulo en `frontend/admin.js`) solo se
+calculaba UNA VEZ, en el login/carga inicial
+(`verificarDatosFiscalesFaltantes(config)`, un solo call site real,
+gateado por `opciones.verificarFiscalFaltante`) — nunca se refrescaba
+después de los 2 flujos que sí cambian el dato real (guardar
+Configuraciones fiscales y subir constancia de situación fiscal), aunque
+ambos ya reciben del servidor el objeto de configuración completo y
+actualizado en su respuesta. Fix: agregado
+`verificarDatosFiscalesFaltantes(data)` justo después de
+`aplicarInfoFiscalBarra(data)` (handler de "Guardar cambios") y justo
+después de `aplicarRazonSocialCompaniaBox(data.razon_social_compania)`
+(handler de "Subir constancia") — confirmado por lectura de
+`backend/utils/config.js` que ambos endpoints siempre regresan el
+config COMPLETO fusionado (`setConfiguracionGlobal`), no solo los campos
+cambiados, así que el fix funciona para cualquiera de los 2 flujos de
+guardado. **Patrón a replicar**: cualquier flag de validación
+client-side calculado una sola vez al cargar debe refrescarse en TODO
+call site que reciba de vuelta datos frescos del servidor que puedan
+afectarlo — nunca asumir que "ya se calculó al inicio" sigue siendo
+válido tras un guardado exitoso.
+
+**Validado real** (Docker local, Playwright/chrome-devtools, tenant
+`panes`): se insertó una fila de prueba en `configuracion` simulando RFC
+configurado + Clave SAT vacía (sin tener a mano un PDF de constancia
+real), se confirmó que el aviso aparecía correctamente al entrar a
+Tickets (reproduce el estado "incompleto" real), se llenó la Clave SAT
+(8 dígitos) por la UI real, se guardó (`PUT
+/api/admin/config/global` → 200 confirmado en Network), y al volver a
+Tickets en la MISMA sesión (sin recargar) el aviso ya NO reapareció. 0
+errores de consola nuevos tras el fix (el único error de consola visible,
+403 Forbidden suelto, es ajeno — recurso estático sin relación).
+
+**Pruebas**: `node --check` limpio en los 3 archivos tocados
+(`backend/server.js`, `frontend/admin.js`, `frontend/admin.html` no
+aplica check de JS). Suite `backend` 1380/1382 (2 fallos preexistentes y
+ajenos a este punto: `multitenant.test.js` por
+`facturacionHabilitadaPlan` del punto 480 de otra sesión el mismo día, y
+el timeout de cold-start ya documentado arriba para
+`docsEnabled.test.js` — ninguno relacionado con los archivos tocados
+aquí). Suite `control` 582/582 sin cambios.
+
+**Pendiente, no implementado en esta sesión**: 5 propuestas de diseño
+(Artifact) para la tabla "Perfiles y roles de acceso" — pedidas
+explícitamente por el usuario con `/impeccable` + `/ui-ux-pro-max`, el
+usuario debe elegir una antes de implementarla en el HTML/CSS real.
+
+**Sin desplegar a producción todavía** — el usuario no lo ha pedido para
+este punto; queda en el working tree/commit local hasta que lo
+solicite.
+
+Archivos: `backend/server.js`, `frontend/admin.js`, `frontend/admin.html`.

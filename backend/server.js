@@ -4086,7 +4086,7 @@ app.get(
   '/api/admin/config/campos-obligatorios',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('fiscal'),
+  requireAdminArea('administrador', 'fiscal'),
   asyncHandler(async (req, res) => {
     res.json(await getCamposObligatorios());
   })
@@ -4125,7 +4125,7 @@ app.get(
   adminApiLimiter,
   requiereFacturacionActiva,
   requireAdminAuth,
-  requireAdminArea('fiscal'),
+  requireAdminArea('administrador', 'fiscal'),
   asyncHandler(async (req, res) => {
     const info = await getInfoSincronizacion();
     res.json({ usos: await getUsosCfdi(), ...info });
@@ -4505,7 +4505,7 @@ app.get(
   adminApiLimiter,
   requiereFacturacionActiva,
   requireAdminAuth,
-  requireAdminArea('fiscal'),
+  requireAdminArea('administrador', 'fiscal'),
   asyncHandler(async (req, res) => {
     const verPapelera = req.query.papelera === 'true';
     const condicion = verPapelera ? 'eliminado_en IS NOT NULL' : 'eliminado_en IS NULL';
@@ -4617,7 +4617,7 @@ app.get(
   adminApiLimiter,
   requiereFacturacionActiva,
   requireAdminAuth,
-  requireAdminArea('fiscal'),
+  requireAdminArea('administrador', 'fiscal'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -6700,7 +6700,7 @@ app.get(
   adminApiLimiter,
   requiereFacturacionActiva,
   requireAdminAuth,
-  requireAdminArea('fiscal'),
+  requireAdminArea('administrador', 'fiscal'),
   asyncHandler(async (req, res) => {
     const dias = await getRetencionTicketsDias();
     const ultimaLimpieza = await getInfoUltimaLimpieza(CLAVE_ULTIMA_LIMPIEZA_TICKETS);
@@ -7402,7 +7402,7 @@ app.get(
   adminApiLimiter,
   requiereFacturacionActiva,
   requireAdminAuth,
-  requireAdminArea('fiscal'),
+  requireAdminArea('administrador', 'fiscal'),
   asyncHandler(async (req, res) => {
     const config = await getConfigSmtp();
     const correoContadorConfigurado = Boolean(config && config.correo_contador);
@@ -7530,7 +7530,7 @@ app.get(
   adminApiLimiter,
   requiereFacturacionActiva,
   requireAdminAuth,
-  requireAdminArea('fiscal'),
+  requireAdminArea('administrador', 'fiscal'),
   asyncHandler(async (req, res) => {
     const [filas] = await pool.query(
       `SELECT DISTINCT actualizado_por FROM tickets
@@ -7912,7 +7912,7 @@ app.get(
   adminApiLimiter,
   requiereFacturacionActiva,
   requireAdminAuth,
-  requireAdminArea('fiscal'),
+  requireAdminArea('administrador', 'fiscal'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -7944,7 +7944,7 @@ app.get(
   adminApiLimiter,
   requiereFacturacionActiva,
   requireAdminAuth,
-  requireAdminArea('fiscal'),
+  requireAdminArea('administrador', 'fiscal'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {

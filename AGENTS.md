@@ -869,6 +869,27 @@ solo la frase en español de la UI.
     reconstruir el historico completo de una vez en vez de esperar a que
     se acumule un snapshot — ver crecimientoTenantsHistorico() en el
     mismo punto.
+  - Tarjeta ANIDADA dentro de otra .admin-config-card (punto 481):
+    seleccionarSeccionConfig() comparaba el id propio de cada tarjeta
+    contra la seccion elegida — una tarjeta anidada (ej.
+    #retencion-config-card dentro de #facturacion-toggle-card) nunca
+    coincide con ningun idTarjeta posible, asi que quedaba display:none
+    para siempre ("Borrado automatico de tickets" nunca se borro del
+    codigo, solo quedo invisible al anidarse). Fix: buscar un ancestro
+    .admin-config-card con closest() y heredar su estado activo antes de
+    comparar el id propio. Cualquier tarjeta nueva anidada necesita el
+    mismo chequeo.
+  - Flag de validacion client-side calculado una sola vez al login nunca
+    se refresca solo (punto 481): datosFiscalesCompletos
+    (frontend/admin.js) solo se recalculaba en la carga inicial — guardar
+    Configuraciones fiscales o subir la constancia SI actualiza el dato
+    real (ambos devuelven el config completo fusionado), pero nunca
+    volvian a llamar verificarDatosFiscalesFaltantes(), asi que el aviso
+    "Falta configurar los datos fiscales" seguia apareciendo con datos ya
+    completos. Fix: llamar esa funcion tambien en los 2 handlers de
+    guardado, con la respuesta real del servidor. Cualquier flag asi debe
+    refrescarse en todo call site que reciba datos frescos que puedan
+    cambiarlo.
 
 ## Stack
 

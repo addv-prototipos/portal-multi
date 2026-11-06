@@ -2130,6 +2130,41 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   (una fecha ya guardada, un estado ya guardado) permite reconstruir el
   histórico real sin esperar nada.
 
+- **Una tarjeta ANIDADA dentro de otra `.admin-config-card` queda oculta
+  para siempre si el selector de visibilidad no distingue nesting**
+  (punto 481, 2026-11-06): `seleccionarSeccionConfig()`
+  (`frontend/admin.js`) itera TODAS las `.admin-config-card` del modal de
+  Configuraciones comparando cada `id` contra la sección elegida —
+  `#retencion-config-card` (anidada dentro de
+  `#facturacion-toggle-card`, mismo patrón que cualquier tarjeta-dentro-
+  de-tarjeta) nunca coincide con ningún `idTarjeta` posible, así que
+  quedaba `display:none` sin importar qué sección estuviera activa —
+  "Borrado automático de tickets" existía completo en el código (nunca
+  se borró, confirmado por `git log`) pero era invisible desde que se
+  anidó dentro de "Módulo Gestión de facturas". Fix: antes de comparar
+  el `id` propio, buscar un ancestro `.admin-config-card`
+  (`el.parentElement.closest(...)`) y heredar el estado activo de ESE
+  ancestro; no tocar el `.admin-config-body` de la anidada (tiene su
+  propio botón de colapso interno). Cualquier tarjeta nueva que se anide
+  dentro de otra con la misma clase debe pasar por este mismo chequeo —
+  nunca asumir que un selector pensado para hermanos de nivel superior
+  es seguro con nesting.
+- **Un flag de validación client-side calculado una sola vez al
+  login/carga nunca se refresca solo** (punto 481): `datosFiscalesCompletos`
+  (`frontend/admin.js`) se computaba únicamente en
+  `verificarDatosFiscalesFaltantes(config)` en el único call site de
+  carga inicial — guardar Configuraciones fiscales o subir la constancia
+  SÍ actualiza el dato real en el servidor (y ambos devuelven el config
+  COMPLETO fusionado, confirmado en `backend/utils/config.js`), pero
+  nunca volvían a llamar esa función, así que el aviso "Falta configurar
+  los datos fiscales" seguía apareciendo con datos ya completos. Fix:
+  llamar `verificarDatosFiscalesFaltantes(data)` también en los 2
+  handlers de guardado, con la respuesta real del servidor. Cualquier
+  flag de este tipo (calculado una vez, usado para bloquear/avisar) debe
+  refrescarse en TODO call site que reciba datos frescos capaces de
+  cambiarlo — nunca asumir que el cálculo inicial sigue vigente tras un
+  guardado exitoso.
+
 ## Stack
 
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),
