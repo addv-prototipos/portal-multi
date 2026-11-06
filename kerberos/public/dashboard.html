@@ -16,7 +16,7 @@
         <span class="env" id="entorno-chip">monitoreo · solo lectura</span>
       </div>
       <nav class="pagenav" id="pagenav" aria-label="Secciones del tablero">
-        <a href="#resumen">Resumen</a><a href="#rendimiento">Rendimiento</a><a href="#servicios">Servicios e infra</a><a href="#mapa">Mapa</a>
+        <a href="#estado-general">Estado general</a><a href="#resumen">Resumen</a><a href="#rendimiento">Rendimiento</a><a href="#servicios">Contenedores</a><a href="#mapa">Mapa</a>
       </nav>
       <div class="topbar-right">
         <div class="status-chip" id="status-chip" role="status" aria-live="polite">
@@ -32,6 +32,25 @@
   </header>
 
   <main>
+    <section id="estado-general">
+      <div class="section-head">
+        <h2>Estado general de Clarvo</h2>
+        <span class="hint" id="hint-servicios">&nbsp;</span>
+      </div>
+      <div class="card estado-general-card reveal">
+        <div class="estado-general-top" id="estado-general-top">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="estado-general-texto" id="estado-general-texto">Conectando...</span>
+        </div>
+        <p class="estado-general-sub">Control, panel de administración y portal de clientes — un vistazo rápido antes de entrar al detalle.</p>
+        <div class="aviso-vacio" id="aviso-salud" hidden role="alert" style="margin-top:14px">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          <span id="aviso-salud-texto"></span>
+        </div>
+        <div class="salud-fila" id="lista-salud"></div>
+      </div>
+    </section>
+
     <section id="resumen">
       <div class="section-head">
         <h2>Resumen</h2>
@@ -54,54 +73,43 @@
 
     <section id="servicios">
       <div class="section-head">
-        <h2>Servicios e infraestructura</h2>
-        <span class="hint" id="hint-servicios">&nbsp;</span>
+        <h2>Contenedores Docker</h2>
+        <span class="hint">Vista de solo lectura — ninguna acción apaga ni reinicia nada</span>
       </div>
-      <div class="twocol reveal">
-        <div class="card panel-body">
-          <h3>Salud de los servicios</h3>
-          <div class="aviso-vacio" id="aviso-salud" hidden role="alert" style="margin-top:14px">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-            <span id="aviso-salud-texto"></span>
-          </div>
-          <div id="lista-salud"></div>
+      <div class="card panel-body full reveal">
+        <div class="panel-head-row">
+          <h3>Contenedores <span class="muted" id="contenedores-conteo"></span></h3>
+          <span class="ro-badge">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            Solo lectura
+          </span>
         </div>
-
-        <div class="card panel-body">
-          <div class="panel-head-row">
-            <h3>Contenedores Docker <span class="muted" id="contenedores-conteo"></span></h3>
-            <span class="ro-badge">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-              Solo lectura
-            </span>
-          </div>
-          <div class="aviso-vacio" id="aviso-contenedores" hidden role="alert" style="margin-top:14px">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-            <span id="aviso-contenedores-texto"></span>
-          </div>
-          <div class="ctr-summary" id="ctr-summary"></div>
-          <div class="ctr-table-wrap">
-            <table class="ctr-table">
-              <caption class="visually-hidden">
-                Contenedores del servidor. Selecciona una fila para ver sus bitácoras. Vista de solo lectura, sin acciones de control.
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col"><span class="visually-hidden">Estado</span></th>
-                  <th scope="col">Nombre</th>
-                  <th scope="col">ID</th>
-                  <th scope="col">Imagen</th>
-                  <th scope="col">CPU</th>
-                  <th scope="col">Memoria</th>
-                  <th scope="col">Estado</th>
-                  <th scope="col">Bitácora</th>
+        <div class="aviso-vacio" id="aviso-contenedores" hidden role="alert" style="margin-top:14px">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          <span id="aviso-contenedores-texto"></span>
+        </div>
+        <div class="ctr-summary" id="ctr-summary"></div>
+        <div class="ctr-table-wrap">
+          <table class="ctr-table">
+            <caption class="visually-hidden">
+              Contenedores del servidor. Selecciona una fila para ver sus bitácoras. Vista de solo lectura, sin acciones de control.
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col"><span class="visually-hidden">Estado</span></th>
+                <th scope="col">Nombre</th>
+                <th scope="col">ID</th>
+                <th scope="col">Imagen</th>
+                <th scope="col">CPU</th>
+                <th scope="col">Memoria</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Bitácora</th>
                 </tr>
               </thead>
               <tbody id="tbody-contenedores"></tbody>
             </table>
           </div>
         </div>
-      </div>
     </section>
 
     <section id="mapa">

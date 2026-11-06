@@ -27,6 +27,8 @@
     kpis: document.getElementById('kpis'),
     charts: document.getElementById('charts'),
     listaSalud: document.getElementById('lista-salud'),
+    estadoGeneralTop: document.getElementById('estado-general-top'),
+    estadoGeneralTexto: document.getElementById('estado-general-texto'),
     tbody: document.getElementById('tbody-contenedores'),
     ctrSummary: document.getElementById('ctr-summary'),
     ctrConteo: document.getElementById('contenedores-conteo'),
@@ -259,9 +261,42 @@
     });
   }
 
-  // ---------- Salud de los servicios ----------
+  // ---------- Estado general + salud de los servicios ----------
+
+  // El backend real de Kerberos solo conoce 3 procesos distintos
+  // (backend/control/frontend, ver SERVICIOS_HEALTH en
+  // kerberos/routes/metrics.js) — el panel de administración (/admin) Y
+  // el portal de clientes se sirven del MISMO proceso "backend", así que
+  // no hay (ni tendría sentido fabricar) un cuarto check separado para
+  // "clientes": si "backend" está arriba, ambos lo están. La etiqueta
+  // deja eso explícito en vez de fingir una separación que no existe.
+  var NOMBRE_SERVICIO = {
+    backend: 'Backend — admin y clientes',
+    control: 'Control',
+    frontend: 'Sitio (frontend)',
+  };
+
+  function pintarEstadoGeneral(checks) {
+    if (!checks.length) {
+      els.estadoGeneralTop.className = 'estado-general-top es-neutro';
+      els.estadoGeneralTexto.textContent = 'Sin datos todavía';
+      return;
+    }
+    var caidos = checks.filter(function (c) { return !c.disponible; });
+    if (!caidos.length) {
+      els.estadoGeneralTop.className = 'estado-general-top';
+      els.estadoGeneralTexto.textContent = 'Operativo — control, admin y clientes respondiendo';
+      return;
+    }
+    var nombresCaidos = caidos.map(function (c) { return NOMBRE_SERVICIO[c.nombre] || c.nombre; }).join(', ');
+    var clase = caidos.length === checks.length ? 'es-crit' : 'es-warn';
+    els.estadoGeneralTop.className = 'estado-general-top ' + clase;
+    els.estadoGeneralTexto.textContent = (caidos.length === checks.length ? 'Caído — ' : 'Con problemas — ') + nombresCaidos;
+  }
 
   function pintarSalud(checks) {
+    pintarEstadoGeneral(checks);
+
     if (!checks.length) {
       els.listaSalud.innerHTML = '<p class="log-estado">No hay servicios configurados para revisar.</p>';
       return;
@@ -271,6 +306,7 @@
       var clasePill = c.disponible ? 'pill-ok' : 'pill-crit';
       var textoPill = c.disponible ? 'Disponible' : 'Sin respuesta';
       var colorDot = c.disponible ? 'var(--ok)' : 'var(--crit)';
+      var nombre = NOMBRE_SERVICIO[c.nombre] || c.nombre;
 
       var detalles = [];
       if (esNumero(c.statusCode)) detalles.push('HTTP ' + c.statusCode);
@@ -281,7 +317,7 @@
       return '<div class="servicio">' +
         '<div class="servicio-top">' +
           '<span class="t"><span class="dot" style="background:' + colorDot + '" aria-hidden="true"></span>' +
-            escaparHtml(c.nombre) + '</span>' +
+            escaparHtml(nombre) + '</span>' +
           '<span class="pill ' + clasePill + '">' + textoPill + '</span>' +
         '</div>' +
         (detalles.length ? '<div class="d">' + escaparHtml(detalles.join(' · ')) + '</div>' : '') +
@@ -371,7 +407,23 @@
       return;
     }
 
-    els.tbody.innerHTML = contenedores.map(filaContenedor).join('');
+    // "Mejor orden" (pedido explícito del usuario, con captura): antes
+    // el orden era el que Docker devolviera (sin criterio claro,
+    // corriendo y detenido mezclados). Ahora: en ejecución primero (con
+    // problema antes que sano dentro de ese grupo, es lo que de verdad
+    // necesita atención), detenidos al final — alfabético como
+    // desempate dentro de cada grupo.
+    var filas = contenedores.slice().sort(function (a, b) {
+      var aCorriendo = a.estado === 'running' ? 0 : 1;
+      var bCorriendo = b.estado === 'running' ? 0 : 1;
+      if (aCorriendo !== bCorriendo) return aCorriendo - bCorriendo;
+      var aProblema = a.salud === 'unhealthy' ? 0 : 1;
+      var bProblema = b.salud === 'unhealthy' ? 0 : 1;
+      if (aProblema !== bProblema) return aProblema - bProblema;
+      return String(a.nombre || '').localeCompare(String(b.nombre || ''));
+    });
+
+    els.tbody.innerHTML = filas.map(filaContenedor).join('');
 
     // Devuelve el foco a la misma fila si el operador estaba navegando con
     // teclado cuando llegó la actualización.
@@ -627,6 +679,8 @@
       estado.latenciaPromedio = null;
       els.listaSalud.innerHTML = '';
       els.hintServicios.textContent = '';
+      els.estadoGeneralTop.className = 'estado-general-top es-neutro';
+      els.estadoGeneralTexto.textContent = 'No se pudo revisar';
       mostrarAviso(els.avisoSalud, els.avisoSaludTexto,
         'No se pudo revisar la salud de los servicios en este momento.');
       return false;

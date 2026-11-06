@@ -260,15 +260,36 @@ section:first-of-type { padding-top: 24px; }
 .chart-card .ch-pie { font-size: 11px; color: var(--muted); margin-top: 8px; }
 @media (max-width: 900px) { .charts { grid-template-columns: minmax(0, 1fr); } }
 
-/* ===== Servicios + Contenedores ===== */
-/* minmax(0, ...) es obligatorio aquí — un track `1.5fr` plano equivale a
-   `minmax(auto, 1.5fr)`, y "auto" nunca se encoge bajo el min-content de
-   su contenido (la tabla, min-width:640px): el GRID completo desbordaría
-   el body en vez de que el overflow-x:auto de .ctr-table-wrap haga su
-   trabajo. */
-.twocol { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.5fr); gap: 14px; align-items: start; }
-@media (max-width: 980px) { .twocol { grid-template-columns: minmax(0, 1fr); } }
+/* ===== Estado general (semáforo agregado de Control/Admin/Clientes) =====
+   Punto en curso: antes "Salud de los servicios" vivía apretada en la
+   columna angosta de un grid de 2 columnas junto a "Contenedores
+   Docker" (que a su vez quedaba cortada en la columna ancha, min-width
+   640px contra un track de solo 1.5fr — reportado real por el usuario
+   con capturas). Se separan en 2 secciones de ancho completo: esta
+   (arriba, resumen agregado + desglose horizontal) y "Contenedores
+   Docker" más abajo, cada una ocupando los 1360px completos de `main`. */
+.estado-general-card { padding: 20px 22px; }
+.estado-general-top { display: flex; align-items: center; gap: 10px; }
+.estado-general-top .dot { width: 11px; height: 11px; background: var(--ok); box-shadow: 0 0 0 4px var(--ok-soft); }
+.estado-general-card.es-warn .estado-general-top .dot,
+.estado-general-top.es-warn .dot { background: var(--warn); box-shadow: 0 0 0 4px var(--warn-soft); }
+.estado-general-top.es-crit .dot { background: var(--crit); box-shadow: 0 0 0 4px var(--crit-soft); }
+.estado-general-top.es-neutro .dot { background: var(--muted); box-shadow: none; }
+.estado-general-texto { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+.estado-general-sub { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; line-height: 1.5; }
+.salud-fila { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+.salud-fila .servicio {
+  flex: 1 1 220px;
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+/* ===== Contenedores Docker (sección propia, ancho completo) ===== */
 .panel-body { padding: 18px 20px; }
+.panel-body.full { width: 100%; }
 .panel-body h3 { font-size: 14px; font-weight: 700; }
 
 .servicio { padding: 12px 0; border-top: 1px solid var(--border); }
