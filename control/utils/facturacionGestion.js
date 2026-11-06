@@ -7,7 +7,7 @@
 
 const { obtenerPool } = require('../db');
 const { montoCatalogoTenant } = require('./facturacionClarvo');
-const { eliminarFacturaZip } = require('./notificarBackend');
+const { eliminarFacturaZip, enviarCorreoBase, listarUsuariosAdminTenant } = require('./notificarBackend');
 
 // Retención de 30 días para solicitudes "lista" (bug real reportado: se
 // quedaban indefinidas en el Kanban/Garage, nunca se borraban). Mismo
@@ -73,7 +73,7 @@ async function crearSolicitud(datos, db = obtenerPool()) {
 
 async function listarSolicitudesPorTenant(slug, db = obtenerPool()) {
   const [filas] = await db.query(
-    `SELECT id, folio, invoice_id, estado, motivo_rechazo, factura_zip_nombre
+    `SELECT id, folio, invoice_id, estado, motivo_rechazo, factura_zip_nombre, monto, actualizado_en
        FROM tenant_solicitudes_factura
       WHERE tenant_slug = ? AND eliminado_en IS NULL`,
     [slug]
@@ -151,6 +151,30 @@ async function marcarLista(id, nombreZip, db = obtenerPool()) {
     "UPDATE tenant_solicitudes_factura SET estado = 'lista', factura_zip_nombre = ? WHERE id = ?",
     [nombreZip, id]
   );
+  // Bug real reportado: el tenant nunca se enteraba de que su factura ya
+  // estaba lista — ni campana (ver backend GET /admin/notificaciones/facturas,
+  // que lee directo esta tabla) ni correo. Correo SOLO a la cuenta raíz
+  // (quien pidió la factura, "Datos de pago"/"Solicitar factura" son
+  // candado de raíz — ver backend:exigirAdminRaizConTenant), nunca a
+  // contacto_email (ese es el genérico de la empresa, puede ser otra
+  // persona). Fire-and-forget, mismo criterio que el resto de los
+  // correos de este archivo/notificarBackend.js: la factura ya quedó
+  // guardada, un correo que falla no debe tumbar la respuesta al
+  // operador de /control.
+  notificarFacturaListaAlTenant(sol.tenant_slug, sol.folio).catch((err) => {
+    console.error(`No se pudo notificar al tenant "${sol.tenant_slug}" que su factura (folio ${sol.folio}) ya está lista:`, err.message);
+  });
+}
+
+async function notificarFacturaListaAlTenant(slug, folio) {
+  const usuarios = await listarUsuariosAdminTenant(slug);
+  const raiz = Array.isArray(usuarios) ? usuarios.find((u) => u.es_cuenta_raiz) : null;
+  if (!raiz || !raiz.email) return;
+  await enviarCorreoBase({
+    destinatario: raiz.email,
+    asunto: 'Tu factura ya está lista',
+    cuerpo: `Hola,\n\nTu factura (folio ${folio}) ya está lista para descargar — entra a tu panel de administración, Mi Cuenta → "Facturación de Clarvo" para bajarla.\n\n— Clarvo`,
+  });
 }
 
 // Borrado real (soft-delete, control_app no tiene DELETE — ver nota de

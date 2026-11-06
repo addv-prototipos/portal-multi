@@ -7577,6 +7577,24 @@
       // ver leerTicketsLeidos/guardarTicketsLeidos arriba.
     }
   }
+  function claveNotifFacturasLeidas() {
+    return `notif_facturas_leidas_v1_${TENANT_SLUG || 'base'}_${usuarioSesionActual || ''}`;
+  }
+  function leerFacturasLeidas() {
+    try {
+      const crudo = localStorage.getItem(claveNotifFacturasLeidas());
+      return crudo ? new Set(JSON.parse(crudo)) : new Set();
+    } catch (_) {
+      return new Set();
+    }
+  }
+  function guardarFacturasLeidas(set) {
+    try {
+      localStorage.setItem(claveNotifFacturasLeidas(), JSON.stringify([...set]));
+    } catch (_) {
+      // ver leerTicketsLeidos/guardarTicketsLeidos arriba.
+    }
+  }
   function leerTicketsLeidos() {
     try {
       const crudo = localStorage.getItem(claveNotifTicketsLeidos());
@@ -7654,6 +7672,8 @@
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4l16 16M4 20L20 4" stroke-linecap="round"/></svg>';
   const ICONO_NOTIF_COBRO =
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10h20" stroke-linecap="round"/></svg>';
+  const ICONO_NOTIF_FACTURA =
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   // Estado en memoria del último render — cada <button> del panel guarda
   // su propio tipo/id en dataset para que el click delegado sepa qué
@@ -7899,6 +7919,41 @@
       }
     }
 
+    // Mismo gate incondicional que cobrosAplican (el backend ya filtra
+    // por cuenta raíz, silencioso si no aplica) — dominio distinto: esto
+    // es el CFDI que el TENANT pidió de su propia venta, no un cobro de
+    // Clarvo. Nombre propio aparte para no confundir el dominio al leer.
+    const facturasAplican = true;
+    if (facturasAplican) {
+      try {
+        const res = await fetch(`${API_BASE}/admin/notificaciones/facturas`, { headers: { Authorization: authHeader } });
+        if (res.ok) {
+          const data = await res.json();
+          const items = Array.isArray(data.items) ? data.items : [];
+          if (items.length > 0) {
+            const facturasLeidas = leerFacturasLeidas();
+            const idsVisibles = new Set(items.map((f) => Number(f.id)));
+            const leidosPodados = new Set([...facturasLeidas].filter((id) => idsVisibles.has(id)));
+            if (leidosPodados.size !== facturasLeidas.size) guardarFacturasLeidas(leidosPodados);
+            grupos.push({
+              label: 'Facturación',
+              items: items.map((f) => ({
+                tipo: 'factura',
+                id: f.id,
+                icono: ICONO_NOTIF_FACTURA,
+                titulo: 'Tu factura ya está lista',
+                sub: `Folio ${f.folio} — ${formatearMoneda(f.monto)} MXN`,
+                tiempo: '',
+                leido: leidosPodados.has(Number(f.id)),
+              })),
+            });
+          }
+        }
+      } catch (_) {
+        // ver arriba.
+      }
+    }
+
     notifDatosActuales.snapshot = snapshot;
     els.notifLinkTickets.hidden = !ticketsAplican;
     els.notifLinkInventarios.hidden = !inventarioAplica;
@@ -7918,6 +7973,10 @@
       const leidos = leerCobrosLeidos();
       leidos.add(String(id));
       guardarCobrosLeidos(leidos);
+    } else if (tipo === 'factura') {
+      const leidos = leerFacturasLeidas();
+      leidos.add(Number(id));
+      guardarFacturasLeidas(leidos);
     } else {
       // Condición viva (inventario/config): el snapshot guarda el
       // número que se acaba de ver, para que el punto rojo solo vuelva
@@ -7968,7 +8027,7 @@
     } else if (tipo === 'cfg_sin_contador') {
       abrirConfigModal();
       seleccionarSeccionConfig('smtp-config-card');
-    } else if (tipo === 'cobro') {
+    } else if (tipo === 'cobro' || tipo === 'factura') {
       cambiarVistaPrincipal('mi-cuenta');
     }
   }

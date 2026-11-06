@@ -5728,6 +5728,38 @@ app.get(
   })
 );
 
+// Campana de notificaciones — "tu factura ya está lista" (defecto
+// reportado: Control marcaba la solicitud "lista" sin avisar al tenant
+// ni por campana ni por correo — el correo ya se dispara desde
+// facturacionGestion.js:marcarLista, esto es la campana). Mismo criterio
+// exacto que /cobros de arriba: cuenta raíz solamente, nunca 403 (200
+// con items vacíos si no aplica), nunca cachea.
+app.get(
+  '/api/admin/notificaciones/facturas',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!req.tenant || !(await esAdminRaiz(req))) return res.json({ items: [] });
+    const { ok, data } = await llamarControlInterno('/internal/facturacion/solicitudes-tenant', {
+      slug: req.tenant.slug,
+    });
+    if (!ok || !Array.isArray(data.solicitudes)) return res.json({ items: [] });
+    const haceDosSemanas = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    // actualizado_en llega como "YYYY-MM-DD HH:MM:SS" (dateStrings, UTC
+    // real pero sin 'Z') — new Date() directo lo leería como hora LOCAL
+    // del proceso, mismo gotcha ya documentado en CLAUDE.md para
+    // ventanas "hoy/mes". Nunca sin la 'Z' explícita.
+    const items = data.solicitudes
+      .filter((s) => {
+        if (s.estado !== 'lista' || !s.actualizado_en) return false;
+        const fecha = new Date(String(s.actualizado_en).replace(' ', 'T') + 'Z');
+        return fecha.getTime() >= haceDosSemanas;
+      })
+      .map((s) => ({ id: s.id, folio: s.folio, monto: Number(s.monto) }));
+    res.json({ items });
+  })
+);
+
 // "Solicitar factura" (punto 469, propuesta 3 de las 9 simuladas —
 // Kanban en Control, implementada). Candado real en 2 capas: (1) datos
 // fiscales completos — se vuelven a leer de config AQUÍ, nunca se

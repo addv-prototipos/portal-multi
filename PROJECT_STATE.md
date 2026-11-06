@@ -28711,3 +28711,57 @@ CRLF/LF — `git archive` en Windows aplica la conversión de
 byte una vez normalizado; no es una desviación real, ya documentado
 como gotcha operativo de esta sesión). Logs del contenedor en
 producción limpios, sin errores, tras el redeploy.
+
+## Punto 476 — "Factura lista" (CFDI solicitado por el tenant) nunca avisaba — defecto 18, campana + correo a la cuenta raíz (5-6 nov 2026, CERRADO en localhost)
+
+Reportado por el usuario viendo la campana real en producción (captura
+del grupo "Tu suscripción" ya funcionando, punto 475) — notó que cuando
+`/control` marca una solicitud de factura como "lista" (sube el ZIP),
+el tenant nunca se entera, ni por campana ni por correo, aunque Control
+es quien se comunica con el tenant en este flujo.
+
+**Correo** — `control/utils/facturacionGestion.js:marcarLista()` ahora
+dispara `notificarFacturaListaAlTenant(slug, folio)` (fire-and-forget,
+un fallo de correo no tumba la respuesta al operador de `/control` — el
+ZIP ya quedó guardado). Resuelve el destinatario vía
+`notificarBackend.js:listarUsuariosAdminTenant(slug)` →
+`GET /internal/usuarios-admin/:slug` (backend, ya existía) filtrando
+`es_cuenta_raiz===1` — **nunca** `tenants.contacto_email` (ese es el
+genérico de la empresa, puede ser otra persona distinta a quien pidió
+la factura — pedido explícito del usuario: "a su correo con el que se
+registró el tenant raíz y que solicitó la factura"). Envío real vía
+`enviarCorreoBase` (mismo mecanismo que el correo de propuesta de
+retención, `cancelacionSuscripcion.js`).
+
+**Campana** — nuevo grupo "Facturación" en `actualizarNotificaciones()`
+(`frontend/admin.js`), mismo patrón exacto que "Tu suscripción" del
+punto 475 (cuenta raíz solamente, candado del lado del backend, 200 con
+`items:[]` silencioso si no aplica — nunca 403, nunca interrumpe el
+sondeo de 60s). Cadena nueva: `GET /api/admin/notificaciones/facturas`
+(backend) → `POST /internal/facturacion/solicitudes-tenant` (control,
+nuevo) → `listarSolicitudesPorTenant(slug)` (ya existía, sin usar antes
+de este punto — se le agregaron `monto`/`actualizado_en` al SELECT).
+Ventana de 14 días (mismo criterio que cobros) para no resurgir
+solicitudes viejas que el usuario ya revisó. **Gotcha real evitado**:
+`actualizado_en` llega como `"YYYY-MM-DD HH:MM:SS"` (MySQL
+`dateStrings`, UTC real sin `Z`) — `new Date()` directo sobre ese string
+se interpreta como hora LOCAL del proceso, mismo bug ya documentado para
+ventanas "hoy/mes"; el filtro de 14 días usa
+`new Date(String(fecha).replace(' ','T')+'Z')` explícito.
+
+**Pruebas**: `node --check` limpio en los 4 archivos tocados
+(`backend/server.js`, `control/server.js`,
+`control/utils/facturacionGestion.js`, `frontend/admin.js`), suite
+completa `backend` (809/809) y `control` (468/468) en verde. Verificado
+en Docker local: rebuild + recreate de `backend`/`control`, 0 errores en
+logs de arranque; `GET /api/admin/notificaciones/facturas` responde 401
+sin credenciales (ruta real, candado real) tras restart de `frontend`
+(mismo gotcha de IP vieja del punto 455, ya conocido — se aplicó el fix
+de siempre).
+
+**Sin desplegar a producción todavía** — el usuario no lo ha pedido para
+este punto específico; queda en el working tree/commit local hasta que
+lo solicite (mismo criterio de "localhost por defecto" ya establecido).
+
+Archivos: `backend/server.js`, `control/server.js`,
+`control/utils/facturacionGestion.js`, `frontend/admin.js`.

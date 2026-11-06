@@ -153,6 +153,7 @@ const {
   marcarRechazada: marcarSolicitudRechazada,
   marcarLista: marcarSolicitudLista,
   eliminarSolicitud: eliminarSolicitudFactura,
+  listarSolicitudesPorTenant,
 } = require('./utils/facturacionGestion');
 
 const PORT = Number(process.env.PORT || 4001);
@@ -1946,6 +1947,18 @@ app.post('/internal/facturacion/historial', asyncHandler(async (req, res) => {
   if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
   const facturas = await listarFacturasTenant(slug);
   res.json({ ok: true, facturas });
+}));
+
+// Campana de "Factura lista" (defecto reportado: el tenant nunca se
+// enteraba ni por campana ni por correo) — backend lee esto para
+// GET /api/admin/notificaciones/facturas, mismo patrón backend->control
+// que /internal/facturacion/historial de arriba.
+app.post('/internal/facturacion/solicitudes-tenant', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
+  const solicitudes = await listarSolicitudesPorTenant(slug);
+  res.json({ ok: true, solicitudes });
 }));
 
 // "Solicitar factura" — backend ya validó que los datos fiscales están
