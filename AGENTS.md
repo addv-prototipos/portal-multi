@@ -24,6 +24,21 @@ sin aprobación explícita del segmento, piso no negociable de UX/accesibilidad/
 rendimiento/seguridad/Docker/pruebas unitarias/calidad de código. Mantener
 siempre actualizados `PROJECT_STATE.md`, este archivo y `README.md`.
 
+## opencode: agentes, memoria y espejo del protocolo
+
+Decisión del usuario, 2026-11-06 — el repo también se trabaja con opencode,
+bajo el MISMO protocolo y la misma fuente de verdad (código real +
+`PROJECT_STATE.md` + `cmem.md`). Configuración versionable: `opencode.jsonc`
+(`instructions: ["opencode.md"]`, `default_agent: "addv-orchestrator"`),
+`opencode.md` (memoria operativa espejo de este archivo) y
+`.opencode/agent/*.md` (`addv-orchestrator` primary; `claude-memory`,
+`vultr-operator`, `skills-sync`, `project-auditor`, `docs-keeper` como
+subagentes). Reglas: Claude Mem es solo lectura y NO sustituye `cmem.md`;
+los secretos siguen viviendo en `.env`/`VULTR/prodDoc.html`; después de
+cambiar `opencode.jsonc` o los agentes hay que REINICIAR opencode (no
+recarga en caliente); si una regla persistente cambia, actualizar
+`AGENTS.md` y `opencode.md` en el mismo cambio.
+
 ## Gobernanza de funcionalidades: todo módulo se mapea en Control (no negociable)
 
 Decisión del usuario, 2026-10-01 — esta regla no se omite por ningún

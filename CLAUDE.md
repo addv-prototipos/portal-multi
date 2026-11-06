@@ -33,6 +33,19 @@ rendimiento/seguridad/Docker/pruebas/calidad de código. Mantener siempre
 actualizados `PROJECT_STATE.md`, este archivo, `README.md` y
 `pendientes.html`.
 
+**Coexistencia con opencode** (2026-11-06): el mismo repo se trabaja también
+con opencode bajo este protocolo. `opencode.jsonc` declara
+`instructions: ["opencode.md"]` y `default_agent: "addv-orchestrator"`;
+`.opencode/agent/` contiene el orquestador y 5 subagentes
+(`claude-memory`, `vultr-operator`, `skills-sync`, `project-auditor`,
+`docs-keeper`). `opencode.md` es el espejo operativo de `AGENTS.md`/
+`CLAUDE.md`; si una regla persistente cambia, se actualiza en ambos. Claude
+Mem se lee solo en modo lectura y no sustituye `cmem.md`. Después de tocar
+`opencode.jsonc` o los agentes hay que reiniciar opencode. La skill
+`addv-web-app` es dual desde esta fecha: la canónica vive en
+`D:\srv\addv-web-app\SKILL.md` y se sincroniza a
+`~/.claude/skills/addv-web-app/` y `~/.agents/skills/addv-web-app/`.
+
 **Herramientas de eficiencia instaladas para este protocolo** (ver la
 skill `addv-web-app`, sección "Herramientas complementarias"):
 `agent-skills` (24 skills de vercel-labs/addyosmani, symlinkeadas en

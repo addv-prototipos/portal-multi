@@ -1,0 +1,82 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // Memoria operativa de opencode para este repo. AGENTS.md ya se carga
+  // automáticamente; opencode.md resume cómo actuar como Claude Code aquí.
+  "instructions": ["opencode.md"],
+
+  // El protocolo addv-web-app exige analizar/proponer/confirmar antes de
+  // escribir. El orquestador es primary y pide confirmación en cada edición.
+  "default_agent": "addv-orchestrator",
+
+  "permission": {
+    // Orden: regla amplia primero, reglas específicas después (gana la última).
+    "edit": "ask",
+    "bash": {
+      "*": "ask",
+
+      "git status*": "allow",
+      "git diff*": "allow",
+      "git log*": "allow",
+      "git show*": "allow",
+      "rg *": "allow",
+      "node --check *": "allow",
+      "npm test*": "allow",
+      "npm run *": "allow",
+      "docker compose ps*": "allow",
+      "docker compose logs*": "allow",
+      "docker service ls*": "allow",
+      "docker service logs*": "allow",
+      "docker ps*": "allow",
+      "curl -s*": "allow",
+
+      // Runbook Vultr documentado en VULTR/README-VULTR.md.
+      "ssh *": "allow",
+      "scp *": "allow",
+      "git -c core.autocrlf=false archive*": "allow",
+      "docker build *": "allow",
+      "docker service update --force *": "allow",
+      "docker stack deploy *": "ask",
+
+      // Candados de seguridad: nunca desde un agente sin pedido explícito.
+      "rm -rf *": "deny",
+      "docker volume rm*": "deny",
+      "docker system prune*": "ask",
+      "*DROP DATABASE*": "deny",
+      "*DELETE FROM*": "ask"
+    },
+    "external_directory": {
+      "*": "ask",
+      "D:/srv/addv-web-app/**": "allow",
+      "C:/Users/Antonio/.claude/**": "allow",
+      "C:/Users/Antonio/.agents/**": "allow",
+      "C:/Users/Antonio/.claude-mem/**": "allow"
+    }
+  },
+
+  "mcp": {
+    "chrome-devtools": {
+      "type": "local",
+      "command": ["npx", "-y", "chrome-devtools-mcp@latest", "--isolated"],
+      "enabled": true
+    },
+    "claude-flow": {
+      "type": "local",
+      "command": ["cmd", "/c", "npx", "-y", "ruflo@latest", "mcp", "start"],
+      "environment": {
+        "npm_config_update_notifier": "false",
+        "CLAUDE_FLOW_MODE": "v3",
+        "CLAUDE_FLOW_HOOKS_ENABLED": "true",
+        "CLAUDE_FLOW_TOPOLOGY": "mesh",
+        "CLAUDE_FLOW_MAX_AGENTS": "5",
+        "CLAUDE_FLOW_MEMORY_BACKEND": "memory"
+      },
+      "enabled": false
+    },
+    "idea": {
+      "type": "remote",
+      "url": "http://127.0.0.1:64342/stream",
+      "enabled": false
+    }
+  }
+}

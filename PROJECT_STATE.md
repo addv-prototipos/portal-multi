@@ -29211,6 +29211,46 @@ un selector descendiente alcanza también cualquier tarjeta anidada
 más abajo que SÍ necesita conservar su comportamiento interactivo
 propio.
 
+**Addendum 2 (propuesta 1 implementada)**: elegida "Matriz + popover"
+de las 5 (Artifact `https://claude.ai/code/artifact/b25e27b3-0171-47a3-9549-54902e7a044e`)
+— implementada en `frontend/admin.html`/`admin.css`. Encabezados de
+módulo en vertical (`writing-mode: vertical-rl`), puntos de 20px
+(check en círculo accent-soft / "—" tenue) en vez del ✓ grande de
+22px + texto de detalle siempre visible debajo. El detalle fino
+(cuáles tarjetas de Configuraciones, qué acción sigue exclusiva de
+otro perfil) se movió al **tooltip único del sitio**
+(`[data-tooltip]`/`inicializarTooltips()`, ya inicializado al
+arrancar — cero JS nuevo) en vez de reinventar un popover, con un
+indicador naranja (`.tiene-nota`, `::after` con `var(--color-warn)`)
+en el punto para que se note que hay más info sin pasar el mouse por
+las 60 celdas una por una. `aria-label` en cada punto (ej. "Sí —
+Solo lectura, sin Gestionar/Ver todas") para que el detalle también
+sea accesible sin mouse — el tooltip visual es solo refuerzo, no la
+única vía. Fila "Cliente" se conserva como antes (colspan 12, texto
+siempre visible, no es una celda de matriz).
+
+**Bug real encontrado y corregido durante la verificación**: con
+`.th-modulo { height: 86px }` los encabezados largos ("Resumen
+financiero", "Configuraciones", "Cuentas por cobrar") se truncaban —
+el texto vertical rotado necesita más alto que un encabezado
+horizontal normal, 86px alcanzaba para "Inicio"/"Ventas" pero no para
+los de 15-19 caracteres. Subido a 160px, confirmado real: las 12
+columnas completas caben sin truncar y sin scroll horizontal en una
+pantalla normal (antes `min-width:1100px` casi garantizaba el
+scroll). Validado real (Playwright/chrome-devtools, tenant `panes`):
+hover sobre el punto "Administrador/Inicio" muestra el tooltip
+"Solo lectura — sin "Gestionar"/"Ver todas"" posicionado
+correctamente. 0 errores de consola nuevos.
+
+**Pruebas**: `node --check` limpio (sin cambios JS, solo HTML/CSS).
+Suite `backend` 1381/1382 (mismo fallo preexistente ajeno,
+`multitenant.test.js`/`facturacionHabilitadaPlan`). Docker `frontend`
+reconstruido 2 veces (una por el fix del addendum de retención, otra
+por la tabla).
+
+Archivos adicionales de este addendum: `frontend/admin.css`,
+`frontend/admin.html`.
+
 ## Punto 482 - opencode: agentes, memoria operativa y skill addv-web-app dual (6 nov 2026, CERRADO en localhost)
 
 **Contexto**: el usuario pidió generar agentes de opencode que aprendan
