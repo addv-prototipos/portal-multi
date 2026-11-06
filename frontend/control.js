@@ -3857,6 +3857,7 @@
           ${s.estado === 'solicitada' ? `<button type="button" class="btn btn-secondary btn-en-proceso-factura" data-id="${s.id}">Marcar en proceso</button>` : ''}
           ${(s.estado === 'solicitada' || s.estado === 'en_proceso') ? `<button type="button" class="btn btn-primary btn-subir-zip-factura" data-id="${s.id}">Subir factura.zip</button>` : ''}
           ${(s.estado === 'solicitada' || s.estado === 'en_proceso') ? `<button type="button" class="btn btn-danger btn-rechazar-factura" data-id="${s.id}">Rechazar</button>` : ''}
+          ${s.estado === 'lista' ? `<button type="button" class="btn btn-danger btn-eliminar-factura" data-id="${s.id}" data-empresa="${escapeHtmlAttr(s.nombreEmpresa)}" data-folio="${escapeHtmlAttr(s.folio)}">Eliminar</button>` : ''}
         </div>
         <div class="facturas-ticket-rechazo-form" id="facturas-rechazo-form-${s.id}" hidden>
           <textarea id="facturas-rechazo-motivo-${s.id}" placeholder="Motivo del rechazo — el tenant lo verá tal cual"></textarea>
@@ -3901,6 +3902,16 @@
     document.querySelectorAll('.btn-subir-zip-factura').forEach((btn) => {
       btn.addEventListener('click', () => { facturasZipIdActivo = Number(btn.dataset.id); els.facturasZipInput.click(); });
     });
+    document.querySelectorAll('.btn-eliminar-factura').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        confirmarAccion({
+          titulo: 'Eliminar factura entregada',
+          mensaje: `Esto borra la factura de "${btn.dataset.empresa}" (folio ${btn.dataset.folio}) y su archivo ZIP de forma permanente — no se puede deshacer. Normalmente esto pasa solo automáticamente a los 30 días; esta acción lo adelanta.`,
+          textoBoton: 'Eliminar ahora',
+          onConfirmar: () => facturaEliminar(Number(btn.dataset.id)),
+        });
+      });
+    });
     document.querySelectorAll('.btn-ver-csf-factura').forEach((btn) => {
       btn.addEventListener('click', () => facturaVerCsf(Number(btn.dataset.id)));
     });
@@ -3918,6 +3929,22 @@
       await cargarFacturasControl();
     } catch (err) {
       showToast(err.message || 'No se pudo marcar en proceso.', true);
+    }
+  }
+
+  async function facturaEliminar(id) {
+    const authHeader = getAuthHeader();
+    try {
+      const resp = await fetch(`${API_BASE}/facturacion/solicitudes/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: authHeader },
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'No se pudo eliminar la factura.');
+      showToast('Factura eliminada.');
+      await cargarFacturasControl();
+    } catch (err) {
+      showToast(err.message || 'No se pudo eliminar la factura.', true);
     }
   }
 

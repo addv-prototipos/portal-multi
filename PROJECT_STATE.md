@@ -28382,3 +28382,185 @@ mano desde la UI, sin reinventar el `INSERT`. Verificado después:
 
 Archivos: ninguno de código — solo dato nuevo en la BD de producción
 (`control_tenants.terminos_versiones`). `PROJECT_STATE.md` (este punto).
+
+## Punto 475 — 17 defectos reportados en producción, registrados y corregidos en localhost (12 implementados, 1 diferido a pedido explícito) (5 nov 2026, CERRADO)
+
+**Flujo de la sesión**: el usuario pidió registrar 17 defectos reales
+vistos en producción SIN tocar código ("solo regístralos, hasta que te
+diga aplicas el protocolo") — cada uno se investigó y diagnosticó (causa
+raíz en código) pero no se implementó hasta que el usuario dio luz verde
+explícita ("revisa los logs de producción y replica la solución... para
+hacer commit y push"). Confirmado acceso SSH ya configurado a Vultr
+(`VULTR/README-VULTR.md`) — se revisaron logs de nginx del host
+(`/var/log/nginx/access.log*`) y de aplicación (`docker service logs
+clarvo_backend`), confirmando en vivo 2 de los defectos (403 real en
+`/api/admin/config/campos-obligatorios` para un perfil fiscal en
+`taqueria-el-infierno`, y el acceso real al slug `/taqueria-el-infierno`
+sin `/login`). El defecto 17 (importador de Inventario) se dejó
+explícitamente para el final, pendiente de reproducir con archivos
+reales del escritorio del usuario — **no implementado en este punto**.
+
+**Los 12 implementados**:
+
+1. **Link de portal/admin en Mi Cuenta sin sufijo de página** —
+   `detectarUrlPortal(req)` regresaba `https://clarvo.mx/<slug>` pelado
+   (sin `/login`), ruta que nginx (segmento 4) no reconoce → 404
+   anti-enumeración ("no encontrado"). `backend/server.js`:
+   `GET /api/admin/mi-cuenta` ahora arma `urlPortal` (+`/login`) y
+   `urlAdmin` (+`/admin`, nuevo) a partir de la misma base; el correo de
+   activación (alta inicial del admin) también llevaba el bug en su línea
+   "Portal para tus clientes", corregido igual. Frontend: segunda barra
+   `#micuenta-url-admin-bar` en Mi Cuenta (mismo patrón que la de portal,
+   botón "Copiar enlace" propio) — el tenant ahora ve AMBOS links.
+
+2. **Clarvo Solicita (sin Ventas): "Verifica tu venta" bloqueaba subir
+   ticket, siempre fallaba** — `ordenes_compra_habilitado` (switch manual
+   de "Habilitar Ventas") no estaba amarrado al ceiling del plan
+   (`ventasHabilitado`); con el plan sin Ventas, no existe ninguna orden
+   real que verificar, pero el switch seguía en `true` por default.
+   Nueva función `ordenesCompraEfectivo(req, configGlobal)` en
+   `backend/server.js` (fuerza `false` si `req.tenant.ventasHabilitado
+   === false`) aplicada en los 3 sitios que leían el valor crudo:
+   validación real al subir ticket, config pública de `tickets.html`, y
+   el GET que alimenta el switch en `/admin` → Configuraciones fiscales.
+
+3. **Perfil Fiscal no debe depender del switch "Gestión de facturas"
+   (`facturacion_pausada`)** — `perfilPlanVisible('fiscal')` en
+   `admin.js` usaba `tenantFuncionesPlan.facturacionHabilitada` (el
+   EFECTIVO, mezcla ceiling de plan + pausa propia del tenant) — pausar
+   "Gestión de facturas" (pensado solo para detener solicitudes NUEVAS
+   de clientes) escondía "Fiscal" del selector de perfiles, dejando
+   tickets YA en curso sin nadie que los gestionara. Nuevo campo
+   `facturacionHabilitadaPlan` (SOLO el ceiling, nunca se mueve por el
+   switch) agregado a `GET /api/admin/login` → `funciones`; el frontend
+   ahora lo usa para esta decisión específica.
+
+4. **Fiscal no podía guardar NADA en "Configuraciones fiscales"
+   (IVA/zona horaria/Clave SAT)** — el botón "Guardar cambios" SIEMPRE
+   mandaba `ordenes_compra_habilitado` en el body, aunque fiscal nunca
+   tocara ese campo; el backend rechaza con 403 cualquier perfil no
+   admin/super que mande ese campo, sin importar si cambió. Confirmado
+   real en producción vía nginx access log (403 repetido). Fix: el
+   frontend solo incluye ese campo en el payload si
+   `perfilActual === 'administrador' || 'super'`.
+
+5. **"Imprimir corte" también imprimía el último ticket reimpreso** —
+   3 bloques `@media print` distintos en `admin.css` (ticket/corte+
+   estado-inventario/etiquetas), cada uno con su propio `display:block
+   !important` INCONDICIONAL sobre su contenedor — como ninguno de los 4
+   contenedores ocultos se vacía entre usos, CUALQUIER impresión dejaba
+   los 4 visibles a la vez si tenían contenido viejo. Fix: los 4
+   contenedores ahora solo se muestran si `<body data-print-activo="...">`
+   coincide con su flujo — nuevo `imprimirConFlujo(flujo)` (admin.js)
+   pone el atributo antes de cada `window.print()`, se limpia solo en
+   `afterprint` (listener global). El `@page{size:58mm auto}` del ticket
+   sigue sin poder condicionarse por selector (limitación real de CSS,
+   no de la implementación) — documentado inline, no se tocó (fuera de
+   alcance de lo reportado).
+
+6. **Panel "Categorías" (Gastos e Inventario, componente compartido) se
+   veía roto** — cada select Fijo/Variable (`.gastos-categoria-tipo`)
+   vive DENTRO de `<div class="field ...">` (el mismo contenedor que el
+   select "Categoría" de arriba) — la regla global `.field select`
+   (`style.css`, width:100%, chevron SVG de 18px) le ganaba por
+   especificidad a `.gastos-categoria-tipo` sola (1 clase vs 1 clase + 1
+   elemento), estirando cada select a ancho completo y colapsando
+   `.gastos-categoria-nombre` (flex:1, min-width:0) a 0px, invisible.
+   Fix: `.gastos-categoria-fila .gastos-categoria-tipo` (2 clases, gana
+   por especificidad) + override explícito de cada propiedad que
+   `.field select` toca (appearance, background-image, padding, width).
+   Verificado con una página HTML aislada reproduciendo el nesting real
+   (el bug SOLO se ve en Gastos — Inventario no tiene este select en sus
+   filas, el usuario lo reportó bajo el nombre equivocado).
+
+7. **"Gestión de facturas" en `/control`: "Listas" crecía indefinido, sin
+   borrarse nunca ni el ZIP real en Garage** — `listarSolicitudesKanban()`
+   ya dejaba de MOSTRAR solicitudes "lista" de más de 30 días, pero nunca
+   las borraba de verdad (ni la fila ni el archivo). Implementado:
+   columna `eliminado_en` (soft-delete, `control_app` no tiene DELETE),
+   `purgarSolicitudesListasVencidas()` corre al arrancar `control` + cada
+   24h (mismo patrón que `stripeWebhookHealth.js`), borra el ZIP real vía
+   nuevo endpoint interno `POST /internal/facturacion/zip-eliminar/:slug`
+   (backend, `storage.eliminarArchivo`, idempotente) antes de marcar la
+   fila. Botón "Eliminar" manual nuevo en las tarjetas "Lista" del Kanban
+   (mismo candado `eliminarSolicitud()` que usa la purga automática,
+   confirmación con `confirmarAccion()`). Aviso de 30 días agregado en
+   Mi Cuenta → "Facturación de Clarvo" → zona de descarga del ZIP.
+
+8. **Campana de `/admin` nunca notificaba cobros de Stripe de la propia
+   suscripción del tenant, y no existía en absoluto para tenants sin
+   Facturación/Inventarios** — nuevo 4to grupo incondicional "Tu
+   suscripción" en `actualizarNotificaciones()`, alimentado por
+   `GET /api/admin/notificaciones/cobros` (nuevo, backend — reusa
+   `/internal/facturacion/historial` de Control, mismo candado de cuenta
+   raíz que "Facturación de Clarvo" pero SIN 403: responde `{items:[]}`
+   silencioso si no aplica, para no ensuciar el sondeo de 60s de ningún
+   perfil). `cobrosAplican = true` fijo entra al OR que decide si la
+   campana existe — garantiza que TODO tenant con sesión admin tenga
+   campana, sin importar perfil o plan. Portal de clientes (`portal.js`,
+   bell de CxC/Promociones) se revisó aparte — confirmado que su gate por
+   `requiereFeature` OR es correcto y no es el mismo bug (dominio
+   distinto, sin cambios ahí).
+
+9. **CSF de la compañía (Configuraciones fiscales): error sin toast,
+   toast de éxito sin anclar, sin scroll al botón Guardar** —
+   `admin.js` (handler de `constanciaCompaniaInput`): agregado
+   `showToast()` en el camino de error (antes solo quedaba el texto
+   inline, fácil de perder) y anclado el de éxito (`anchorEl`, mismo
+   mecanismo ya usado en "Copiar enlace") al botón "Subir constancia".
+   Nueva `scrollYParpadearBoton()` (admin.js) + clase `.btn-atencion`
+   (admin.css, 3 pulsos suaves vía `@keyframes`, respeta
+   `prefers-reduced-motion`) — tras leer la constancia, hace scroll hasta
+   "Guardar cambios" y lo resalta, para que el usuario note el siguiente
+   paso.
+
+10. **Pie de ticket impreso: sin link fijo ni disclaimer fiscal** —
+    `ticket-texto-pie` (libre, editable/borrable por el tenant) seguía
+    existiendo tal cual; se agregó un bloque FIJO nuevo
+    (`.ticket-imprimir-fijo`), siempre impreso, con
+    `https://clarvo.mx — Este no es un comprobante fiscal`, independiente
+    de lo que el tenant haya escrito en su propio pie.
+
+11. **"Borrado automático de tickets" vivía escondido dentro de la vista
+    operativa de Tickets** — movido (HTML + ids intactos, cero cambio de
+    backend) a la tarjeta "Gestión de facturas" de Configuraciones, junto
+    al switch "Habilitar Gestión de facturas". Efecto colateral correcto:
+    fiscal (antes sin acceso a esa tarjeta) la necesitaba para ver
+    retención — se agregó `'facturacion-toggle-card'` a su
+    `tarjetasConfigPermitidas`, pero el switch principal (admin/super-only
+    en el backend) se oculta aparte para fiscal vía nueva clase
+    `.facturacion-switch-admin-only` (mismo patrón que
+    `bloqueTicketsSinContador`) — fiscal ve SOLO la sub-tarjeta de
+    retención, nunca el switch que no puede tocar.
+
+12. **"Primeros pasos" (checklist de onboarding) vivía en la vista
+    equivocada para perfil administrador** — `contenedorOnboarding()`
+    apuntaba a `vistaResumenFinanciero` en vez de `vistaInicio` para ese
+    perfil (fiscal/inventario ya apuntaban bien) — el checklist nunca se
+    veía en Inicio (donde administrador aterriza por default) hasta
+    navegar aparte a Resumen financiero. Un-line fix.
+
+**Pendiente, a propósito, fuera de este punto**: defecto 17 (importador
+de catálogo en Inventario, botón "Continuar a validación" no se activa)
+— diagnóstico parcial ya hecho (`mapeoListoParaSiguienteImport()` exige
+SKU/Nombre/Unidad de medida mapeados+confirmados), pero el usuario pidió
+explícitamente dejarlo para el final y reproducirlo con
+`C:\Users\Antonio\Desktop\inventario.xlsx`/`.xls` reales antes de tocar
+código — no implementado en esta sesión.
+
+**Pruebas**: suite completa `backend` (809/809) y `control` (468/468)
+en verde tras todos los cambios, `node --check` limpio en los 8 archivos
+tocados. Verificación funcional real: login real a `/control` (Docker
+local), Kanban de "Gestión de facturas" cargó limpio sin errores de
+consola tras el rebuild; fix de categorías verificado con una página
+HTML aislada reproduciendo el nesting DOM real (bug confirmado
+reproducible, fix confirmado efectivo). El resto de los fixes de
+`admin.js` (Mi Cuenta, campana, toast CSF) no se probaron con clics
+reales contra un tenant — requiere credenciales de un tenant real que
+esta sesión no tenía a mano; pendiente de confirmación visual del
+usuario.
+
+Archivos: `backend/server.js`, `frontend/admin.js`, `frontend/admin.html`,
+`frontend/admin.css`, `frontend/control.js`, `control/server.js`,
+`control/utils/facturacionGestion.js`, `control/utils/notificarBackend.js`,
+`control/scripts/ensureSchema.js`.

@@ -203,6 +203,28 @@ usado en todo este repo hasta hoy) cuenta como prueba de
 
 ## Gotchas operativos recurrentes (leer antes de tocar Docker/nginx/CSP/tests)
 
+- **Un `<select>`/`<input>` propio metido DENTRO de `<div class="field">`
+  hereda las reglas globales de ese contenedor por especificidad, no por
+  intención** (punto 475, 2026-11-05): `.field select`/`.field input`
+  (`style.css`, width:100%, chevron SVG de 18px, padding 11px) es 1 clase
+  + 1 elemento (especificidad 0-1-1) — cualquier clase propia de 1 sola
+  clase (ej. `.gastos-categoria-tipo`, pensada para un select pequeño
+  tipo badge) pierde ese empate aunque esté definida DESPUÉS en el
+  archivo, porque el orden en CSS solo desempata especificidad IGUAL, y
+  aquí `.field select` ya gana por tener un elemento de más en el
+  selector. Bug real: el select Fijo/Variable de cada fila del panel
+  "Categorías" (Gastos) vivía anidado dentro del mismo `<div class="field">`
+  que el select "Categoría" de arriba — se estiraba a ancho completo con
+  el chevron grande, empujando el nombre de la categoría a 0px de ancho
+  (invisible). Fix: subir especificidad calificando con la clase padre
+  real (`.gastos-categoria-fila .gastos-categoria-tipo`, 2 clases) y
+  repetir EXPLÍCITAMENTE cada propiedad que la regla global toca
+  (`appearance`, `background-image`, `width`, `padding`) — no basta con
+  ganar en las propiedades que la clase propia ya declaraba, hay que
+  cubrir también las que nunca declaró pero el padre sí. Antes de dar por
+  "ya tiene su propio estilo" cualquier `<select>`/`<input>` dentro de un
+  `.field`, verificar el nesting real en el HTML, no solo la clase que
+  parece dueña del elemento.
 - **SSH desde esta máquina Windows: el cliente de Git Bash puede fallar
   en silencio** (punto 442, 2026-10-29): `/usr/bin/ssh` dentro de Git
   Bash (OpenSSH_9.7p1/OpenSSL) tiene un bug real firmando con la

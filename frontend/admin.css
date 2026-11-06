@@ -3112,23 +3112,43 @@
   size: 58mm auto;
   margin: 0;
 }
+/* Las reglas de "mostrar solo mi contenedor" de este archivo
+   (ticket/corte+estado-inv/etiqueta, 3 bloques @media print distintos)
+   antes eran incondicionales — las 3 se aplicaban en TODO print, sin
+   importar cuál flujo lo disparó. Como ninguno de los 4 contenedores se
+   vacía entre usos (quedan con el HTML del último armado), el resultado
+   real era: imprimir un corte imprimía TAMBIÉN el último ticket
+   reimpreso, apilados en la misma hoja (bug real reportado en
+   producción). Fix: cada bloque ahora exige que
+   `<body data-print-activo="...">` (puesto por JS justo antes de cada
+   `window.print()`, limpiado en `afterprint`, ver admin.js) coincida
+   con SU flujo — nunca más de uno a la vez. */
 @media print {
+  html, body {
+    background: #fff !important;
+  }
+  /* @page no se puede condicionar por selector/atributo de body (no es
+     válido en CSS) — sigue aplicando siempre que se imprime algo desde
+     esta página. Pre-existente, fuera de alcance de este fix (el
+     reporte era sobre el CONTENIDO superpuesto, no el tamaño de hoja);
+     los otros 3 flujos (corte/estado-inv/etiqueta) no definen su propio
+     @page, así que en la práctica siguen heredando este tamaño angosto
+     — queda documentado aquí por si se reporta como defecto aparte. */
   @page {
     size: 58mm auto;
     margin: 1mm 0 0;
   }
-  html, body {
+  body[data-print-activo="ticket"] {
     width: 58mm !important;
     max-width: 58mm !important;
     height: auto !important;
     min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
-    background: #fff !important;
     overflow: visible !important;
   }
-  body > *:not(#ticket-imprimir):not(#corte-imprimir):not(#inv-etiqueta-imprimir):not(#inv-estado-imprimir) { display: none !important; }
-  #ticket-imprimir {
+  body[data-print-activo="ticket"] > *:not(#ticket-imprimir) { display: none !important; }
+  body[data-print-activo="ticket"] #ticket-imprimir {
     display: block !important;
     position: static;
     height: auto !important;
@@ -3203,6 +3223,16 @@
   margin-top: 2px;
   font-size: 10px;
   color: #333;
+}
+/* Pie fijo (link Clarvo + "no es comprobante fiscal") — a diferencia de
+   .ticket-imprimir-sitio (texto libre del tenant, editable/borrable),
+   esto SIEMPRE se imprime, en todo ticket de todo tenant, sin
+   configuración posible. */
+.ticket-imprimir-fijo {
+  text-align: center;
+  margin-top: 4px;
+  font-size: 9px;
+  color: #555;
 }
 
 /* Vista previa del ticket en pantalla (modal #ticket-preview-modal-overlay)
@@ -3401,8 +3431,13 @@
    reporte a ancho de hoja normal. */
 .corte-imprimir { display: none; }
 @media print {
-  body > *:not(#ticket-imprimir):not(#corte-imprimir):not(#inv-etiqueta-imprimir):not(#inv-estado-imprimir) { display: none !important; }
-  #corte-imprimir, #inv-estado-imprimir {
+  /* data-print-activo gated — ver nota completa arriba del primer
+     @media print de este archivo (bug real: corte imprimía el último
+     ticket encima). */
+  body[data-print-activo="corte"] > *:not(#corte-imprimir),
+  body[data-print-activo="estado-inv"] > *:not(#inv-estado-imprimir) { display: none !important; }
+  body[data-print-activo="corte"] #corte-imprimir,
+  body[data-print-activo="estado-inv"] #inv-estado-imprimir {
     display: block !important;
     position: static;
     width: 100%;
@@ -3449,7 +3484,11 @@
    24 etiquetas por hoja en una grilla 3×8. */
 .inv-etiqueta-imprimir { display: none; }
 @media print {
-  #inv-etiqueta-imprimir {
+  /* data-print-activo gated — ver nota completa arriba del primer
+     @media print de este archivo (bug real: corte imprimía el último
+     ticket encima). */
+  body[data-print-activo="etiqueta"] > *:not(#inv-etiqueta-imprimir) { display: none !important; }
+  body[data-print-activo="etiqueta"] #inv-etiqueta-imprimir {
     display: block !important;
     position: static;
     font-family: var(--font-body);
@@ -6343,6 +6382,21 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .admin-table tbody tr.es-flash { animation: none; background: var(--color-accent-soft); }
+}
+
+/* Botón que necesita atención después de una acción que llenó campos más
+   abajo en un formulario largo (ej. tras leer una constancia fiscal: el
+   usuario ve el toast, pero no se da cuenta de que falta "Guardar
+   cambios" más abajo) — 3 pulsos suaves, no un parpadeo agresivo. Se
+   agrega/quita por JS (ver scrollYParpadearBoton()), nunca queda
+   permanente en el DOM. */
+.btn-atencion { animation: btnAtencionPulso 0.6s ease-in-out 3; }
+@keyframes btnAtencionPulso {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 0 4px var(--color-accent-soft); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-atencion { animation: none; box-shadow: 0 0 0 4px var(--color-accent-soft); }
 }
 
 /* Modal "Activando" (Provisionando → Activo, app de control) — es UNA
@@ -9489,13 +9543,28 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 .gastos-categoria-fila.is-disabled .gastos-categoria-nombre {
   color: var(--color-ink-soft);
 }
-.gastos-categoria-tipo {
-  flex-shrink: 0;
+/* Bug real reportado en producción (confirmado leyendo el DOM: esta fila
+   vive DENTRO de <div class="field gastos-modal-categoria-field"> — el
+   mismo contenedor que el select "Categoría *" de arriba) — la regla
+   global `.field select` (style.css, width:100%, padding 11px, chevron
+   SVG de 18px) le gana a `.gastos-categoria-tipo` sola por especificidad
+   (1 clase + 1 elemento vs 1 clase), así que cada select Fijo/Variable
+   se pintaba a ancho completo — empujando `.gastos-categoria-nombre`
+   (flex:1, min-width:0) a colapsar a 0px, invisible. Fix: más
+   especificidad (2 clases) + override explícito de CADA propiedad que
+   `.field select` toca, nunca asumir que basta con repetir las mismas
+   declaraciones. */
+.gastos-categoria-fila .gastos-categoria-tipo {
+  flex: 0 0 auto;
+  width: auto;
+  appearance: auto;
+  -webkit-appearance: auto;
+  background-image: none;
   font-size: 11.5px;
-  padding: 3px 6px;
+  padding: 3px 20px 3px 6px;
   border-radius: 6px;
   border: 1px solid var(--color-border);
-  background: var(--color-surface-2, #F7F9FB);
+  background-color: var(--color-surface-2, #F7F9FB);
   color: var(--color-ink-soft);
 }
 .gastos-categoria-tag {

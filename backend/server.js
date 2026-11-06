@@ -902,6 +902,20 @@ app.post('/internal/facturacion/zip-subir/:slug', asyncHandler(async (req, res) 
   res.json({ ok: true });
 }));
 
+// Borra el ZIP real de Garage — usado por la retención de 30 días y por
+// el borrado manual de /control (ver control/utils/facturacionGestion.js:
+// eliminarSolicitud/purgarSolicitudesListasVencidas). Idempotente: un ZIP
+// que ya no existe (doble purga, reintento) no es error.
+app.post('/internal/facturacion/zip-eliminar/:slug', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const slug = String(req.params.slug || '').toLowerCase();
+  if (validarSlug(slug)) return res.status(400).json({ error: 'Slug inválido.' });
+  const { invoiceId } = req.body || {};
+  if (!invoiceId || !/^[A-Za-z0-9_-]+$/.test(invoiceId)) return res.status(400).json({ error: 'invoiceId inválido.' });
+  await storage.eliminarArchivo(slug, 'facturas-clarvo', `${invoiceId}.zip`);
+  res.json({ ok: true });
+}));
+
 // ---------- Favicon del tenant (segmento "Look & Feel") ----------
 // Mismo patrón que el logo de marca: la imagen vive en MinIO (key
 // "marca/<slug>/favicon") y se referencia en el tema como ruta relativa
@@ -1179,7 +1193,7 @@ app.post('/internal/crear-admin-inicial/:slug', async (req, res) => {
       cuerpo:
         'Hola,\n\nTu cuenta de Clarvo ya está activa.\n\n' +
         `Panel de administración: ${urlBase}/${slug}/admin\n` +
-        (portalHabilitado ? `Portal para tus clientes: ${urlBase}/${slug}\n\n` : '\n') +
+        (portalHabilitado ? `Portal para tus clientes: ${urlBase}/${slug}/login\n\n` : '\n') +
         `Usuario: ${nombreUsuario}\n` +
         'Entra con la contraseña que elegiste al darte de alta.\n\n' +
         '— Clarvo',
@@ -2579,6 +2593,22 @@ function detectarUrlPortal(req) {
   return slug ? `${base}/${slug}` : base;
 }
 
+// Mismo cálculo de ordenes_compra_habilitado, usado en los 3 sitios que
+// lo leen (validación real al subir ticket, config pública de
+// tickets.html, y la tarjeta "Configuraciones fiscales" de /admin) —
+// nunca confiar solo en lo guardado: si el PLAN del tenant no incluye
+// Ventas (req.tenant.ventasHabilitado === false), nunca puede existir una
+// orden real que verificar, así que el efectivo siempre es false sin
+// importar lo que quedó guardado en configuracion_global (bug real
+// reportado: Clarvo Solicita, sin Ventas, dejaba el switch en su default
+// `true` y bloqueaba TODA solicitud de factura con "No se encuentra
+// registrada la venta para facturar"). Sin tenant (sitio base) no hay
+// techo de plan que aplicar, se respeta el valor guardado tal cual.
+function ordenesCompraEfectivo(req, configGlobal) {
+  if (req.tenant && req.tenant.ventasHabilitado === false) return false;
+  return Boolean(configGlobal.ordenes_compra_habilitado);
+}
+
 // Opciones válidas del dropdown "Tipo de pago" al subir un ticket. Se
 // guardan como "slug" en la base de datos (ver CHECK chk_tickets_tipo_pago
 // en backend/db.js); las etiquetas en español son solo para mensajes de
@@ -2686,7 +2716,7 @@ app.post('/api/tickets', requireUserAuth, requiereFacturacionActiva, submitLimit
       const configGlobalTicket = await getConfiguracionGlobal();
       let ordenCompraId = null;
 
-      if (configGlobalTicket.ordenes_compra_habilitado) {
+      if (ordenesCompraEfectivo(req, configGlobalTicket)) {
         // Verificación contra la orden de compra: el cliente debe capturar
         // el No. Compra, fecha, hora y total exactamente como le llegaron
         // en el correo de confirmación cuando el administrador registró su
@@ -3385,7 +3415,7 @@ app.get(
   asyncHandler(async (req, res) => {
     const campos = await getCamposObligatorios();
     const configGlobal = await getConfiguracionGlobal();
-    res.json({ ...campos, ordenes_compra_habilitado: configGlobal.ordenes_compra_habilitado });
+    res.json({ ...campos, ordenes_compra_habilitado: ordenesCompraEfectivo(req, configGlobal) });
   })
 );
 
@@ -3853,6 +3883,14 @@ app.get('/api/admin/login', adminLoginLimiter, tenantAggregateAuthLimiter, requi
     funciones: req.tenant
       ? {
           facturacionHabilitada: req.tenant.facturacionHabilitada,
+          // Bug real reportado: perfilPlanVisible('fiscal') en admin.js
+          // usaba facturacionHabilitada (EFECTIVO = plan AND !pausada) —
+          // apagar el switch "Gestión de facturas" (autoservicio del
+          // propio tenant, nada que ver con el plan) escondía el perfil
+          // Fiscal del selector, dejando tickets ya en curso sin nadie
+          // que los pudiera gestionar. facturacionHabilitadaPlan es SOLO
+          // el ceiling del plan — nunca se mueve por ese switch.
+          facturacionHabilitadaPlan: req.tenant.facturacionHabilitadaPlan,
           portalClientesHabilitado: req.tenant.portalClientesHabilitado,
           sucursalesHabilitado: req.tenant.sucursalesHabilitado,
           marcaLookfeelHabilitado: req.tenant.marcaLookfeelHabilitado,
@@ -5174,6 +5212,7 @@ app.get(
       const [[{ total_operadores: totalOperadores }]] = await pool.query(
         "SELECT COUNT(*) AS total_operadores FROM usuarios WHERE activo = 1 AND perfil IN ('administrador', 'fiscal', 'ventas', 'inventario')"
       );
+      const urlPortalBase = detectarUrlPortal(req);
       respuesta.empresa = {
         razonSocial: config.razon_social_compania || '',
         rfc: config.rfc_compania || '',
@@ -5184,7 +5223,13 @@ app.get(
         zonaHorariaEtiqueta: zona ? zona.etiqueta : config.zona_horaria,
         tenantSlug: req.tenant ? req.tenant.slug : null,
         nombreEmpresaTenant: req.tenant ? req.tenant.nombreEmpresa : null,
-        urlPortal: detectarUrlPortal(req),
+        // Bug real reportado en producción: urlPortal se mandaba pelado
+        // (`https://clarvo.mx/<slug>`) — esa ruta no existe para nginx
+        // (segmento 4, requiere nombre de página), daba 404 "no
+        // encontrado". Con sufijo `/login` sí resuelve. urlAdmin (nuevo)
+        // para que el tenant también tenga a la mano el link de SU panel.
+        urlPortal: urlPortalBase ? `${urlPortalBase}/login` : '',
+        urlAdmin: urlPortalBase ? `${urlPortalBase}/admin` : '',
         totalOperadores,
         maxUsuarios: req.tenant ? req.tenant.maxUsuarios : null,
         // Punto 375: switch real "Portal de clientes" (antes decorativo,
@@ -5656,6 +5701,33 @@ app.get(
   })
 );
 
+// Campana de notificaciones — "cobros de tu suscripción" (defecto
+// reportado: la campana nunca avisaba cuando Clarvo facturaba al
+// tenant su propia suscripción). Mismo candado que "Facturación de
+// Clarvo"/"Datos de pago" (solo la cuenta raíz ve montos/cobros reales)
+// pero NUNCA un 403 — a diferencia de esas rutas, esta la sondea
+// actualizarNotificaciones() cada 60s para CUALQUIER perfil logueado;
+// sin tenant o sin ser raíz, responde 200 con items vacíos (silencioso,
+// mismo criterio que "sin conexión, la campana no interrumpe el resto
+// del panel"). Nunca cachea: el monto es el que Stripe reporta en vivo.
+app.get(
+  '/api/admin/notificaciones/cobros',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!req.tenant || !(await esAdminRaiz(req))) return res.json({ items: [] });
+    const { ok, data } = await llamarControlInterno('/internal/facturacion/historial', {
+      slug: req.tenant.slug,
+    });
+    if (!ok || !Array.isArray(data.facturas)) return res.json({ items: [] });
+    const haceDosSemanas = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    const items = data.facturas
+      .filter((f) => f.estado === 'pagado' && f.fechaCobro && new Date(f.fechaCobro).getTime() >= haceDosSemanas)
+      .map((f) => ({ id: f.id, folio: f.folio, total: f.total, fechaCobro: f.fechaCobro }));
+    res.json({ items });
+  })
+);
+
 // "Solicitar factura" (punto 469, propuesta 3 de las 9 simuladas —
 // Kanban en Control, implementada). Candado real en 2 capas: (1) datos
 // fiscales completos — se vuelven a leer de config AQUÍ, nunca se
@@ -5898,6 +5970,11 @@ app.get(
   requireAdminArea('administrador', 'fiscal', 'ventas'),
   asyncHandler(async (req, res) => {
     const config = await getConfiguracionGlobal();
+    // Mismo criterio que facturacion_activa/facturacion_plan_habilitado
+    // más abajo: si el plan no incluye Ventas, el switch nunca puede estar
+    // "encendido" de verdad, sin importar lo guardado — ver
+    // ordenesCompraEfectivo().
+    config.ordenes_compra_habilitado = ordenesCompraEfectivo(req, config);
     // Punto 186: "Correo de contacto de la empresa" es un campo aparte de
     // "correo_reportes" (ese es interno, este es el que ve /control y usa
     // la burbuja "Solicitar aclaraciones" del portal). Con tenant, vive en

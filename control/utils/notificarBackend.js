@@ -307,11 +307,28 @@ async function subirFacturaZip(slug, invoiceId, zipBase64) {
   return { ok: res.ok, status: res.status, data };
 }
 
+// Retención de 30 días / borrado manual (ver facturacionGestion.js) —
+// idempotente del lado del backend (DeleteObjectCommand sobre una key
+// que ya no existe no falla), así que un reintento o una doble purga
+// nunca truena aquí.
+async function eliminarFacturaZip(slug, invoiceId) {
+  const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
+  const secreto = process.env.INTERNAL_CACHE_SECRET;
+  const res = await fetch(`${url}/internal/facturacion/zip-eliminar/${encodeURIComponent(slug)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Internal-Secret': secreto || '' },
+    body: JSON.stringify({ invoiceId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
+}
+
 module.exports = {
   notificarInvalidacionCache,
   enviarCorreoBase,
   descargarCsfFiscal,
   subirFacturaZip,
+  eliminarFacturaZip,
   activarTenantFisico,
   crearAdminInicialFisico,
   ErrorActivacionFisica,

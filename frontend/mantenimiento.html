@@ -13,275 +13,282 @@
   @font-face { font-family:'Inter'; font-style:normal; font-weight:700; font-display:swap; src:url('/assets/fonts/inter-700.woff2') format('woff2'); }
 
   :root {
-    --color-bg: #F6F4EF;
-    --color-surface: #FFFFFF;
-    --color-border: #E3DFD4;
-    --color-ink: #21261F;
-    --color-ink-soft: #5B6158;
-    --color-accent: #0F6E5D;
-    --color-accent-dark: #0B5548;
-    --color-accent-soft: #E4EFEC;
-    --color-warn: #B4530C;
-    --color-warn-soft: #FBEBDC;
-    --radius-lg: 16px;
-    --shadow-card: 0 1px 2px rgba(33, 38, 31, 0.04), 0 8px 24px rgba(33, 38, 31, 0.06);
-    /* Tipografía unificada: Inter en toda la app (mismo que el menú). */
-    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-display: var(--font-body);
+    --navy-950: #030C22;
+    --navy-900: #061430;
+    --navy-800: #0B1F42;
+    --cyan: #05DBF2;
+    --cyan-soft: #6FE9FB;
+    --ink-soft: #A9BEDD;
+    --ink-faint: #7488AC;
   }
-
   * { box-sizing: border-box; }
-
-  html, body {
-    height: 100%;
-    margin: 0;
-  }
-
+  html, body { height: 100%; margin: 0; }
   body {
-    font-family: var(--font-body);
-    background: var(--color-bg);
-    color: var(--color-ink);
+    background: var(--navy-950);
+    color: #EAF3FB;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    padding: 24px;
-    line-height: 1.55;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
   }
 
-  /* Fondo con un patrón muy sutil de puntos — le da textura a la página
-     sin competir con el contenido central, mismo criterio de "quietud
-     visual" que el resto de la app ya usa en sus pantallas de espera. */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    background-image: radial-gradient(circle, var(--color-border) 1px, transparent 1px);
-    background-size: 28px 28px;
-    opacity: 0.5;
-    pointer-events: none;
-  }
-
-  .tarjeta {
+  .escena {
     position: relative;
-    width: 100%;
-    max-width: 460px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-card);
-    padding: 40px 36px 32px;
-    text-align: center;
-  }
-
-  .ilustracion {
-    width: 190px;
-    height: auto;
-    margin: 0 auto 8px;
-    display: block;
-  }
-
-  /* La llave de tuercas se mueve como si el robot de verdad estuviera
-     dándole vueltas — un detalle pequeño y con buen gusto (nada
-     estridente) que ayuda a comunicar "esto ya se está resolviendo",
-     no solo "algo se rompió". Se respeta prefers-reduced-motion. */
-  .llave {
-    transform-origin: 148px 150px;
-    animation: girar-llave 2.4s ease-in-out infinite;
-  }
-  @keyframes girar-llave {
-    0%, 100% { transform: rotate(-14deg); }
-    50% { transform: rotate(10deg); }
-  }
-  .chispa {
-    animation: parpadeo-chispa 1.8s ease-in-out infinite;
-  }
-  .chispa:nth-child(2) { animation-delay: 0.6s; }
-  .chispa:nth-child(3) { animation-delay: 1.2s; }
-  @keyframes parpadeo-chispa {
-    0%, 100% { opacity: 0; transform: scale(0.6); }
-    50% { opacity: 1; transform: scale(1); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .llave, .chispa { animation: none; }
-  }
-
-  h1 {
-    font-family: var(--font-display);
-    font-size: 24px;
-    font-weight: 700;
-    margin: 12px 0 10px;
-    color: var(--color-ink);
-  }
-
-  p {
-    margin: 0 0 8px;
-    color: var(--color-ink-soft);
-    font-size: 14.5px;
-  }
-
-  .estado {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin: 18px 0 4px;
-    padding: 9px 16px;
-    background: var(--color-accent-soft);
-    color: var(--color-accent-dark);
-    border-radius: 999px;
-    font-size: 13px;
-    font-weight: 600;
-  }
-  .estado-punto {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--color-accent);
-    animation: latido-punto 1.4s ease-in-out infinite;
-  }
-  @keyframes latido-punto {
-    0%, 100% { opacity: 0.35; }
-    50% { opacity: 1; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .estado-punto { animation: none; }
-  }
-
-  .acciones {
-    margin-top: 22px;
+    z-index: 5;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 4px;
+    padding: 24px;
+    text-align: center;
+    max-width: 560px;
   }
 
-  .btn-reintentar {
-    appearance: none;
-    border: none;
-    background: var(--color-accent);
-    color: #fff;
-    font-family: inherit;
-    font-size: 14px;
-    font-weight: 600;
-    padding: 11px 22px;
+  /* ---------- Capas ambientales de fondo (mismo diseño que unavailable/index.html, punto 323/en curso) ---------- */
+  .fondo-glow {
+    position: fixed; inset: -15%; z-index: 0;
+    background: radial-gradient(circle at 50% 30%, rgba(5, 219, 242, 0.08) 0%, transparent 55%);
+    filter: blur(40px);
+    animation: respirar-fondo 10s ease-in-out infinite;
+  }
+  @keyframes respirar-fondo { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+
+  .foco {
+    position: fixed; top: -10%; left: 50%; width: 460px; height: 640px;
+    transform: translateX(-50%) rotate(0deg);
+    transform-origin: top center;
+    background: conic-gradient(from 180deg at 50% 0%, transparent 0deg, rgba(5, 219, 242, 0.11) 10deg, transparent 22deg);
+    z-index: 1; pointer-events: none;
+    animation: barrer-foco 7s ease-in-out infinite;
+  }
+  @keyframes barrer-foco {
+    0%, 100% { transform: translateX(-50%) rotate(-3deg); opacity: 0.75; }
+    50% { transform: translateX(-50%) rotate(3deg); opacity: 1; }
+  }
+
+  /* Envuelve el cubo + todas sus capas de luz: posicionadas relativas a
+     ESTE contenedor (no al viewport) para que siempre queden pegadas al
+     cubo sin importar cuánto texto haya debajo. */
+  .escenario-cubo {
+    position: relative;
+    width: 320px; height: 320px;
+    margin: 0 auto;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .haz {
+    position: absolute; top: -30%; left: 50%; width: 2px; height: 70%;
+    transform: translateX(-50%);
+    background: linear-gradient(to bottom, rgba(5, 219, 242, 0.5), transparent);
+    z-index: 1;
+    animation: pulso-haz 4s ease-in-out infinite;
+  }
+  @keyframes pulso-haz { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.8; } }
+
+  .halo {
+    position: absolute; top: 50%; left: 50%; width: 300px; height: 300px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(5, 219, 242, 0.22) 0%, transparent 70%);
+    z-index: 1;
+    animation: pulso-halo 5s ease-in-out infinite;
+  }
+  @keyframes pulso-halo {
+    0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(0.94); }
+    50% { opacity: 0.85; transform: translate(-50%, -50%) scale(1.04); }
+  }
+
+  .anillo-fino {
+    position: absolute; top: 50%; left: 50%; width: 220px; height: 220px;
+    transform: translate(-50%, -50%) rotateX(78deg) rotateZ(0deg);
+    border: 1px solid rgba(5, 219, 242, 0.32);
+    border-radius: 50%;
+    z-index: 1;
+    animation: girar-anillo 18s linear infinite;
+  }
+  @keyframes girar-anillo {
+    from { transform: translate(-50%, -50%) rotateX(78deg) rotateZ(0deg); }
+    to   { transform: translate(-50%, -50%) rotateX(78deg) rotateZ(360deg); }
+  }
+  .anillo-fino::before {
+    content: ""; position: absolute; top: -2px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px;
+    background: var(--cyan); border-radius: 50%; box-shadow: 0 0 8px 2px var(--cyan);
+  }
+
+  .anillo-2 {
+    position: absolute; top: 50%; left: 50%; width: 270px; height: 270px;
+    transform: translate(-50%, -50%) rotateX(78deg) rotateZ(90deg);
+    border: 1px solid rgba(5, 219, 242, 0.14);
+    border-radius: 50%;
+    z-index: 1;
+    animation: girar-anillo-2 26s linear infinite;
+  }
+  @keyframes girar-anillo-2 {
+    from { transform: translate(-50%, -50%) rotateX(78deg) rotateZ(90deg); }
+    to   { transform: translate(-50%, -50%) rotateX(78deg) rotateZ(-270deg); }
+  }
+
+  .particula {
+    position: absolute; width: 2.5px; height: 2.5px; border-radius: 50%;
+    background: var(--cyan-soft); opacity: 0.4; z-index: 1;
+    animation: flotar-particula 8s ease-in-out infinite;
+  }
+  @keyframes flotar-particula {
+    0%, 100% { opacity: 0.2; transform: translateY(0); }
+    50% { opacity: 0.7; transform: translateY(-12px); }
+  }
+
+  /* ---------- Escenario 3D: cubo con el logo Clarvo en las caras ---------- */
+  .stage {
+    position: relative;
+    z-index: 2;
+    width: 120px;
+    height: 120px;
+    perspective: 1000px;
+    margin-bottom: 8px;
+  }
+  .cubo {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    animation: girar-cubo 11s linear infinite;
+  }
+  @keyframes girar-cubo {
+    from { transform: rotateX(-20deg) rotateY(0deg); }
+    to   { transform: rotateX(-20deg) rotateY(360deg); }
+  }
+  .cara {
+    position: absolute;
+    width: 120px; height: 120px;
+    border: 1px solid rgba(5, 219, 242, 0.4);
+    background: linear-gradient(155deg, rgba(5, 219, 242, 0.14), rgba(3, 40, 91, 0.6));
+    box-shadow: 0 0 24px rgba(5, 219, 242, 0.1) inset;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(1px);
+  }
+  .cara img { width: 58%; height: 58%; object-fit: contain; filter: drop-shadow(0 0 10px rgba(5, 219, 242, .5)); }
+  .cara-frente  { transform: translateZ(60px); }
+  .cara-atras   { transform: rotateY(180deg) translateZ(60px); }
+  .cara-derecha { transform: rotateY(90deg) translateZ(60px); }
+  .cara-izq     { transform: rotateY(-90deg) translateZ(60px); }
+  .cara-arriba  { transform: rotateX(90deg) translateZ(60px); background: linear-gradient(155deg, rgba(5, 219, 242, 0.22), rgba(3, 40, 91, 0.5)); }
+  .cara-arriba img { width: 46%; height: 46%; }
+  .cara-abajo   { transform: rotateX(-90deg) translateZ(60px); background: rgba(2, 8, 20, 0.7); }
+
+  .reflejo {
+    position: relative; z-index: 2;
+    width: 120px; height: 44px; margin: 2px auto 18px;
+    background: linear-gradient(to bottom, rgba(5, 219, 242, 0.14), transparent);
+    transform: scaleY(-1);
+    filter: blur(2px);
+    opacity: 0.5;
+    animation: respirar-reflejo 5s ease-in-out infinite;
+  }
+  @keyframes respirar-reflejo { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.6; } }
+
+  /* ---------- Texto ---------- */
+  .etiqueta {
+    position: relative; z-index: 2;
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--cyan-soft);
+    background: rgba(5, 219, 242, 0.1);
+    border: 1px solid rgba(5, 219, 242, 0.3);
+    padding: 6px 14px;
     border-radius: 999px;
+    margin: 4px 0 22px;
+  }
+  .etiqueta-punto { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+
+  h1 { position: relative; z-index: 2; margin: 0 0 10px; font-size: 19px; font-weight: 700; color: #fff; }
+  p  { position: relative; z-index: 2; margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink-soft); max-width: 42ch; }
+
+  .estado {
+    position: relative; z-index: 2;
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 22px;
+    font-size: 12.5px; color: var(--ink-faint);
+  }
+  .punto-cargando { width: 5px; height: 5px; border-radius: 50%; background: var(--cyan); animation: parpadeo 1.2s ease-in-out infinite; }
+  .punto-cargando:nth-child(2) { animation-delay: 0.2s; }
+  .punto-cargando:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes parpadeo { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+
+  .reintentar {
+    position: relative; z-index: 2;
+    margin-top: 16px;
+    padding: 10px 22px;
+    border-radius: 999px;
+    border: 1px solid rgba(5, 219, 242, 0.45);
+    background: rgba(5, 219, 242, 0.08);
+    color: #fff;
+    font-family: inherit; font-size: 13px; font-weight: 600;
     cursor: pointer;
-    transition: background 0.15s ease, transform 0.1s ease;
+    transition: background 0.15s ease, border-color 0.15s ease;
   }
-  .btn-reintentar:hover { background: var(--color-accent-dark); }
-  .btn-reintentar:active { transform: scale(0.97); }
-  .btn-reintentar:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--color-accent-soft), 0 0 0 5px var(--color-accent);
-  }
+  .reintentar:hover { background: rgba(5, 219, 242, 0.18); border-color: var(--cyan); }
+  .reintentar:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
-  .reintento-auto {
-    font-size: 12.5px;
-    color: var(--color-ink-soft);
-  }
+  .pie { position: relative; z-index: 2; margin-top: 24px; font-size: 11.5px; color: rgba(169, 190, 221, 0.5); }
+  .pie strong { color: rgba(234, 243, 251, 0.7); font-weight: 700; }
 
-  .pie {
-    margin-top: 26px;
-    padding-top: 16px;
-    border-top: 1px solid var(--color-border);
-    font-size: 12px;
-    color: var(--color-ink-soft);
-  }
-
-  @media (max-width: 420px) {
-    .tarjeta { padding: 32px 22px 26px; }
-    .ilustracion { width: 160px; }
-    h1 { font-size: 21px; }
+  @media (prefers-reduced-motion: reduce) {
+    .cubo { animation: none; transform: rotateX(-20deg) rotateY(-28deg); }
+    .fondo-glow, .foco, .haz, .halo, .anillo-fino, .anillo-2, .particula, .reflejo, .punto-cargando {
+      animation: none !important;
+    }
   }
 </style>
 </head>
 <body>
+  <div class="fondo-glow" aria-hidden="true"></div>
+  <div class="foco" aria-hidden="true"></div>
 
-  <main class="tarjeta" role="main">
-    <svg class="ilustracion" viewBox="0 0 240 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ilustración de un robot arreglando un servidor con una llave de tuercas">
-      <!-- Sombra -->
-      <ellipse cx="120" cy="200" rx="78" ry="10" fill="#21261F" opacity="0.06"/>
+  <main class="escena" role="main">
+    <div class="escenario-cubo">
+      <div class="haz" aria-hidden="true"></div>
+      <div class="anillo-2" aria-hidden="true"></div>
+      <div class="halo" aria-hidden="true"></div>
+      <div class="anillo-fino" aria-hidden="true"></div>
+      <div class="particula" style="top:18%; left:16%; animation-delay:-1s;" aria-hidden="true"></div>
+      <div class="particula" style="top:24%; left:82%; animation-delay:-3s;" aria-hidden="true"></div>
+      <div class="particula" style="top:50%; left:8%; animation-delay:-5s;" aria-hidden="true"></div>
+      <div class="particula" style="top:70%; left:88%; animation-delay:-2s;" aria-hidden="true"></div>
+      <div class="particula" style="top:82%; left:30%; animation-delay:-6s;" aria-hidden="true"></div>
+      <div class="particula" style="top:14%; left:52%; animation-delay:-4s;" aria-hidden="true"></div>
+      <div class="stage" aria-hidden="true">
+        <div class="cubo" id="cubo">
+          <div class="cara cara-frente"><img src="/assets/logoLight.png" alt="" /></div>
+          <div class="cara cara-atras"><img src="/assets/logoLight.png" alt="" /></div>
+          <div class="cara cara-derecha"><img src="/assets/logoLight.png" alt="" /></div>
+          <div class="cara cara-izq"><img src="/assets/logoLight.png" alt="" /></div>
+          <div class="cara cara-arriba"><img src="/assets/logoLight.png" alt="" /></div>
+          <div class="cara cara-abajo"></div>
+        </div>
+      </div>
+    </div>
+    <div class="reflejo" aria-hidden="true"></div>
 
-      <!-- Rack del servidor -->
-      <rect x="24" y="70" width="96" height="120" rx="10" fill="#FFFFFF" stroke="#E3DFD4" stroke-width="2.5"/>
-      <rect x="38" y="86" width="68" height="18" rx="4" fill="#E4EFEC"/>
-      <circle cx="48" cy="95" r="3.5" fill="#0F6E5D"/>
-      <rect x="58" y="92" width="38" height="6" rx="3" fill="#0F6E5D" opacity="0.55"/>
+    <span class="etiqueta"><span class="etiqueta-punto" aria-hidden="true"></span>Mantenimiento en curso</span>
 
-      <rect x="38" y="112" width="68" height="18" rx="4" fill="#E4EFEC"/>
-      <circle cx="48" cy="121" r="3.5" fill="#B4530C"/>
-      <rect x="58" y="118" width="30" height="6" rx="3" fill="#B4530C" opacity="0.55"/>
-
-      <rect x="38" y="138" width="68" height="18" rx="4" fill="#E4EFEC"/>
-      <circle cx="48" cy="147" r="3.5" fill="#0F6E5D"/>
-      <rect x="58" y="144" width="24" height="6" rx="3" fill="#0F6E5D" opacity="0.55"/>
-
-      <rect x="38" y="164" width="68" height="14" rx="4" fill="#F6F4EF"/>
-
-      <!-- Chispas de "trabajo en progreso" -->
-      <g class="chispa">
-        <path d="M172 66 l4 -10 l4 10 l10 4 l-10 4 l-4 10 l-4 -10 l-10 -4 Z" fill="#0F6E5D"/>
-      </g>
-      <g class="chispa">
-        <path d="M198 96 l3 -7 l3 7 l7 3 l-7 3 l-3 7 l-3 -7 l-7 -3 Z" fill="#B4530C"/>
-      </g>
-      <g class="chispa">
-        <path d="M182 108 l2.5 -6 l2.5 6 l6 2.5 l-6 2.5 l-2.5 6 l-2.5 -6 l-6 -2.5 Z" fill="#0F6E5D"/>
-      </g>
-
-      <!-- Robot -->
-      <g>
-        <!-- Piernas -->
-        <rect x="140" y="172" width="12" height="24" rx="5" fill="#5B6158"/>
-        <rect x="168" y="172" width="12" height="24" rx="5" fill="#5B6158"/>
-        <ellipse cx="146" cy="198" rx="11" ry="5" fill="#21261F" opacity="0.75"/>
-        <ellipse cx="174" cy="198" rx="11" ry="5" fill="#21261F" opacity="0.75"/>
-
-        <!-- Cuerpo -->
-        <rect x="128" y="118" width="64" height="60" rx="14" fill="#0F6E5D"/>
-        <rect x="140" y="132" width="40" height="30" rx="8" fill="#E4EFEC"/>
-        <circle cx="152" cy="147" r="4.5" fill="#0B5548"/>
-        <circle cx="168" cy="147" r="4.5" fill="#0B5548"/>
-        <rect x="148" y="158" width="24" height="4" rx="2" fill="#0B5548" opacity="0.6"/>
-
-        <!-- Brazo izquierdo (sosteniendo el rack, apoyado) -->
-        <rect x="112" y="128" width="20" height="11" rx="5.5" fill="#0B5548"/>
-
-        <!-- Cabeza -->
-        <rect x="136" y="82" width="48" height="42" rx="16" fill="#12816D"/>
-        <circle cx="152" cy="103" r="6" fill="#FFFFFF"/>
-        <circle cx="152" cy="103" r="2.6" fill="#0B5548"/>
-        <circle cx="170" cy="103" r="6" fill="#FFFFFF"/>
-        <circle cx="170" cy="103" r="2.6" fill="#0B5548"/>
-        <path d="M153 113 q7 6 14 0" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" fill="none"/>
-        <rect x="156" y="70" width="8" height="14" rx="4" fill="#12816D"/>
-        <circle cx="160" cy="66" r="6" fill="#B4530C"/>
-
-        <!-- Brazo derecho con la llave, animado -->
-        <g class="llave">
-          <rect x="176" y="126" width="20" height="11" rx="5.5" fill="#0B5548"/>
-          <g transform="translate(190, 118)">
-            <rect x="-4" y="0" width="8" height="30" rx="4" fill="#B4530C"/>
-            <path d="M-10 -8 a10 10 0 1 0 20 0 a10 10 0 1 0 -20 0 M-4 -8 a4 4 0 1 1 8 0 a4 4 0 1 1 -8 0" fill="#B4530C" fill-rule="evenodd"/>
-          </g>
-        </g>
-      </g>
-    </svg>
-
-    <h1>En breve volveremos</h1>
+    <h1>El sistema se está actualizando</h1>
     <p>Estamos haciendo un ajuste rápido en el servicio. No hay nada que tengas que hacer — en unos minutos todo debería estar funcionando con normalidad otra vez.</p>
 
     <div class="estado" id="estado-verificacion" role="status" aria-live="polite">
-      <span class="estado-punto" aria-hidden="true"></span>
       <span id="estado-verificacion-texto">Verificando el servicio…</span>
+      <span class="punto-cargando" aria-hidden="true"></span>
+      <span class="punto-cargando" aria-hidden="true"></span>
+      <span class="punto-cargando" aria-hidden="true"></span>
     </div>
 
-    <div class="acciones">
-      <button type="button" class="btn-reintentar" id="btn-reintentar">Reintentar ahora</button>
-      <span class="reintento-auto" id="reintento-auto-texto">Esta página se actualiza sola cuando el servicio vuelva.</span>
-    </div>
+    <button type="button" class="reintentar" id="btn-reintentar">Reintentar ahora</button>
+    <p class="reintento-auto" id="reintento-auto-texto" style="margin-top:10px; font-size:12px; color:var(--ink-faint);">Esta página se actualiza sola cuando el servicio vuelva.</p>
 
-    <p class="pie">Portal Clarvo tu negocio en orden</p>
+    <p class="pie"><strong>Clarvo</strong> · tu negocio en orden</p>
   </main>
 
   <script>
@@ -290,7 +297,10 @@
     // dejarle al usuario la tarea de estar refrescando a mano. El
     // intervalo crece un poco cada vez que falla (2s, 4s, 8s... hasta un
     // tope de 20s) para no bombardear un servicio que ya está teniendo
-    // problemas con más peticiones de las necesarias.
+    // problemas con más peticiones de las necesarias. Misma lógica que
+    // la versión anterior de esta página (robot, punto 316) — solo cambió
+    // la ilustración/fondo al cubo 3D de unavailable/index.html, nunca el
+    // comportamiento de verificación real.
     (function () {
       var textoEstado = document.getElementById('estado-verificacion-texto');
       var btnReintentar = document.getElementById('btn-reintentar');

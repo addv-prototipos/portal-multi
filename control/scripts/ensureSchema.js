@@ -989,6 +989,21 @@ async function asegurarTablaSolicitudesFactura(db) {
       KEY idx_solicitud_estado (estado)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  // Retención de 30 días para facturas "lista" (bug real reportado: se
+  // quedaban indefinidas, nunca se borraban ni la fila ni el ZIP real en
+  // Garage) — soft-delete, control_app no tiene DELETE (ver nota de
+  // grupos_sucursal/api_credenciales arriba, mismo motivo). NULL = fila
+  // viva; con fecha = purgada (automático a los 30 días desde
+  // actualizado_en) o borrada a mano desde /control. Ver
+  // facturacionGestion.js:eliminarSolicitud/purgarSolicitudesListasVencidas.
+  const [columnasSolicitudFactura] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tenant_solicitudes_factura'`
+  );
+  if (!columnasSolicitudFactura.map((c) => c.COLUMN_NAME).includes('eliminado_en')) {
+    await db.query('ALTER TABLE tenant_solicitudes_factura ADD COLUMN eliminado_en DATETIME NULL');
+  }
 }
 
 module.exports = {

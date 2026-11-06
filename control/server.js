@@ -152,6 +152,7 @@ const {
   marcarEnProceso: marcarSolicitudEnProceso,
   marcarRechazada: marcarSolicitudRechazada,
   marcarLista: marcarSolicitudLista,
+  eliminarSolicitud: eliminarSolicitudFactura,
 } = require('./utils/facturacionGestion');
 
 const PORT = Number(process.env.PORT || 4001);
@@ -2628,6 +2629,28 @@ app.get(
   })
 );
 
+// Borrado manual (bug real reportado: "Listas" se quedaba creciendo
+// indefinido sin forma de limpiarla antes de los 30 días de retención
+// automática) — mismo candado eliminarSolicitud() que usa la purga
+// automática, borra el ZIP real en Garage si lo había.
+app.delete(
+  '/api/control/facturacion/solicitudes/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      await eliminarSolicitudFactura(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ErrorFacturacionGestion) {
+        return res.status(err.codigo === 'no_encontrada' ? 404 : 400).json({ error: err.message, codigo: err.codigo });
+      }
+      throw err;
+    }
+  })
+);
+
 // ---------- Punto 247: gestión de super admins (ADMIN_USERS en .env) ----------
 // Híbrido: super = ADMIN_USERS (.env) + usuarios perfil super en BD (si los hay),
 // pero la alta/edición/baja de ADMIN_USERS solo se hace aquí, en /control,
@@ -2923,6 +2946,7 @@ async function iniciar() {
   iniciarAlertaCapacidadDiscoAutomatica();
   iniciarArchivadoTrialsAutomatico();
   iniciarVerificacionWebhookStripeAutomatica();
+  iniciarPurgaFacturasListasAutomatica();
 }
 
 // Temporizador propio dentro del proceso de control/ (mecanismo elegido
@@ -3076,6 +3100,36 @@ function iniciarVerificacionWebhookStripeAutomatica() {
 
   setTimeout(ejecutar, 15 * 1000);
   setInterval(ejecutar, INTERVALO_WEBHOOK_STRIPE_MS);
+}
+
+// Retención de 30 días para "Gestión de facturas" (bug real reportado:
+// las solicitudes 'lista' se quedaban indefinidas, nunca se borraban ni
+// la fila ni el ZIP en Garage) — mismo patrón que los jobs de arriba
+// (al arrancar + cada 24h, nunca cron externo). Ver
+// facturacionGestion.js:purgarSolicitudesListasVencidas — una por una,
+// nunca se detiene la purga completa por una sola falla de backend.
+const INTERVALO_PURGA_FACTURAS_MS = 24 * 60 * 60 * 1000;
+let purgaFacturasEnCurso = false;
+
+function iniciarPurgaFacturasListasAutomatica() {
+  const ejecutar = async () => {
+    if (purgaFacturasEnCurso) return;
+    purgaFacturasEnCurso = true;
+    try {
+      const { purgarSolicitudesListasVencidas } = require('./utils/facturacionGestion');
+      const resultado = await purgarSolicitudesListasVencidas();
+      if (resultado.purgadas > 0) {
+        console.log(`Retención de facturas: ${resultado.purgadas}/${resultado.total} solicitud(es) "lista" purgada(s) por 30 días.`);
+      }
+    } catch (err) {
+      console.error('Error purgando solicitudes de factura vencidas:', err.message);
+    } finally {
+      purgaFacturasEnCurso = false;
+    }
+  };
+
+  setTimeout(ejecutar, 30 * 1000);
+  setInterval(ejecutar, INTERVALO_PURGA_FACTURAS_MS);
 }
 
 // Igual que backend/server.js: solo arranca si este archivo se ejecuta

@@ -271,6 +271,9 @@
     micuentaUrlBar: document.getElementById('micuenta-url-bar'),
     micuentaUrlTenant: document.getElementById('micuenta-url-tenant'),
     btnCopiarUrlMiCuenta: document.getElementById('btn-copiar-url-micuenta'),
+    micuentaUrlAdminBar: document.getElementById('micuenta-url-admin-bar'),
+    micuentaUrlAdmin: document.getElementById('micuenta-url-admin'),
+    btnCopiarUrlAdminMiCuenta: document.getElementById('btn-copiar-url-admin-micuenta'),
     btnMiCuentaIrConfiguraciones: document.getElementById('btn-micuenta-ir-configuraciones'),
     // Mi Cuenta — piezas visuales "Próximamente" (2FA/sesiones/
     // notificaciones/Clarvo Site Market), ver PROJECT_STATE.md punto 283.
@@ -1951,6 +1954,43 @@
     showToast._t = setTimeout(() => { els.toast.hidden = true; }, duracion);
   }
 
+  // Único punto de entrada para disparar cualquier impresión (ticket,
+  // corte, etiquetas, estado de inventario) — marca en <body> cuál de
+  // los 4 contenedores ocultos (#ticket-imprimir/#corte-imprimir/
+  // #inv-etiqueta-imprimir/#inv-estado-imprimir) debe ser el ÚNICO
+  // visible dentro de @media print (ver admin.css). Antes cada flujo
+  // llamaba a window.print() directo — como ninguno de los 4
+  // contenedores se vacía entre usos, el CSS incondicional dejaba
+  // visibles TODOS a la vez (bug real reportado: imprimir un corte
+  // imprimía también el último ticket reimpreso, apilados). Se limpia
+  // solo en "afterprint" (listener global, una sola vez).
+  function imprimirConFlujo(flujo) {
+    document.body.dataset.printActivo = flujo;
+    window.print();
+  }
+  window.addEventListener('afterprint', () => { delete document.body.dataset.printActivo; });
+
+  // Lleva la vista hasta `boton` y le agrega 3 pulsos suaves (.btn-atencion,
+  // ver admin.css) para que el usuario note el siguiente paso en un
+  // formulario largo — se quita sola al terminar la animación, nunca
+  // queda pegada si el usuario ya hizo clic antes.
+  function scrollYParpadearBoton(boton) {
+    if (!boton) return;
+    const reducido = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    boton.scrollIntoView({ block: 'center', behavior: reducido ? 'auto' : 'smooth' });
+    boton.classList.remove('btn-atencion');
+    void boton.offsetWidth; // fuerza reflow para reiniciar la animación si ya estaba corriendo
+    boton.classList.add('btn-atencion');
+    // Con reduced-motion, admin.css deja el resalte estático (sin
+    // @keyframes) — "animationend" nunca dispara ahí, así que se quita
+    // por timeout en vez de esperar un evento que no va a llegar.
+    if (reducido) {
+      setTimeout(() => boton.classList.remove('btn-atencion'), 1800);
+    } else {
+      boton.addEventListener('animationend', () => boton.classList.remove('btn-atencion'), { once: true });
+    }
+  }
+
   // Hallazgo M-02 (sonar.html, 2026-10-14): sessionStorage guardaba
   // btoa(usuario:contraseña) — la contraseña real, reversible en una
   // línea. Ahora guarda el token de sesión opaco que emite el backend
@@ -2596,7 +2636,14 @@
   // portal, no tiene módulos de /admin que cruzar).
   function perfilPlanVisible(perfil) {
     if (!tenantFuncionesPlan) return true;
-    if (perfil === 'fiscal') return tenantFuncionesPlan.facturacionHabilitada !== false;
+    // facturacionHabilitadaPlan (ceiling del plan) — nunca
+    // facturacionHabilitada (efectivo, también se apaga con el switch
+    // propio "Gestión de facturas"). Bug real: pausar ese switch
+    // escondía Fiscal del selector de perfiles, dejando sin nadie que
+    // gestionara tickets ya en curso. undefined (sesión vieja en cache,
+    // antes de este campo) cae a "visible", mismo criterio que el resto
+    // de esta función.
+    if (perfil === 'fiscal') return tenantFuncionesPlan.facturacionHabilitadaPlan !== false;
     if (perfil === 'inventario') return tenantFuncionesPlan.inventariosHabilitado !== false;
     if (perfil === 'ventas') {
       return ['ventasHabilitado', 'cxcHabilitado', 'gastosHabilitado'].some(
@@ -2649,7 +2696,14 @@
     // por default sin ser alcanzable.
     fiscal: {
       vistasPermitidas: ['inicio', 'constancias', 'tickets', 'lectura-reportes', 'mi-cuenta', 'configuraciones'],
-      tarjetasConfigPermitidas: ['admin-config-card', 'global-config-card'],
+      // 'facturacion-toggle-card' agregado (punto en curso) — ahí vive
+      // ahora "Borrado automático de tickets" (movido desde la vista
+      // Tickets, reportado "no se ve en ningún lado"); fiscal SÍ gestiona
+      // retención (backend: requireAdminArea('fiscal')), aunque el switch
+      // "Habilitar Gestión de facturas" de arriba de esa misma tarjeta
+      // sigue siendo admin/super-only — se oculta aparte, ver
+      // .facturacion-switch-admin-only en aplicarRestriccionesPerfil().
+      tarjetasConfigPermitidas: ['admin-config-card', 'global-config-card', 'facturacion-toggle-card'],
     },
     // Punto 190: perfil "Ventas" — solo Ventas/Cuentas por cobrar/Gastos,
     // sin entrar nunca a "Configuraciones" (cero tarjetas
@@ -2944,6 +2998,14 @@
     if (bloqueAvisoExpiracion) bloqueAvisoExpiracion.hidden = !planPermite('inventariosHabilitado');
     const bloqueTicketsSinContador = document.querySelector('.notif-tickets-sin-contador-config');
     if (bloqueTicketsSinContador) bloqueTicketsSinContador.hidden = !planPermite('facturacionHabilitada');
+
+    // "Habilitar Gestión de facturas" (dentro de facturacion-toggle-card,
+    // ahora visible para fiscal por "Borrado automático de tickets" que
+    // vive debajo) sigue siendo admin/super-only del lado del backend
+    // (PUT /api/admin/config/facturacion) — se oculta aparte para fiscal,
+    // nunca toda la tarjeta (mismo criterio que bloqueTicketsSinContador).
+    const switchAdminOnlyFacturacion = document.querySelector('.facturacion-switch-admin-only');
+    if (switchAdminOnlyFacturacion) switchAdminOnlyFacturacion.hidden = perfilActual === 'fiscal';
 
     // Tabla de "Perfiles y roles de acceso": pedido explícito del
     // usuario — visible para "administrador" y "super" (ADMIN_USERS,
@@ -4060,7 +4122,7 @@
         <tbody>${filasHtml}</tbody>
       </table>
     `;
-    window.print();
+    imprimirConFlujo('corte');
   });
 
   // Descarga en CSV el corte recién generado (punto 320) — mismos datos
@@ -5292,17 +5354,28 @@
       return;
     }
 
+    // "Habilitar Ventas" es exclusivo admin/super (backend:
+    // PUT /api/admin/config/campos-obligatorios rechaza con 403 si
+    // cualquier OTRO perfil manda este campo, cambie o no su valor) —
+    // un perfil fiscal nunca ve ese switch, pero el checkbox sigue
+    // existiendo en el DOM con su último valor cargado; mandarlo siempre
+    // bloqueaba CUALQUIER guardado de fiscal en esta tarjeta (IVA/zona/
+    // Clave SAT), aunque nunca tocara Ventas. Bug real confirmado en
+    // producción (403 en campos-obligatorios, taqueria-el-infierno).
+    const puedeEditarVentas = perfilActual === 'administrador' || perfilActual === 'super';
+    const payloadConfigGlobal = {
+      iva_porcentaje: iva,
+      zona_horaria: els.configZonaHoraria.value,
+      clave_sat: claveSat,
+    };
+    if (puedeEditarVentas) payloadConfigGlobal.ordenes_compra_habilitado = els.configOrdenesHabilitado.checked;
+
     setGuardarConfigGlobalLoading(true);
     try {
       const res = await fetch(`${API_BASE}/admin/config/global`, {
         method: 'PUT',
         headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          iva_porcentaje: iva,
-          zona_horaria: els.configZonaHoraria.value,
-          ordenes_compra_habilitado: els.configOrdenesHabilitado.checked,
-          clave_sat: claveSat,
-        }),
+        body: JSON.stringify(payloadConfigGlobal),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -5358,7 +5431,13 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        els.errorConstanciaCompania.textContent = data.error || 'No se pudo procesar la constancia.';
+        const mensajeError = data.error || 'No se pudo procesar la constancia.';
+        els.errorConstanciaCompania.textContent = mensajeError;
+        // Antes solo quedaba el texto inline (fácil de perder si el
+        // usuario ya no está viendo justo esa línea) — ahora también
+        // avisa con toast, anclado arriba del propio botón, mismo
+        // criterio que el toast de éxito de abajo.
+        showToast(mensajeError, true, els.btnSubirConstanciaCompania);
         return;
       }
 
@@ -5373,10 +5452,18 @@
 
       const tipoPersonaTexto = textoTipoPersona(data.tipo_persona_compania);
       showToast(
-        `Constancia leída correctamente — RFC ${data.rfc_compania}${tipoPersonaTexto ? ` (${tipoPersonaTexto})` : ''}.`
+        `Constancia leída correctamente — RFC ${data.rfc_compania}${tipoPersonaTexto ? ` (${tipoPersonaTexto})` : ''}.`,
+        false,
+        els.btnSubirConstanciaCompania
       );
+      // Régimen fiscal/Razón Social se llenaron solos más abajo en esta
+      // misma pestaña larga — el usuario no siempre nota que todavía
+      // falta "Guardar cambios" (reportado real). Scroll + 3 pulsos
+      // suaves en el botón, nunca permanente en el DOM.
+      scrollYParpadearBoton(els.btnGuardarConfigGlobal);
     } catch (err) {
       els.errorConstanciaCompania.textContent = 'No se pudo conectar con el servidor.';
+      showToast('No se pudo conectar con el servidor.', true, els.btnSubirConstanciaCompania);
     } finally {
       els.btnSubirConstanciaCompania.disabled = false;
       els.btnSubirConstanciaCompaniaLabel.textContent = 'Subir constancia de situación fiscal';
@@ -6087,7 +6174,7 @@
         <div class="corte-imprimir-rango">${escapeHtml(els.cortesDetalleRango.textContent)}</div>
         <table class="corte-imprimir-tabla"><thead><tr><th>No.</th><th>Fecha</th><th>Correo</th><th>Detalle</th><th>Total</th></tr></thead><tbody>${filasVacias}</tbody></table>
       `;
-      window.print();
+      imprimirConFlujo('corte');
       return;
     }
     const filasHtml = corteDetalleItems
@@ -6115,7 +6202,7 @@
         <tbody>${filasHtml}</tbody>
       </table>
     `;
-    window.print();
+    imprimirConFlujo('corte');
   });
 
   async function exportarCorte(formato) {
@@ -7472,6 +7559,24 @@
   function claveNotifSnapshot() {
     return `notif_snapshot_v1_${TENANT_SLUG || 'base'}_${usuarioSesionActual || ''}`;
   }
+  function claveNotifCobrosLeidos() {
+    return `notif_cobros_leidos_v1_${TENANT_SLUG || 'base'}_${usuarioSesionActual || ''}`;
+  }
+  function leerCobrosLeidos() {
+    try {
+      const crudo = localStorage.getItem(claveNotifCobrosLeidos());
+      return crudo ? new Set(JSON.parse(crudo)) : new Set();
+    } catch (_) {
+      return new Set();
+    }
+  }
+  function guardarCobrosLeidos(set) {
+    try {
+      localStorage.setItem(claveNotifCobrosLeidos(), JSON.stringify([...set]));
+    } catch (_) {
+      // ver leerTicketsLeidos/guardarTicketsLeidos arriba.
+    }
+  }
   function leerTicketsLeidos() {
     try {
       const crudo = localStorage.getItem(claveNotifTicketsLeidos());
@@ -7519,6 +7624,15 @@
 
   function tiempoRelativoNotif(fechaTexto) {
     const fecha = new Date(String(fechaTexto).replace(' ', 'T') + 'Z');
+    return tiempoRelativoNotifDesdeDate(fecha);
+  }
+  // fechaIso ya trae su propia 'Z' (new Date().toISOString()) — a
+  // diferencia de tiempoRelativoNotif(), que asume "YYYY-MM-DD HH:MM:SS"
+  // (formato MySQL, sin zona) y le agrega la 'Z' ella misma.
+  function tiempoRelativoNotifIso(fechaIso) {
+    return tiempoRelativoNotifDesdeDate(new Date(fechaIso));
+  }
+  function tiempoRelativoNotifDesdeDate(fecha) {
     if (Number.isNaN(fecha.getTime())) return '';
     const minutos = Math.round((Date.now() - fecha.getTime()) / 60000);
     if (minutos < 1) return 'ahora';
@@ -7538,6 +7652,8 @@
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const ICONO_NOTIF_CONFIG =
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4l16 16M4 20L20 4" stroke-linecap="round"/></svg>';
+  const ICONO_NOTIF_COBRO =
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10h20" stroke-linecap="round"/></svg>';
 
   // Estado en memoria del último render — cada <button> del panel guarda
   // su propio tipo/id en dataset para que el click delegado sepa qué
@@ -7603,8 +7719,17 @@
     const ticketsAplican = ['fiscal', 'administrador', 'super'].includes(perfilActual) && planPermite('facturacionHabilitada');
     const inventarioAplica = ['administrador', 'inventario', 'super'].includes(perfilActual) && planPermite('inventariosHabilitado');
     const configAplica = ['fiscal', 'super'].includes(perfilActual) && planPermite('facturacionHabilitada');
+    // Defecto reportado: la campana no existía en absoluto para tenants
+    // sin Facturación/Inventarios (ningún módulo de los 3 de arriba
+    // aplicaba). "Cobros de tu suscripción" es incondicional — no
+    // depende del plan del tenant (TODO tenant paga una suscripción) ni
+    // del perfil (el backend, GET /admin/notificaciones/cobros, ya
+    // responde vacío/silencioso si este perfil no es la cuenta raíz) —
+    // así que, además de traer avisos reales cuando aplica, GARANTIZA
+    // que la campana exista siempre, para cualquier tenant/perfil.
+    const cobrosAplican = true;
 
-    if (!ticketsAplican && !inventarioAplica && !configAplica) {
+    if (!ticketsAplican && !inventarioAplica && !configAplica && !cobrosAplican) {
       els.btnNotificaciones.hidden = true;
       detenerSondeoNotificaciones();
       return;
@@ -7738,6 +7863,42 @@
       }
     }
 
+    if (cobrosAplican) {
+      try {
+        const res = await fetch(`${API_BASE}/admin/notificaciones/cobros`, { headers: { Authorization: authHeader } });
+        if (res.ok) {
+          const data = await res.json();
+          const items = Array.isArray(data.items) ? data.items : [];
+          if (items.length > 0) {
+            const cobrosLeidos = leerCobrosLeidos();
+            const idsVisibles = new Set(items.map((c) => String(c.id)));
+            const leidosPodados = new Set([...cobrosLeidos].filter((id) => idsVisibles.has(id)));
+            if (leidosPodados.size !== cobrosLeidos.size) guardarCobrosLeidos(leidosPodados);
+            grupos.push({
+              label: 'Tu suscripción',
+              items: items.map((c) => ({
+                tipo: 'cobro',
+                id: c.id,
+                icono: ICONO_NOTIF_COBRO,
+                titulo: `Se cobró tu suscripción — ${formatearMoneda(c.total)} MXN`,
+                sub: `Folio ${c.folio}`,
+                // fechaCobro ya es ISO completo (new Date().toISOString(),
+                // con 'Z' incluida) — NUNCA pasar por
+                // tiempoRelativoNotif(), que asume el formato
+                // "YYYY-MM-DD HH:MM:SS" de MySQL y le agrega su propia
+                // 'Z' (duplicaría la 'Z' y rompería el parseo).
+                tiempo: tiempoRelativoNotifIso(c.fechaCobro),
+                leido: leidosPodados.has(String(c.id)),
+              })),
+            });
+          }
+        }
+      } catch (_) {
+        // Sin conexión: la campana simplemente no actualiza este grupo,
+        // no interrumpe el resto del panel (mismo criterio que arriba).
+      }
+    }
+
     notifDatosActuales.snapshot = snapshot;
     els.notifLinkTickets.hidden = !ticketsAplican;
     els.notifLinkInventarios.hidden = !inventarioAplica;
@@ -7750,6 +7911,13 @@
       const leidos = leerTicketsLeidos();
       leidos.add(Number(id));
       guardarTicketsLeidos(leidos);
+    } else if (tipo === 'cobro') {
+      // Mismo criterio que 'ticket': varios ids distintos a la vez (no
+      // un número rolling como inventario/config), set propio en
+      // localStorage — id es el invoice.id de Stripe (string), nunca Number().
+      const leidos = leerCobrosLeidos();
+      leidos.add(String(id));
+      guardarCobrosLeidos(leidos);
     } else {
       // Condición viva (inventario/config): el snapshot guarda el
       // número que se acaba de ver, para que el punto rojo solo vuelva
@@ -7800,6 +7968,8 @@
     } else if (tipo === 'cfg_sin_contador') {
       abrirConfigModal();
       seleccionarSeccionConfig('smtp-config-card');
+    } else if (tipo === 'cobro') {
+      cambiarVistaPrincipal('mi-cuenta');
     }
   }
 
@@ -9034,6 +9204,13 @@
         } else {
           els.micuentaUrlBar.hidden = true;
         }
+        if (data.empresa.tenantSlug && data.empresa.urlAdmin && els.micuentaUrlAdminBar) {
+          els.micuentaUrlAdminBar.hidden = false;
+          els.micuentaUrlAdmin.textContent = data.empresa.urlAdmin;
+          els.micuentaUrlAdmin.href = data.empresa.urlAdmin;
+        } else if (els.micuentaUrlAdminBar) {
+          els.micuentaUrlAdminBar.hidden = true;
+        }
       } else {
         els.micuentaEmpresaCard.hidden = true;
         els.micuentaBannerMarket.hidden = true;
@@ -9172,6 +9349,7 @@
           <span class="pill pill-pagado">Factura lista</span>
         </div>
         <button type="button" class="btn btn-primary" id="btn-descargar-factura-zip">Descargar factura ZIP</button>
+        <p class="micuenta-suscripcion-texto">Disponible para descarga solo 30 días desde que se entregó — después se elimina automáticamente. Descárgala y guárdala en tu propio respaldo.</p>
       `;
       zona.querySelector('#btn-descargar-factura-zip').addEventListener('click', () => descargarFacturaZip(factura.id));
       return;
@@ -10189,27 +10367,35 @@
     }
   });
 
-  if (els.btnCopiarUrlMiCuenta) {
-    els.btnCopiarUrlMiCuenta.addEventListener('click', async () => {
-      const valor = els.micuentaUrlTenant.textContent;
-      if (!valor) return;
-      try {
-        if (navigator.clipboard && window.isSecureContext) {
-          await navigator.clipboard.writeText(valor);
-        } else {
-          const textarea = document.createElement('textarea');
-          textarea.value = valor;
-          textarea.style.position = 'fixed';
-          textarea.style.opacity = '0';
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textarea);
-        }
-        showToast('Enlace copiado al portapapeles.', false, els.micuentaUrlBar);
-      } catch (err) {
-        showToast('No se pudo copiar. Selecciona y copia el texto manualmente.', true, els.micuentaUrlBar);
+  async function copiarUrlMiCuenta(valor, anchorEl) {
+    if (!valor) return;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(valor);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = valor;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
       }
+      showToast('Enlace copiado al portapapeles.', false, anchorEl);
+    } catch (err) {
+      showToast('No se pudo copiar. Selecciona y copia el texto manualmente.', true, anchorEl);
+    }
+  }
+
+  if (els.btnCopiarUrlMiCuenta) {
+    els.btnCopiarUrlMiCuenta.addEventListener('click', () => {
+      copiarUrlMiCuenta(els.micuentaUrlTenant.textContent, els.micuentaUrlBar);
+    });
+  }
+  if (els.btnCopiarUrlAdminMiCuenta) {
+    els.btnCopiarUrlAdminMiCuenta.addEventListener('click', () => {
+      copiarUrlMiCuenta(els.micuentaUrlAdmin.textContent, els.micuentaUrlAdminBar);
     });
   }
 
@@ -13100,6 +13286,7 @@
       ${mostrarCliente ? `<div class="ticket-imprimir-meta">Cliente: ${escapeHtml(orden.email)}</div><div class="ticket-imprimir-separador"></div>` : ''}
       ${mostrarGracias ? `<div class="ticket-imprimir-gracias">${escapeHtml(textoGracias)}</div>` : ''}
       ${textoPie ? `<div class="ticket-imprimir-sitio">${escapeHtml(textoPie)}</div>` : ''}
+      <div class="ticket-imprimir-fijo">https://clarvo.mx — Este no es un comprobante fiscal</div>
     `;
   }
 
@@ -13178,7 +13365,7 @@
       estilo.textContent = `@page { size: ${anchoPapel} ${hMm}mm; margin: 0; } @media print { @page { size: ${anchoPapel} ${hMm}mm; margin: 0; } html, body { height: ${hMm}mm !important; } #ticket-imprimir { height: ${hMm}mm !important; max-height: ${hMm}mm !important; } }`;
     } catch (_) {}
     cerrarPreviewTicket();
-    window.print();
+    imprimirConFlujo('ticket');
   });
 
   // Vista previa del concepto para la tabla (resumida): un concepto de
@@ -16916,7 +17103,7 @@
           )
           .join('')}</tbody>
       </table>`;
-    window.print();
+    imprimirConFlujo('estado-inv');
   }
 
   // Detalle grande de una gráfica de "Resumen financiero": en vez de
@@ -21412,7 +21599,7 @@
     }
     contenedor.className = `inv-etiqueta-imprimir formato-${formato}`;
     cerrarEtiquetaModal();
-    window.print();
+    imprimirConFlujo('etiqueta');
   }
 
   els.btnInvEtiquetaImprimir.addEventListener('click', () => {
@@ -23035,7 +23222,12 @@
 
   function contenedorOnboarding() {
     if (perfilActual === 'fiscal') return els.vistaInicio;
-    if (perfilActual === 'administrador') return els.vistaResumenFinanciero;
+    // Bug real reportado: "Primeros pasos" vivía en Resumen financiero,
+    // no en Inicio — perfil administrador (el más común) aterriza en
+    // Inicio por default, así que el checklist nunca se veía ahí (había
+    // que navegar aparte a Resumen financiero para encontrarlo). fiscal
+    // e inventario ya apuntaban correcto a vistaInicio; se alinea aquí.
+    if (perfilActual === 'administrador') return els.vistaInicio;
     if (perfilActual === 'ventas') return els.vistaOrdenes;
     if (perfilActual === 'inventario') return els.vistaInicio; // su "Inicio" reusa el mismo nodo (cargarInicioInventario())
     return null; // "super": sin checklist propio, es una cuenta de operación/depuración

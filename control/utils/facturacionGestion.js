@@ -7,6 +7,14 @@
 
 const { obtenerPool } = require('../db');
 const { montoCatalogoTenant } = require('./facturacionClarvo');
+const { eliminarFacturaZip } = require('./notificarBackend');
+
+// Retención de 30 días para solicitudes "lista" (bug real reportado: se
+// quedaban indefinidas en el Kanban/Garage, nunca se borraban). Mismo
+// valor que backend/server.js usa para tickets — no hay una sola fuente
+// compartida entre los 2 servicios (contextos de build separados, ver
+// CLAUDE.md), así que se duplica a propósito.
+const RETENCION_FACTURA_LISTA_DIAS = 30;
 
 class ErrorFacturacionGestion extends Error {
   constructor(message, codigo) {
@@ -67,7 +75,7 @@ async function listarSolicitudesPorTenant(slug, db = obtenerPool()) {
   const [filas] = await db.query(
     `SELECT id, folio, invoice_id, estado, motivo_rechazo, factura_zip_nombre
        FROM tenant_solicitudes_factura
-      WHERE tenant_slug = ?`,
+      WHERE tenant_slug = ? AND eliminado_en IS NULL`,
     [slug]
   );
   return filas;
@@ -81,7 +89,7 @@ async function listarSolicitudesKanban(db = obtenerPool()) {
             t.nombre_empresa
        FROM tenant_solicitudes_factura s
        LEFT JOIN tenants t ON t.slug = s.tenant_slug
-      WHERE s.estado != 'lista' OR s.actualizado_en >= NOW() - INTERVAL 30 DAY
+      WHERE s.eliminado_en IS NULL
       ORDER BY s.creado_en DESC`
   );
   return filas.map((f) => ({
@@ -105,7 +113,7 @@ async function listarSolicitudesKanban(db = obtenerPool()) {
 }
 
 async function obtenerSolicitud(id, db = obtenerPool()) {
-  const [filas] = await db.query('SELECT * FROM tenant_solicitudes_factura WHERE id = ? LIMIT 1', [id]);
+  const [filas] = await db.query('SELECT * FROM tenant_solicitudes_factura WHERE id = ? AND eliminado_en IS NULL LIMIT 1', [id]);
   return filas[0] || null;
 }
 
@@ -145,6 +153,50 @@ async function marcarLista(id, nombreZip, db = obtenerPool()) {
   );
 }
 
+// Borrado real (soft-delete, control_app no tiene DELETE — ver nota de
+// ensureSchema.js) — borra TAMBIÉN el ZIP físico en Garage cuando la
+// solicitud ya tenía uno (estado 'lista'); para cualquier otro estado
+// solo marca la fila, nunca hay archivo que limpiar. Usado por el botón
+// manual de /control Y por la purga automática de 30 días (misma
+// función, mismo candado real).
+async function eliminarSolicitud(id, db = obtenerPool()) {
+  const sol = await obtenerSolicitud(id, db);
+  if (!sol) throw new ErrorFacturacionGestion('Solicitud no encontrada.', 'no_encontrada');
+  if (sol.estado === 'lista') {
+    const { ok } = await eliminarFacturaZip(sol.tenant_slug, sol.invoice_id);
+    if (!ok) {
+      throw new ErrorFacturacionGestion('No se pudo borrar el archivo en el backend — inténtalo de nuevo.', 'backend_no_disponible');
+    }
+  }
+  await db.query('UPDATE tenant_solicitudes_factura SET eliminado_en = NOW() WHERE id = ?', [id]);
+}
+
+// Corre al arrancar `control` y cada 24h (ver server.js) — purga
+// solicitudes 'lista' cuyo `actualizado_en` (el momento en que se marcó
+// lista, nunca se vuelve a tocar después) ya pasó la ventana de
+// retención. Una por una (nunca un UPDATE/DELETE masivo): cada una
+// necesita su propia llamada a eliminarFacturaZip antes de poder
+// marcarse — si una falla (backend caído), las demás igual se procesan,
+// nunca se detiene la purga completa por una sola falla.
+async function purgarSolicitudesListasVencidas(db = obtenerPool()) {
+  const [vencidas] = await db.query(
+    `SELECT id FROM tenant_solicitudes_factura
+      WHERE estado = 'lista' AND eliminado_en IS NULL
+        AND actualizado_en < NOW() - INTERVAL ? DAY`,
+    [RETENCION_FACTURA_LISTA_DIAS]
+  );
+  let purgadas = 0;
+  for (const fila of vencidas) {
+    try {
+      await eliminarSolicitud(fila.id, db);
+      purgadas += 1;
+    } catch (err) {
+      console.error(`No se pudo purgar la solicitud de factura #${fila.id} (retención 30 días):`, err.message);
+    }
+  }
+  return { purgadas, total: vencidas.length };
+}
+
 module.exports = {
   ErrorFacturacionGestion,
   crearSolicitud,
@@ -154,4 +206,6 @@ module.exports = {
   marcarEnProceso,
   marcarRechazada,
   marcarLista,
+  eliminarSolicitud,
+  purgarSolicitudesListasVencidas,
 };
