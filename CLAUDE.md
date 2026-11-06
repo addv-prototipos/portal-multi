@@ -1473,6 +1473,24 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   de Docker, verificar `ls -la /var/run/docker.sock` en el host REAL de
   destino — nunca asumir que "ya funcionaba en local" es evidencia
   suficiente cuando local es Docker Desktop y destino es Linux real.
+- **Bind-montar un archivo que no existe todavía en el host crea un
+  DIRECTORIO vacío en su lugar — monta siempre el directorio contenedor,
+  nunca el archivo suelto** (punto 479, 6 nov 2026): al exponerle a
+  Kerberos el log de limpieza de Docker (`clarvo-limpieza/limpieza.jsonl`,
+  solo lectura, mismo criterio que el socket de Docker), la tentación es
+  montar `host/limpieza.jsonl:contenedor/limpieza.jsonl:ro` directo — si
+  ese `.jsonl` no existe en el host en el momento del primer `docker
+  stack deploy`/`compose up` (ej. servidor nuevo, o el script que lo
+  escribe nunca corrió todavía), Docker crea silenciosamente un
+  DIRECTORIO vacío con ese nombre en el host, y el archivo real que el
+  script escriba después queda tapado/ignorado dentro de ese directorio
+  fantasma — sin ningún error visible. Patrón correcto: montar el
+  DIRECTORIO completo que contiene el archivo
+  (`/var/log/clarvo-limpieza:/var/log/clarvo-limpieza:ro`), nunca el
+  archivo individual — un directorio bind-montado si no existe en el host
+  se crea bien solo, sin la trampa de arriba. Mismo criterio aplica a
+  cualquier archivo nuevo que un proceso vaya a escribir DESPUÉS de que
+  el contenedor que lo lee ya esté corriendo.
 - **Un campo "preparado pero nunca conectado" puede llevar meses en el
   código sin que nadie lo note** (punto 433): `inventarioImagen.js:guardarImagenProducto()`
   ya regresaba `pesoBytes` desde antes de este punto — ningún call site

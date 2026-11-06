@@ -37,6 +37,11 @@ npm-debug.log*
 uploads/*
 !uploads/.gitkeep
 
+# Log de limpieza de Docker (punto 478) — en local no hay timer real
+# corriendo, el directorio queda vacío salvo que lo pruebes a mano.
+kerberos-logs/*
+!kerberos-logs/.gitkeep
+
 # Volcados de base de datos que puedas generar con mysqldump localmente
 *.sql
 !backend/scripts/**/*.sql

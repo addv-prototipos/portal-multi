@@ -118,6 +118,20 @@ solo la frase en español de la UI.
 
 ## Gotchas operativos recurrentes (leer antes de tocar Docker/nginx/CSP/tests)
 
+- **Bind-montar un archivo que no existe todavía en el host crea un
+  DIRECTORIO vacío en su lugar — monta siempre el directorio contenedor,
+  nunca el archivo suelto** (punto 479, 2026-11-06): al exponerle a
+  Kerberos el log de limpieza de Docker (solo lectura, mismo criterio que
+  el socket de Docker), montar el `.jsonl` directo revienta en silencio
+  si no existe todavía en el host en el primer deploy — Docker crea un
+  directorio fantasma con ese nombre y el archivo real que se escriba
+  después queda tapado, sin ningún error visible. Montar siempre el
+  DIRECTORIO completo (`/var/log/clarvo-limpieza:/var/log/clarvo-limpieza:ro`),
+  nunca el archivo individual — un directorio bind-montado sí se crea
+  bien solo si no existe. Mismo criterio aplica a cualquier archivo que
+  un proceso vaya a escribir DESPUÉS de que el contenedor lector ya esté
+  corriendo. **Kerberos sigue de solo lectura** — nunca ejecuta la
+  limpieza él mismo, solo lee el log que escribe `VULTR/limpieza-docker.sh`.
 - **Un `<select>`/`<input>` propio metido DENTRO de `<div class="field">`
   hereda las reglas globales de ese contenedor por especificidad, no por
   intención** (punto 475, 2026-11-05, espejo de la nota en CLAUDE.md):

@@ -23,6 +23,10 @@
           <span class="dot" aria-hidden="true"></span><span id="status-texto">Conectando...</span>
         </div>
         <span class="usuario-chip" id="usuario-chip"></span>
+        <button type="button" class="btn-limpieza" id="btn-limpieza-historial" hidden aria-expanded="false" aria-controls="limpieza-panel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+          Limpieza
+        </button>
         <button type="button" class="btn-salir" id="btn-salir">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
           Salir
@@ -30,6 +34,25 @@
       </div>
     </div>
   </header>
+
+  <div class="limpieza-banner" id="limpieza-banner" hidden role="status">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+    <span id="limpieza-banner-texto"></span>
+    <div class="limpieza-banner-acciones">
+      <button type="button" class="limpieza-ver" id="limpieza-banner-ver">Ver detalle</button>
+      <button type="button" class="limpieza-cerrar" id="limpieza-banner-cerrar" aria-label="Cerrar aviso">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="limpieza-panel" id="limpieza-panel" hidden>
+    <div class="limpieza-panel-head">
+      <h3>Limpieza de contenedores huérfanos</h3>
+      <p>Tareas viejas de Swarm que quedaron atrás tras un despliegue — Kerberos solo lee este historial, nunca ejecuta la limpieza.</p>
+    </div>
+    <div class="limpieza-panel-body" id="limpieza-panel-body"></div>
+  </div>
 
   <main>
     <section id="resumen">

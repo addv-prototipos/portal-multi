@@ -480,3 +480,74 @@ svg.map-svg path.edge { stroke: #35455F; stroke-width: 1.6; fill: none; marker-e
   .map-node { position: static !important; width: 100% !important; }
   svg.map-svg { display: none; }
 }
+
+/* ===== Limpieza de contenedores huérfanos (punto 478) =====
+   Banner post-deploy + botón persistente en el header + panel
+   expandible — Kerberos solo LEE un log que escribe un script aparte en
+   el servidor (VULTR/limpieza-docker.sh), nunca ejecuta la limpieza. */
+.btn-limpieza {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 11px;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+.btn-limpieza[hidden] { display: none !important; }
+.btn-limpieza:hover,
+.btn-limpieza[aria-expanded="true"] { color: var(--ink); border-color: var(--accent); background: var(--accent-soft); }
+.btn-limpieza svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.limpieza-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 26px;
+  background: var(--ok-soft);
+  border-bottom: 1px solid rgba(47, 190, 128, 0.35);
+  font-size: 13px;
+  transition: opacity 220ms ease, max-height 220ms ease, padding 220ms ease;
+  overflow: hidden;
+}
+.limpieza-banner[hidden] { display: none !important; }
+.limpieza-banner.es-oculto { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; border-bottom-width: 0; }
+.limpieza-banner svg { width: 17px; height: 17px; stroke: var(--ok); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.limpieza-banner strong { font-weight: 700; }
+.limpieza-banner-acciones { margin-left: auto; display: flex; align-items: center; gap: 16px; flex: none; }
+.limpieza-ver {
+  background: transparent; border: none; padding: 0; font: inherit;
+  color: var(--ink); font-weight: 700; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.limpieza-cerrar {
+  width: 22px; height: 22px; border-radius: 6px; border: none; background: transparent;
+  color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.limpieza-cerrar svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.limpieza-cerrar:hover { color: var(--ink); }
+
+.limpieza-panel {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 20px 26px 4px;
+}
+.limpieza-panel[hidden] { display: none !important; }
+.limpieza-panel-head { margin-bottom: 14px; }
+.limpieza-panel-head h3 { font-size: 13px; font-weight: 700; margin: 0 0 4px; }
+.limpieza-panel-head p { font-size: 12px; color: var(--muted); margin: 0; line-height: 1.5; }
+.limpieza-run { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 14px 16px; margin-bottom: 12px; }
+.limpieza-run-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.limpieza-run-head strong { color: var(--ink); font-size: 12.5px; font-weight: 700; }
+.limpieza-run-tabla { width: 100%; border-collapse: collapse; font-size: 12px; }
+.limpieza-run-tabla th { text-align: left; padding: 7px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border-bottom: 1px solid var(--border); font-weight: 600; background: var(--surface-2); }
+.limpieza-run-tabla td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+.limpieza-run-tabla tr:last-child td { border-bottom: none; }
+.limpieza-run-tabla td.name { font-family: var(--mono); font-weight: 600; }
+.limpieza-run-tabla td.img { font-family: var(--mono); color: var(--muted); font-size: 11px; }
+.limpieza-panel-vacio { font-size: 12.5px; color: var(--muted); padding: 10px 2px 20px; }

@@ -3,6 +3,7 @@ const https = require('https');
 const express = require('express');
 
 const { dockerRequest, dockerRequestRaw } = require('../utils/dockerClient');
+const { listarCorridasLimpieza } = require('../utils/limpiezaLog');
 
 const TIMEOUT_HEALTH_MS = 2000;
 const LINEAS_LOG_DEFAULT = 200;
@@ -273,6 +274,20 @@ module.exports = function metricsRouter() {
     } catch (err) {
       console.error('Kerberos /health:', err.message);
       res.status(500).json({ ok: false, error: 'No se pudieron revisar los servicios del stack.' });
+    }
+  });
+
+  // Propuesta 5 (banner post-deploy): historial de limpieza de
+  // contenedores huérfanos, escrito por VULTR/limpieza-docker.sh fuera
+  // de este proceso — Kerberos solo LEE el archivo, nunca ejecuta ni
+  // decide qué se elimina.
+  router.get('/limpieza', async (req, res) => {
+    try {
+      const corridas = await listarCorridasLimpieza();
+      res.json({ ok: true, corridas });
+    } catch (err) {
+      console.error('Kerberos /limpieza:', err.message);
+      res.status(500).json({ ok: false, error: 'No se pudo leer el historial de limpieza.' });
     }
   });
 

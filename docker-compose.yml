@@ -605,6 +605,12 @@ services:
       # que solo permite GET (nunca start/stop/restart/exec). Esta es la
       # única forma en que Kerberos "ve" contenedores/logs/stats reales.
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Log estructurado de limpieza de Docker (punto 478), también
+      # READ-ONLY — lo escribe VULTR/limpieza-docker.sh (fuera de este
+      # contenedor), Kerberos solo lo lee para el banner post-deploy. En
+      # local no hay timer real corriendo — directorio vacío por default,
+      # el endpoint regresa lista vacía sin error (ver utils/limpiezaLog.js).
+      - ./kerberos-logs:/var/log/clarvo-limpieza:ro
     ports:
       - "127.0.0.1:${KERBEROS_PORT:-4100}:4100"
     networks:

@@ -20,6 +20,7 @@
   }
 
   var MS_ENTRE_POLLS = 6000;
+  var MS_ENTRE_POLLS_LIMPIEZA = 45000;
   var MAX_PUNTOS_SERIE = 30;
   var LINEAS_LOG = 200;
 
@@ -51,6 +52,13 @@
     modalSub: document.getElementById('modal-logs-sub'),
     modalBody: document.getElementById('modal-logs-body'),
     btnCerrarLogs: document.getElementById('btn-cerrar-logs'),
+    limpiezaBanner: document.getElementById('limpieza-banner'),
+    limpiezaBannerTexto: document.getElementById('limpieza-banner-texto'),
+    limpiezaBannerVer: document.getElementById('limpieza-banner-ver'),
+    limpiezaBannerCerrar: document.getElementById('limpieza-banner-cerrar'),
+    btnLimpiezaHistorial: document.getElementById('btn-limpieza-historial'),
+    limpiezaPanel: document.getElementById('limpieza-panel'),
+    limpiezaPanelBody: document.getElementById('limpieza-panel-body'),
   };
 
   var estado = {
@@ -60,6 +68,9 @@
     firmaContenedores: '',
     timer: null,
     filaConFoco: null,
+    limpiezaTimer: null,
+    limpiezaCorridas: [],
+    limpiezaPanelAbierto: false,
   };
 
   // ---------- Utilidades ----------
@@ -96,6 +107,38 @@
 
   function horaCorta(fecha) {
     return fecha.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  // "hace 6 min" / "hace 2 h" / "hace 3 d" — para el banner y el panel
+  // de limpieza, nunca la fecha ISO cruda.
+  function tiempoRelativo(fechaIso) {
+    var ts = Date.parse(fechaIso);
+    if (!isFinite(ts)) return '';
+    var segundos = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (segundos < 60) return 'hace instantes';
+    var minutos = Math.round(segundos / 60);
+    if (minutos < 60) return 'hace ' + minutos + ' min';
+    var horas = Math.round(minutos / 60);
+    if (horas < 24) return 'hace ' + horas + ' h';
+    var dias = Math.round(horas / 24);
+    return 'hace ' + dias + ' d';
+  }
+
+  function fechaLarga(fechaIso) {
+    var fecha = new Date(fechaIso);
+    if (isNaN(fecha.getTime())) return fechaIso;
+    return fecha.toLocaleString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  // localStorage (no sessionStorage, a diferencia del token de sesión):
+  // "qué corrida ya vio el operador" debe sobrevivir cerrar la pestaña,
+  // o el banner reaparecería en cada login para algo que ya se revisó.
+  var CLAVE_LIMPIEZA_VISTA = 'kerberos_limpieza_ultima_vista';
+  function leerUltimaVista() {
+    try { return localStorage.getItem(CLAVE_LIMPIEZA_VISTA); } catch (_) { return null; }
+  }
+  function guardarUltimaVista(ts) {
+    try { localStorage.setItem(CLAVE_LIMPIEZA_VISTA, ts); } catch (_) { /* almacenamiento bloqueado: sin persistencia, no rompe nada */ }
   }
 
   function mostrarAviso(caja, texto, mensaje) {
@@ -698,6 +741,79 @@
     });
   }
 
+  // ---------- Limpieza de contenedores huérfanos (punto 478) ----------
+  // Kerberos nunca ejecuta la limpieza ni toca el socket de Docker en
+  // modo escritura para esto — solo lee el historial que escribe
+  // VULTR/limpieza-docker.sh en el servidor (GET /limpieza, mismo
+  // patrón de solo lectura que el resto del tablero).
+
+  function filaLimpieza(item) {
+    return '<tr><td class="name">' + escaparHtml(item.nombre || '—') + '</td>' +
+      '<td class="img">' + escaparHtml(item.imagen || '—') + '</td>' +
+      '<td>' + escaparHtml(item.motivo || '—') + '</td></tr>';
+  }
+
+  function bloqueCorrida(corrida) {
+    var items = Array.isArray(corrida.contenedores) ? corrida.contenedores : [];
+    return '<div class="limpieza-run">' +
+      '<div class="limpieza-run-head"><strong>' + escaparHtml(fechaLarga(corrida.ts)) + '</strong>' +
+      '<span>· ' + items.length + ' contenedor(es) · ' + escaparHtml(tiempoRelativo(corrida.ts)) + '</span></div>' +
+      '<table class="limpieza-run-tabla"><thead><tr><th>Nombre</th><th>Imagen</th><th>Motivo</th></tr></thead><tbody>' +
+      items.map(filaLimpieza).join('') + '</tbody></table></div>';
+  }
+
+  function pintarPanelLimpieza(corridas) {
+    if (!corridas.length) {
+      els.limpiezaPanelBody.innerHTML = '<p class="limpieza-panel-vacio">Sin corridas registradas todavía — aparecerán aquí después del próximo despliegue o de la limpieza semanal del servidor.</p>';
+      return;
+    }
+    els.limpiezaPanelBody.innerHTML = corridas.map(bloqueCorrida).join('');
+  }
+
+  function togglePanelLimpieza(mostrar) {
+    estado.limpiezaPanelAbierto = mostrar;
+    els.limpiezaPanel.hidden = !mostrar;
+    els.btnLimpiezaHistorial.setAttribute('aria-expanded', mostrar ? 'true' : 'false');
+    if (mostrar) els.limpiezaPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function ocultarBannerLimpieza() {
+    els.limpiezaBanner.classList.add('es-oculto');
+    setTimeout(function () { els.limpiezaBanner.hidden = true; }, 240);
+    var ultima = estado.limpiezaCorridas[0];
+    if (ultima) guardarUltimaVista(ultima.ts);
+  }
+
+  function pintarBannerLimpieza(corridas) {
+    if (!corridas.length) return;
+    var ultima = corridas[0];
+    var yaVista = leerUltimaVista();
+    if (yaVista && ultima.ts <= yaVista) return; // ya se mostró/descartó esta corrida
+
+    var total = Array.isArray(ultima.contenedores) ? ultima.contenedores.length : 0;
+    if (!total) return;
+    els.limpiezaBannerTexto.innerHTML = '<strong>Limpieza completada</strong> ' + escaparHtml(tiempoRelativo(ultima.ts)) +
+      ' — ' + total + ' contenedor(es) huérfano(s) podado(s).';
+    els.limpiezaBanner.hidden = false;
+  }
+
+  function cargarLimpieza() {
+    return Sesion.pedir('/limpieza').then(function (cuerpo) {
+      var corridas = Array.isArray(cuerpo.corridas) ? cuerpo.corridas : [];
+      estado.limpiezaCorridas = corridas;
+      els.btnLimpiezaHistorial.hidden = corridas.length === 0;
+      pintarBannerLimpieza(corridas);
+      if (estado.limpiezaPanelAbierto) pintarPanelLimpieza(corridas);
+      return true;
+    }).catch(function (err) {
+      if (err instanceof Sesion.ErrorSesion) throw err;
+      // Sin historial disponible (archivo ausente, servidor nuevo): el
+      // botón/banner simplemente no aparecen, no es un error que deba
+      // interrumpir el resto del tablero.
+      return false;
+    });
+  }
+
   function actualizarChip(resultados) {
     var fallas = resultados.filter(function (ok) { return ok === false; }).length;
     els.statusChip.classList.remove('es-error', 'es-pausa');
@@ -732,12 +848,22 @@
   function arrancarPolling() {
     detenerPolling();
     estado.timer = setInterval(cargarTodo, MS_ENTRE_POLLS);
+    // Poll propio y mucho más lento que el resto del tablero — una
+    // corrida de limpieza es un evento raro (después de un despliegue o
+    // una vez por semana), no hace falta el mismo ritmo de 6 s que CPU/
+    // memoria (mismo criterio ya documentado para no compartir cadencia
+    // de polling entre cosas que cambian a velocidades muy distintas).
+    estado.limpiezaTimer = setInterval(cargarLimpieza, MS_ENTRE_POLLS_LIMPIEZA);
   }
 
   function detenerPolling() {
     if (estado.timer) {
       clearInterval(estado.timer);
       estado.timer = null;
+    }
+    if (estado.limpiezaTimer) {
+      clearInterval(estado.limpiezaTimer);
+      estado.limpiezaTimer = null;
     }
   }
 
@@ -750,6 +876,7 @@
     }
     els.statusChip.classList.remove('es-pausa');
     cargarTodo();
+    cargarLimpieza();
     arrancarPolling();
   });
 
@@ -797,6 +924,17 @@
     window.location.replace('/kerberos/login.html');
   });
 
+  els.limpiezaBannerVer.addEventListener('click', function () {
+    ocultarBannerLimpieza();
+    pintarPanelLimpieza(estado.limpiezaCorridas);
+    togglePanelLimpieza(true);
+  });
+  els.limpiezaBannerCerrar.addEventListener('click', ocultarBannerLimpieza);
+  els.btnLimpiezaHistorial.addEventListener('click', function () {
+    if (!estado.limpiezaPanelAbierto) pintarPanelLimpieza(estado.limpiezaCorridas);
+    togglePanelLimpieza(!estado.limpiezaPanelAbierto);
+  });
+
   construirGraficas();
   construirMapa();
   vaciarContenedores();
@@ -819,5 +957,6 @@
   });
 
   cargarTodo();
+  cargarLimpieza();
   arrancarPolling();
 })();

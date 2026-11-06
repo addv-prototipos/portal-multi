@@ -28902,3 +28902,99 @@ este punto; queda en el working tree/commit local hasta que lo solicite.
 
 Archivos: `backend/utils/inventarioImportacion.js`, `frontend/admin.js`,
 `frontend/admin.css`.
+
+## Punto 479 — Kerberos: banner post-deploy para la limpieza de contenedores huérfanos de Docker (propuesta 5, 6 nov 2026, CERRADO en localhost)
+
+Reportado por el usuario viendo filas rojas duplicadas en el tablero de
+Kerberos (`clarvo_backend.1.bofy86…`, `clarvo_control.1.h99b6t…`, etc.) —
+tareas viejas de Swarm que `docker service update --force` deja atrás,
+en estado `dead` (no `exited` limpio, de ahí el punto rojo). Pidió: (1)
+que Kerberos valide al terminar un despliegue, (2) elimine lo que ya no
+hace falta, (3) guarde un log de qué elimina, (4) lo muestre en el
+tablero para poder revisarlo. Se presentaron 5 propuestas visuales
+(Artifact) — el usuario eligió la **5: banner contextual justo después
+de un deploy**.
+
+**Decisión de arquitectura, no negociable**: Kerberos sigue siendo 100%
+de solo lectura (decisión explícita anterior del usuario — socket de
+Docker montado `:ro`, `dockerClient.js` solo permite GET). Kerberos
+**nunca** ejecuta la limpieza ni gana ningún permiso de escritura sobre
+Docker. La limpieza real la sigue haciendo
+`VULTR/limpieza-docker.sh` (ya existía, timer semanal) — Kerberos solo
+LEE un log estructurado nuevo que ese script escribe, igual que ya lee
+el socket.
+
+**`VULTR/limpieza-docker.sh` (reescrito)**: antes de podar, captura con
+`docker ps -a --filter status=exited --filter status=dead --filter
+status=created` el nombre/id/imagen/status de cada candidato (`docker
+container prune` no reporta eso) — infiere el motivo del status crudo
+(`Dead` → "tarea de Swarm reemplazada", `Created` → "nunca llegó a
+iniciar", cualquier otro `Exited` → "contenedor detenido", nunca
+inventado). Usa `jq` (ya instalado en el VPS) para armar una línea JSON
+por corrida en `/var/log/clarvo-limpieza/limpieza.jsonl` — solo si hubo
+algo que podar. El log humano de siempre (`clarvo-limpieza.log`,
+`docker system df` antes/después) sigue igual, sin tocar. **Corre por 2
+vías**: el timer semanal de siempre + a mano justo después de cada
+deploy que haga `service update --force` (nuevo paso en el runbook de
+despliegue, documentado en `VULTR/README-VULTR.md`).
+
+**Kerberos backend**: `kerberos/utils/limpiezaLog.js` (nuevo) lee ese
+`.jsonl` vía `fs/promises`, ignora líneas corruptas sin tumbar el
+endpoint, regresa las últimas 20 corridas. Ruta nueva de solo lectura
+`GET /kerberos/api/limpieza` en `routes/metrics.js`. Montaje nuevo en
+ambos compose (`docker-compose.yml` local, `VULTR/docker-stack.yml`
+prod): `/var/log/clarvo-limpieza:/var/log/clarvo-limpieza:ro` — se monta
+el DIRECTORIO completo, nunca el archivo `.jsonl` suelto (bind-montar un
+archivo que no existe todavía crea un directorio vacío en su lugar en su
+lugar — gotcha real de Docker, evitado desde el diseño). En local no hay
+timer real corriendo — `./kerberos-logs/` (nuevo, gitignored salvo
+`.gitkeep`) queda vacío por default, el endpoint regresa `{corridas:[]}`
+sin error, mismo patrón que el resto de "aviso-vacío" del tablero.
+
+**Frontend (Propuesta 5 implementada)**: banner verde justo debajo del
+topbar (`#limpieza-banner`) que aparece solo si hay una corrida nueva no
+vista todavía (comparación de timestamps contra `localStorage`, clave
+`kerberos_limpieza_ultima_vista` — **localStorage, no sessionStorage**
+como el token de sesión, a propósito: debe sobrevivir cerrar la pestaña,
+o el banner reaparecería en cada login para algo que ya se revisó).
+"Ver detalle"/cerrar marcan la corrida como vista y la guardan. Botón
+persistente "Limpieza" en el header (oculto si no hay ninguna corrida
+registrada) abre/cierra un panel expandible con el historial completo
+(hasta 20 corridas, tabla nombre/imagen/motivo por contenedor) — mismo
+botón sirve para revisar días después, no solo justo tras el deploy.
+Poll propio cada 45s (`MS_ENTRE_POLLS_LIMPIEZA`), separado del de 6s del
+resto del tablero — una corrida de limpieza es un evento raro, no hace
+falta la misma cadencia que CPU/memoria.
+
+**Validado real** (Playwright/msedge, login `admin:admin` en
+`localhost:8088/kerberos`, JSONL de prueba sembrado a mano con los
+nombres/imágenes reales de la captura del usuario): banner aparece con
+el conteo correcto, "Ver detalle" lo oculta y abre el panel con las 2
+corridas agrupadas y ordenadas más reciente primero, botón "Limpieza"
+alterna el panel, recarga de página confirma que el banner YA NO
+reaparece (localStorage funcionando) pero el botón sigue disponible, y
+borrar el `.jsonl` de prueba vuelve el tablero al estado vacío limpio
+(botón oculto, sin banner, sin errores de consola).
+
+**Pruebas**: `node --check` limpio en los 3 archivos `.js` tocados/
+nuevos, `bash -n` limpio en el script. Suite `kerberos`: 9/11 — los 2
+que fallan (`metrics.test.js`, conteo de `healthChecks`) son
+preexistentes, de la expansión a 5 checks del punto 476 que nunca
+actualizó este test — confirmado con `git diff` de `routes/metrics.js`
+(solo 15 líneas agregadas, cero tocadas), fuera de alcance de este
+punto. Docker local reconstruido (`kerberos`), `healthy`, 0 errores.
+
+**Sin desplegar a producción todavía** — el usuario no lo ha pedido para
+este punto; queda en el working tree/commit local hasta que lo solicite.
+En el VPS real, antes del primer deploy con este cambio hay que crear el
+directorio del host (`mkdir -p /var/log/clarvo-limpieza`) — si no existe,
+el bind mount del stack lo crea vacío solo (Docker ya se comporta así
+para directorios, a diferencia de archivos sueltos), así que tampoco es
+estrictamente bloqueante, pero crear el directorio a mano de una vez
+evita cualquier duda.
+
+Archivos: `VULTR/limpieza-docker.sh`, `kerberos/utils/limpiezaLog.js`
+(nuevo), `kerberos/routes/metrics.js`, `kerberos/public/dashboard.html`,
+`kerberos/public/dashboard.css`, `kerberos/public/dashboard.js`,
+`docker-compose.yml`, `VULTR/docker-stack.yml`, `.gitignore`,
+`kerberos-logs/.gitkeep` (nuevo).
