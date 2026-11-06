@@ -28219,3 +28219,96 @@ asegurarTablaSolicitudesFactura()` (punto 470, tabla
 servicio tras el redeploy.
 
 Archivos: `frontend/admin.js`, `PROJECT_STATE.md` (este punto).
+
+## Punto 473 — Kerberos: app de monitoreo de infraestructura, expuesta en `/kerberos`, desplegada a producción (5 nov 2026, CERRADO)
+
+App nueva (contenedor propio, código ya existía sin commitear de otra
+sesión en paralelo al momento de retomarlo — ver gotcha de "dos sesiones
+comparten working tree" ya documentado) — dashboard de solo lectura:
+contenedores, CPU/memoria, logs, salud de `backend`/`control`/`frontend`,
+mapa de arquitectura. Nunca puede apagar/reiniciar nada —
+`kerberos/utils/dockerClient.js` solo permite `GET` contra el socket de
+Docker (montado `:ro`). Acceso: mismo mecanismo que `/control`
+(`ADMIN_USERS`, super admins entran directo) + lista propia
+`KERBEROS_USERS` (cuentas exclusivas de monitoreo, nunca entran a
+`/control` — alta/edición/baja desde `/control` → Super Admins →
+"Usuarios Kerberos", `control/utils/kerberosEnv.js`).
+
+**Revisión antes de desplegar** (código de otra sesión, nunca auditado
+hasta ahora): `utils/auth.js` replica exacto el patrón de
+`control/utils/auth.js` (Basic Auth + token Bearer firmado HMAC,
+candado anti-enumeración por timing). `utils/dockerClient.js` cierra las
+2 mitades del riesgo del socket de Docker: método (`Set(['GET'])`,
+cualquier otro rechaza antes de tocar el socket) y path (ids de
+contenedor validados contra un alfabeto cerrado en
+`routes/metrics.js:ID_CONTENEDOR_VALIDO`, nunca se inyecta un segmento
+de ruta). Suite propia (`kerberos/test/unit/metrics.test.js`, 11/11) +
+suite de `control/` (468/468, las nuevas rutas `/api/control/kerberos-usuarios/*`
+incluidas) corridas antes de tocar producción — ambas en verde.
+
+**Montado bajo `/kerberos` end-to-end — nunca en la raíz.** A
+diferencia de `/control` (página estática servida por el propio
+`frontend`, solo su API se reenvía al contenedor aparte), Kerberos sirve
+TODO desde su propio Express (HTML+CSS+JS+API) — montar su
+`express.static` en la raíz habría chocado con `/assets/*` del sitio
+principal (ambos usan ese mismo path para sus logos). Se re-prefijaron
+con `/kerberos` TODOS los paths absolutos: el `express.static` del
+server, los 2 HTML (`href`/`src`), las 2 hojas de estilo (`url()` de las
+4 fuentes), y los 3 scripts (`login.js`/`sesion.js`/`dashboard.js`,
+fetch + 4 redirects `window.location`). `nginx.conf.template` (frontend)
+necesita `location ^~ /kerberos` (con `^~`, obligatorio — sin eso, el
+catch-all regex anti-enumeración de tenants le gana a un location de
+prefijo normal para cualquier request con algo después del primer
+segmento, confundiendo "kerberos" con un slug de tenant) con
+`proxy_pass http://kerberos_upstream;` **sin "/" al final** — con "/"
+nginx recorta el prefijo antes de reenviar, rompiendo las rutas internas
+(todas ya montadas bajo `/kerberos` ellas mismas).
+
+**2 bugs reales encontrados y corregidos ANTES de darlo por bueno
+(ninguno visible hasta probar con clics/curl reales contra Docker
+levantado)**:
+1. **Loop de redirección infinito**: `app.get('/kerberos', ...)` en
+   Express (sin "strict routing", el default) matchea TANTO `/kerberos`
+   COMO `/kerberos/` — el handler que redirigía a `/kerberos/` se
+   disparaba también para la petición que YA traía la diagonal,
+   redirigiéndose a sí misma sin fin. Fix: comparar `req.path ===
+   '/kerberos'` dentro del handler antes de redirigir, `next()` en caso
+   contrario.
+2. **El nginx del HOST (fuera de Docker) necesita 2 reglas, no 1**:
+   `location = /kerberos` (exacta, sin diagonal) cubre el primer hit,
+   pero el 301 de la app apunta a `/kerberos/` — esa segunda petición
+   (diagonal sola, nada después) no coincide ni con esa regla exacta ni
+   con el regex de tenant-slug existente (`^/(?<tenant_slug>...)/.+$`,
+   exige 1+ caracteres DESPUÉS de la segunda barra) — caía en el
+   catch-all de clarvo-Site (404 de Astro, confirmado real con `curl`
+   contra producción antes del fix). Fix: agregar también
+   `location ^~ /kerberos/` (con diagonal, prefijo) en
+   `VULTR/nginx-host-clarvo.mx.conf`. Lección para cualquier app nueva
+   montada bajo un prefijo con un redirect bare→con-diagonal: el nginx
+   del HOST necesita las 2 formas, la exacta Y la de prefijo, nunca
+   asumir que una cubre a la otra.
+
+**Despliegue real a producción (clarvo.mx/Vultr)**: backup de ambas BD
+primero (dumps reales, tamaño verificado) → `git archive HEAD` con
+`kerberos/` agregado a la lista de carpetas → scp + extracción +
+verificación de checksum (`server.js`/`utils/auth.js` coinciden exacto)
+→ `docker-stack.yml` y el nginx del host actualizados también por scp +
+checksum (nuevo servicio `kerberos`, `KERBEROS_INTERNAL_URL` agregado a
+`control`, `nginx -t` antes de `reload`) → build de las 3 imágenes
+tocadas (`kerberos` nueva, `frontend`/`control` reconstruidas) → `docker
+stack deploy`. **Gotcha ya documentado, se repitió aquí**: el primer
+`docker build` de `frontend` NO recogió el `nginx.conf.template` nuevo
+(cache de capas) — mismo síntoma ya conocido ("rebuild que no se
+refleja"), resuelto con `--no-cache` + `docker service update --force`.
+Verificado real contra el dominio público: `/kerberos` → 301 →
+`/kerberos/` → 200 con el HTML real de Kerberos, `/kerberos/login.css`
+200, `/kerberos/api/me` sin auth → 401. Los 8 servicios del stack
+(`garage-init` 0/1 y `mysql-replica` 0/0 son el estado esperado de
+siempre) quedaron saludables tras el deploy.
+
+Archivos: `kerberos/` (app completa), `control/utils/kerberosEnv.js`,
+`control/server.js`, `frontend/control.html`, `frontend/control.js`,
+`frontend/nginx.conf.template`, `docker-compose.yml`,
+`kerberos-users.env.example`, `.gitignore`, `VULTR/docker-stack.yml`
+(gitignored, solo en el servidor), `VULTR/nginx-host-clarvo.mx.conf`
+(gitignored, solo en el servidor).

@@ -1396,6 +1396,28 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   considerar darle credenciales S3 propias a Control — mismo criterio de
   "nunca ampliar privilegios sin decisión explícita" que ya aplica a
   `control_app` en MySQL.
+- **Una app nueva montada bajo un prefijo de ruta (ej. `/kerberos`) con
+  redirect bare→con-diagonal necesita 2 reglas de nginx en el HOST, no
+  1** (punto 473, 2026-11-05): `location = /prefijo` (exacta) cubre la
+  primera petición, pero si la app redirige a `/prefijo/` (con diagonal,
+  patrón normal de cualquier Express `app.use('/prefijo', estático)`),
+  esa SEGUNDA petición no coincide ni con esa regla exacta ni con el
+  regex de tenant-slug ya existente (`^/(?<tenant_slug>...)/.+$`, exige
+  1+ caracteres DESPUÉS de la segunda barra — "/prefijo/" a secas no
+  tiene nada ahí) y cae en el catch-all genérico (confirmado real:
+  terminaba sirviendo el 404 de Astro del sitio de marketing). Agregar
+  siempre las 2 formas (`location = /prefijo` y
+  `location ^~ /prefijo/`), nunca asumir que la exacta cubre también el
+  caso con diagonal.
+- **Express sin "strict routing" (el default) matchea TANTO `/x` como
+  `/x/` con la misma ruta `app.get('/x', ...)`** (punto 473): un handler
+  que redirige la versión sin diagonal a la versión CON diagonal
+  (`res.redirect(301, '/x/')`) se dispara también para la petición que
+  YA trae la diagonal si no se filtra explícitamente — loop infinito,
+  reproducido real. Fix: comparar `req.path === '/x'` (el valor exacto
+  sin diagonal) dentro del handler antes de redirigir, `next()` en
+  cualquier otro caso — nunca asumir que una sola ruta Express cubre la
+  distinción bare/con-diagonal por sí sola.
 - **Un campo "preparado pero nunca conectado" puede llevar meses en el
   código sin que nadie lo note** (punto 433): `inventarioImagen.js:guardarImagenProducto()`
   ya regresaba `pesoBytes` desde antes de este punto — ningún call site
