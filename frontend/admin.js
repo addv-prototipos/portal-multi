@@ -411,6 +411,8 @@
     facturacionReciboLineas: document.getElementById('facturacion-recibo-lineas'),
     facturacionReciboTotal: document.getElementById('facturacion-recibo-total'),
     facturacionReciboTotalLabel: document.getElementById('facturacion-recibo-total-label'),
+    facturacionReciboCobradoRow: document.getElementById('facturacion-recibo-cobrado-row'),
+    facturacionReciboCobrado: document.getElementById('facturacion-recibo-cobrado'),
     facturacionReciboNotaStripe: document.getElementById('facturacion-recibo-nota-stripe'),
     facturacionReciboPdf: document.getElementById('facturacion-recibo-pdf'),
     facturacionFacturaAviso: document.getElementById('facturacion-factura-aviso'),
@@ -9372,26 +9374,52 @@
       ? `Vence el ${formatearFechaCorta(factura.fechaVencimiento)}`
       : '';
     // Propuesta 2 (ledger) — un grupo por concepto (plan, cada upscale),
-    // con su propia línea "Retenido por Stripe" cuando ese concepto trae
-    // descuento. factura.lineas ya trae {monto, descuento, montoNeto}
-    // por línea (prorrateado del descuento real del invoice — ver
+    // con 2 sub-líneas INDEPENDIENTES cuando aplican: "Descuento (cupón)"
+    // (solo si hubo un código activo ese cobro) y "Retenido por Stripe"
+    // (la comisión REAL que Stripe cobra por procesar el pago — casi
+    // siempre presente, tenga o no cupón el concepto). factura.lineas ya
+    // trae {monto, descuento, comisionStripe, montoNeto} por línea
+    // (prorrateado de los totales reales del invoice — ver
     // facturacionClarvo.js:lineasDeInvoice, nunca inventado aquí).
+    const TOL = 0.004; // tolerancia de centavo por redondeo de proporción
     els.facturacionReciboLineas.innerHTML = factura.lineas
       .map((l) => {
-        const tieneDescuento = l.descuento > 0.004; // tolerancia de centavo por redondeo
+        const tieneDescuento = l.descuento > TOL;
+        const tieneComision = l.comisionStripe > TOL;
         return `
           <div class="facturacion-recibo-grupo">
             <div class="facturacion-recibo-linea"><span>${escapeHtml(l.descripcion)}</span><span>$${formatearMoneda(l.monto)}</span></div>
-            ${tieneDescuento ? `<div class="facturacion-recibo-linea facturacion-recibo-linea-descuento"><span>Retenido por Stripe</span><span>&minus;$${formatearMoneda(l.descuento)}</span></div>` : ''}
+            ${tieneDescuento ? `<div class="facturacion-recibo-linea facturacion-recibo-linea-descuento"><span>Descuento (cupón)</span><span>&minus;$${formatearMoneda(l.descuento)}</span></div>` : ''}
+            ${tieneComision ? `<div class="facturacion-recibo-linea facturacion-recibo-linea-descuento"><span>Retenido por Stripe</span><span>&minus;$${formatearMoneda(l.comisionStripe)}</span></div>` : ''}
           </div>`;
       })
       .join('');
-    els.facturacionReciboTotalLabel.textContent = factura.descuento > 0.004 ? 'Total cobrado y facturado' : 'Total';
-    els.facturacionReciboTotal.textContent = `$${formatearMoneda(factura.total)}`;
-    if (factura.descuento > 0.004) {
+    // "Total cobrado" (lo que el banco del cliente muestra, siempre el
+    // bruto real: factura.total) y "Total facturado" (lo que de verdad
+    // llega a Clarvo, factura.montoNeto) son 2 números DISTINTOS en
+    // cuanto hay descuento o comisión de por medio — nunca se funden en
+    // uno solo, o el recibo contradice lo que el cliente ve en su banco.
+    const hayDeduccion = factura.descuento > TOL || factura.comisionStripe > TOL;
+    if (hayDeduccion) {
+      els.facturacionReciboCobradoRow.hidden = false;
+      els.facturacionReciboCobrado.textContent = `$${formatearMoneda(factura.total)}`;
+      els.facturacionReciboTotalLabel.textContent = 'Total facturado (tu CFDI)';
+    } else {
+      els.facturacionReciboCobradoRow.hidden = true;
+      els.facturacionReciboTotalLabel.textContent = 'Total';
+    }
+    els.facturacionReciboTotal.textContent = `$${formatearMoneda(factura.montoNeto)}`;
+    if (hayDeduccion) {
       els.facturacionReciboNotaStripe.hidden = false;
+      const partes = [];
+      if (factura.descuento > TOL) {
+        partes.push(`un descuento de $${formatearMoneda(factura.descuento)} (aplicó solo a este cobro, nunca se repite en renovaciones)`);
+      }
+      if (factura.comisionStripe > TOL) {
+        partes.push(`$${formatearMoneda(factura.comisionStripe)} que Stripe retiene por procesar el pago — un costo interno de Clarvo, nunca llega a nuestra cuenta`);
+      }
       els.facturacionReciboNotaStripe.textContent =
-        `Este descuento aplicó solo a este cobro (nunca se repite en renovaciones) — $${formatearMoneda(factura.total)} es lo que verás reflejado en tu factura. El servicio de Stripe es un costo interno de Clarvo, nunca entra al CFDI.`;
+        `Este cobro tuvo ${partes.join(' y ')}. $${formatearMoneda(factura.montoNeto)} es lo que de verdad llegó a Clarvo y lo que verás reflejado en tu factura (CFDI) — nunca el total que te cobraron.`;
     } else {
       els.facturacionReciboNotaStripe.hidden = true;
     }

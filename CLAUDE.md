@@ -1096,27 +1096,43 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   existente — ver el gotcha dedicado más abajo. El Checkout Session del
   onboarding sigue 100% efímero como describe este punto, sin cambios.
 - **CFDI real (facturas fiscales) se emiten a mano por el portal del
-  SAT — por el monto REAL que Stripe cobró, nunca por precio de
-  catálogo** (punto 477, 2026-11-06, **reemplaza por completo** el
-  criterio anterior de "precio de catálogo" del punto 470 addendum — ese
-  criterio tenía un bug real: con un cupón de descuento activo, el CFDI
-  se habría emitido por el precio de lista aunque el cliente pagara
-  menos). "Solicitar factura" (Mi Cuenta → Facturación de Clarvo) ahora
-  recibe un `invoiceId` del invoice real que el tenant elige de su
-  historial y `montoRealInvoiceTenant(slug, invoiceId, db)`
-  (`control/utils/facturacionClarvo.js`) recupera ESE invoice de Stripe
-  y usa `invoice.total` (ya con cualquier descuento aplicado) — nunca
-  confía en el `invoiceId` a ciegas: verifica que `invoice.customer`
-  coincida con el `stripe_customer_id` del tenant antes de usar su
-  monto (candado cross-tenant de siempre). `montoCatalogoTenant()` se
-  eliminó por completo — ya no existe en el código. `crearSolicitud()`
-  (`facturacionGestion.js`) sigue sin aceptar nunca un `monto` del
-  llamador ("nunca confiar en lo que mandó el frontend" para un monto de
-  negocio) — solo que ahora lo recalcula del invoice real, no del
-  catálogo. El historial/tabla "Facturación de Clarvo" y el modal "Ver
-  recibo" muestran los MISMOS montos reales de Stripe que ahora
-  respalda el CFDI — ya no hay 2 cifras distintas a propósito, esa
-  divergencia era justo el bug que este punto corrigió.
+  SAT — por el NETO real que llega a la cuenta de Clarvo, nunca por lo
+  que el cliente pagó ni por precio de catálogo** (punto 480, 2026-11-06,
+  **reemplaza por completo** el criterio del punto 477, que ya usaba el
+  invoice real de Stripe pero el BRUTO — `invoice.total` — sin restar la
+  comisión real que Stripe retiene por procesar el cobro; y el del punto
+  470 addendum, "precio de catálogo", bug real con cupón activo).
+  Decisión explícita y reafirmada del usuario: "no se factura el monto
+  que Stripe retiene, porque ese no llega a la cuenta de Clarvo".
+  "Solicitar factura" recibe un `invoiceId` real y
+  `montoRealInvoiceTenant(slug, invoiceId, db)`
+  (`control/utils/facturacionClarvo.js`) regresa
+  `bruto − descuento(cupón) − comisiónStripe` — nunca el bruto. La
+  comisión real vive en `charge.balance_transaction.fee`/`.net`
+  (`obtenerComisionStripe()`), solo resoluble para invoices YA pagadas.
+  Sin comisión resoluble (edge case raro), se cae al bruto en vez de
+  bloquear el CFDI. `invoiceId` nunca se confía a ciegas: verifica
+  `invoice.customer === stripe_customer_id` del tenant (candado
+  cross-tenant de siempre). El historial "Facturación de Clarvo" y el
+  modal "Ver recibo" muestran AHORA 2 cifras a propósito —
+  "Total cobrado (tu banco)" (bruto, lo que el cliente vio en su estado
+  de cuenta) y "Total facturado (tu CFDI)" (neto, lo que de verdad
+  respalda la factura) — fundirlas en una sola, como hacía el mockup
+  original, haría que el recibo contradijera el estado de cuenta real
+  del cliente.
+- **Stripe rechaza expand anidado de más de 4 niveles** (punto 480,
+  confirmado real: `"You cannot expand more than 4 levels of a
+  property"` con
+  `payments.data.payment.payment_intent.latest_charge.balance_transaction`
+  de un solo jalón) — para llegar del Invoice a su comisión real
+  (`balance_transaction.fee`/`.net`) hacen falta 2 llamadas encadenadas,
+  nunca una: `stripe.invoices.retrieve(id, {expand:
+  ['payments.data.payment.payment_intent']})` (4 niveles exactos) y
+  luego `stripe.paymentIntents.retrieve(piId, {expand:
+  ['latest_charge.balance_transaction']})` (2 niveles) sobre el
+  `payment_intent` ya resuelto. Antes de escribir cualquier expand
+  anidado nuevo de Stripe, contar los segmentos separados por `.` — 5 o
+  más revienta en runtime, nunca en build/lint.
 - **`payment_method_types` ya no se acepta al crear un Checkout Session**
   (confirmado real contra Stripe, 2026-10-26, ver `DOCS/confStripe.html`
   paso 5): Stripe gobierna 100% los métodos de pago habilitados desde el

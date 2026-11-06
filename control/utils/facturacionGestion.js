@@ -28,14 +28,15 @@ function folioNuevo() {
   return `SOL-${numero}-${Date.now().toString(36).toUpperCase()}`;
 }
 
-// `monto`: NUNCA se recibe del llamador — decisión del usuario (punto en
-// curso, reemplaza el criterio anterior de "precio de catálogo"): el
-// CFDI se emite por lo que Stripe REALMENTE cobró en ESE invoice
-// (`invoiceId`, ya con cualquier descuento aplicado) — nunca por el
-// precio de catálogo, que podría no coincidir si hubo un cupón de un
-// solo cobro activo ese mes (ver stripeConfig.js — duration:'once'
-// siempre). Se recalcula aquí siempre (`montoRealInvoiceTenant`) y se
-// guarda como snapshot en la fila, igual que razón social/RFC/régimen.
+// `monto`: NUNCA se recibe del llamador — decisión del usuario (punto 479):
+// el CFDI se emite por lo que de verdad LLEGA a la cuenta de Clarvo para
+// ESE invoice (`invoiceId`) — ni el precio de catálogo ni lo que el
+// cliente pagó (bruto), sino ese bruto menos el descuento (si hubo cupón
+// activo, duration:'once' siempre) Y menos la comisión real que Stripe
+// retiene por procesar el cobro (`montoRealInvoiceTenant` →
+// facturacionClarvo.js:obtenerComisionStripe, Balance Transaction API).
+// Se recalcula aquí siempre y se guarda como snapshot en la fila, igual
+// que razón social/RFC/régimen.
 async function crearSolicitud(datos, db = obtenerPool()) {
   const { slug, invoiceId, periodoEtiqueta, razonSocial, rfc, regimenFiscal, codigoPostal } = datos;
   if (!slug || !invoiceId || !razonSocial || !rfc || !regimenFiscal || !codigoPostal) {

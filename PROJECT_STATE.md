@@ -28998,3 +28998,77 @@ Archivos: `VULTR/limpieza-docker.sh`, `kerberos/utils/limpiezaLog.js`
 `kerberos/public/dashboard.css`, `kerberos/public/dashboard.js`,
 `docker-compose.yml`, `VULTR/docker-stack.yml`, `.gitignore`,
 `kerberos-logs/.gitkeep` (nuevo).
+
+## Punto 480 — CFDI por el NETO real: comisión de Stripe (fee real, no el cupón) + "Total cobrado" vs "Total facturado" (6 nov 2026, CERRADO en localhost)
+
+El usuario revisó en producción un recibo sin descuento ($199, plan
+Solicita) y no vio ningún desglose — correcto para el punto 477 (que
+solo cubría cupones), pero no lo que el usuario en realidad quería: el
+artifact original (`propuestas-desglose-stripe.html`, Propuesta 2,
+elegida desde antes) pedía mostrar la **comisión REAL que Stripe retiene
+por procesar CADA cobro** (siempre presente, tenga o no cupón) — nunca
+implementada, el punto 477 solo cubrió descuentos de cupón por una
+confusión de terminología de una sesión anterior.
+
+**Verificado contra la API real de Stripe (test mode, invoice real del
+tenant `panes`) antes de escribir código**: el fee vive en
+`charge.balance_transaction.fee`/`.net`, accesible vía
+`invoice.payments.data[0].payment.payment_intent` →
+`paymentIntents.retrieve(id, {expand:['latest_charge.balance_transaction']})`.
+**Gotcha real encontrado al probar**: Stripe rechaza expand de más de 4
+niveles anidados (`"cannot expand more than 4 levels"` con
+`payments.data.payment.payment_intent.latest_charge.balance_transaction`
+de un solo jalón) — por eso son 2 llamadas encadenadas
+(`obtenerComisionStripe()` en `facturacionClarvo.js`), nunca una. Datos
+reales confirmados: invoice de $850.00 → fee real $43.91 (5.17% — más
+alto que el 3.6%+$3 doméstico típico, probablemente por usar tarjeta de
+prueba `4242...` clasificada como no-doméstica en modo prueba, sin
+relación con el código).
+
+**`montoRealInvoiceTenant()` ahora regresa el NETO** (`comision.net`),
+no `invoice.total` — decisión explícita y reafirmada del usuario: "no se
+factura el monto que Stripe retiene, porque ese no llega a la cuenta de
+Clarvo". Reemplaza el criterio del punto 477 (que ya usaba el monto real
+de Stripe, pero el BRUTO — sin restar la comisión). Sin comisión
+resoluble (edge case raro: pago manual viejo, reembolso parcial), se cae
+al bruto de la invoice en vez de bloquear la emisión del CFDI.
+
+**`lineasDeInvoice()`** ahora prorratea 2 deducciones independientes por
+línea (plan, cada upscale): `descuento` (cupón, si hubo) y
+`comisionStripe` (siempre que sea resoluble) — nunca mezcladas en una
+sola cifra.
+
+**Frontend — corrección de un error real encontrado al implementar**: el
+código YA tenía una fila rotulada "Retenido por Stripe" desde el punto
+477, pero mostraba el DESCUENTO del cupón, no la comisión real — label
+mentiroso, nunca corregido hasta ahora (renombrado a "Descuento (cupón)",
+la comisión real tiene su PROPIA fila, ambas pueden aparecer juntas).
+**Mejora de corrección aplicada más allá del artifact original**: el
+artifact fundía "Total cobrado" y "Total facturado" en una sola cifra
+neta — eso haría que el recibo mostrara un número que NO coincide con lo
+que el banco del cliente le cobró, generando una contradicción real
+entre el recibo y su estado de cuenta. Se separó en 2 filas: "Total
+cobrado (tu banco)" (bruto, discreto, solo visible si hay alguna
+deducción) y "Total facturado (tu CFDI)" (neto, prominente, la cifra que
+de verdad importa) — nunca se funden en un solo número.
+
+**Validado real** (Playwright/msedge, tenant `panes`, invoice real de
+$850.00 con comisión real de $43.91): "Retenido por Stripe −$43.91",
+"Total cobrado (tu banco) $850.00", "Total facturado (tu CFDI) $806.09",
+nota explicativa correcta, 0 errores de consola.
+
+**Pruebas**: `node --check` limpio en los 4 archivos tocados. Suite
+`control` 472/472 (9 nuevas pruebas en `facturacionClarvo.test.js`,
+incluida la del límite de 4 niveles de expand y la de invoice sin pagar
+que nunca intenta resolver comisión). Suite `backend` 1381/1382 (el 1
+que falla es el mismo preexistente de `multitenant.test.js`, ajeno,
+documentado desde el punto 477). Docker local reconstruido
+(`control`/`backend`/`frontend`), los 3 `healthy`.
+
+**Sin desplegar a producción todavía** — el usuario no lo ha pedido para
+este punto; queda en el working tree/commit local hasta que lo solicite.
+
+Archivos: `control/utils/facturacionClarvo.js`,
+`control/utils/facturacionGestion.js`,
+`control/test/unit/facturacionClarvo.test.js`, `backend/server.js`,
+`frontend/admin.html`, `frontend/admin.js`, `frontend/admin.css`.

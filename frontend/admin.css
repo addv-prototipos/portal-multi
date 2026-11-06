@@ -10524,6 +10524,14 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   padding-top: 0;
   padding-bottom: 10px;
 }
+/* "Total cobrado (tu banco)" — solo visible cuando hay descuento/comisión
+   de por medio, siempre el bruto real que el cliente vio en su estado de
+   cuenta. Deliberadamente discreto (nunca compite visualmente con el
+   total de abajo, que SÍ es el que importa para el CFDI). */
+.facturacion-recibo-subtotal-cobrado {
+  color: var(--color-ink-soft);
+  font-size: 12px;
+}
 .facturacion-recibo-total {
   border: none; border-top: 2px solid var(--color-ink); padding-top: 12px;
   font-weight: 700; font-size: 16px;

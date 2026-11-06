@@ -31,32 +31,65 @@ function limpiarDescripcionLinea(descripcion) {
   return descripcion.replace(/\s*\(at\s+\$[\d,.]+\s*\/\s*\w+\)\s*$/i, '');
 }
 
-// Desglose real (propuesta 2, "tarjeta de desglose") — el descuento que
-// trae esta invoice (si tiene uno, SOLO en el cobro donde de verdad se
-// aplicó: los cupones de este catálogo son siempre duration:'once', ver
-// stripeConfig.js, así que las invoices SIGUIENTES de la misma
-// suscripción simplemente no traen descuento, sin que este código tenga
-// que decidir nada sobre "cada cuánto aplica" — eso ya lo resuelve
-// Stripe solo). El descuento vive a nivel INVOICE (el cupón se adjunta a
-// la Subscription completa, nunca a una línea), así que Stripe no
-// entrega un desglose nativo por línea — se prorratea aquí
-// proporcional al peso de cada línea en el subtotal, y se marca
-// `prorrateado:true` para que la UI nunca lo presente como un dato que
-// Stripe calculó así.
-function lineasDeInvoice(invoice) {
+// Comisión REAL que Stripe retiene por procesar el cobro (Balance
+// Transaction API) — nunca un porcentaje fijo inventado, siempre el dato
+// real de ESE cargo específico (verificado contra la API real: varía por
+// invoice, no es un 3.6% parejo). Solo resoluble para invoices YA
+// pagadas — el Charge y su balance_transaction nacen junto con el pago
+// exitoso, no existen antes. Stripe limita el expand anidado a 4
+// niveles (confirmado real: "cannot expand more than 4 levels" con
+// 'payments.data.payment.payment_intent.latest_charge.balance_transaction'
+// de un solo jalón) — por eso son 2 llamadas encadenadas, nunca una.
+// Nunca tumba el listado/CFDI completo si no se puede resolver (pago
+// manual viejo, reembolso parcial, etc.) — esa factura simplemente
+// queda sin desglose de comisión, el flujo sigue con el monto bruto.
+async function obtenerComisionStripe(stripe, invoiceId, estadoInvoice) {
+  if (estadoInvoice !== 'paid') return null;
+  try {
+    const conPagos = await stripe.invoices.retrieve(invoiceId, {
+      expand: ['payments.data.payment.payment_intent'],
+    });
+    const pago = conPagos.payments?.data?.[0]?.payment;
+    const piId = typeof pago?.payment_intent === 'string' ? pago.payment_intent : pago?.payment_intent?.id;
+    if (!piId) return null;
+    const pi = await stripe.paymentIntents.retrieve(piId, { expand: ['latest_charge.balance_transaction'] });
+    const charge = pi.latest_charge;
+    const bt = typeof charge === 'object' && charge ? charge.balance_transaction : null;
+    if (!bt || typeof bt !== 'object') return null;
+    return {
+      fee: Math.round(Number(bt.fee || 0)) / 100,
+      net: Math.round(Number(bt.net || 0)) / 100,
+    };
+  } catch (err) {
+    return null;
+  }
+}
+
+// Desglose real (propuesta 2, "tarjeta de desglose") — 2 deducciones
+// independientes, nunca mezcladas: el DESCUENTO (cupón de un solo cobro,
+// ver stripeConfig.js — las invoices siguientes de la misma suscripción
+// simplemente no lo traen, Stripe ya resuelve el "solo una vez" solo) y
+// la COMISIÓN de Stripe (arriba, siempre presente en un cobro real,
+// tenga o no cupón). Ninguna de las 2 vive a nivel línea en Stripe (el
+// cupón se adjunta a la Subscription completa, la comisión es del cargo
+// completo) — se prorratean aquí proporcional al peso de cada línea en
+// el subtotal, nunca presentadas como un dato que Stripe calculó así.
+function lineasDeInvoice(invoice, comisionStripeTotal) {
   const data = Array.isArray(invoice.lines?.data) ? invoice.lines.data : [];
   const subtotalBruto = Number(invoice.subtotal || 0);
   const descuentoTotalCentavos = Math.max(0, Number(invoice.subtotal || 0) - Number(invoice.total || 0));
+  const comisionTotalCentavos = Math.max(0, Math.round((comisionStripeTotal || 0) * 100));
   return data.map((linea) => {
     const montoBruto = Number(linea.amount || 0) / 100;
-    const descuentoLinea = subtotalBruto > 0
-      ? Math.round((Number(linea.amount || 0) / subtotalBruto) * descuentoTotalCentavos) / 100
-      : 0;
+    const pesoLinea = subtotalBruto > 0 ? Number(linea.amount || 0) / subtotalBruto : 0;
+    const descuentoLinea = Math.round(pesoLinea * descuentoTotalCentavos) / 100;
+    const comisionLinea = Math.round(pesoLinea * comisionTotalCentavos) / 100;
     return {
       descripcion: limpiarDescripcionLinea(linea.description || 'Cargo de suscripción'),
       monto: montoBruto,
       descuento: descuentoLinea,
-      montoNeto: Math.round((montoBruto - descuentoLinea) * 100) / 100,
+      comisionStripe: comisionLinea,
+      montoNeto: Math.round((montoBruto - descuentoLinea - comisionLinea) * 100) / 100,
     };
   });
 }
@@ -78,48 +111,61 @@ async function listarFacturasTenant(slug, { limite = 12, db = obtenerPool() } = 
     [slug]
   );
   const solicitudesPorInvoice = new Map(solicitudesFilas.map((s) => [s.invoice_id, s]));
-  return lista.data
-    .filter((invoice) => invoice.status === 'paid' || invoice.status === 'open' || invoice.status === 'uncollectible')
-    .map((invoice) => {
-      const primeraLinea = invoice.lines?.data?.[0] || null;
-      const periodoUnix = primeraLinea?.period?.start || invoice.created;
-      const solicitud = solicitudesPorInvoice.get(invoice.id) || null;
-      const subtotal = Number(invoice.subtotal || 0) / 100;
-      const total = Number(invoice.total || 0) / 100;
-      return {
-        id: invoice.id,
-        folio: invoice.number || invoice.id,
-        periodoEtiqueta: etiquetaMes(periodoUnix),
-        periodoOrden: periodoUnix,
-        subtotal,
-        total,
-        // Math.max(0, ...): nunca negativo por redondeo de centavos.
-        descuento: Math.max(0, Math.round((subtotal - total) * 100) / 100),
-        estado: estadoDeInvoice(invoice),
-        fechaCobro: invoice.status_transitions?.paid_at
-          ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
-          : null,
-        fechaVencimiento: invoice.due_date ? new Date(invoice.due_date * 1000).toISOString() : null,
-        lineas: lineasDeInvoice(invoice),
-        hostedUrl: invoice.hosted_invoice_url || null,
-        pdfUrl: invoice.invoice_pdf || null,
-        solicitudFactura: solicitud
-          ? { folio: solicitud.folio, estado: solicitud.estado, motivoRechazo: solicitud.motivo_rechazo }
-          : null,
-      };
-    })
-    .sort((a, b) => b.periodoOrden - a.periodoOrden);
+  const facturas = await Promise.all(
+    lista.data
+      .filter((invoice) => invoice.status === 'paid' || invoice.status === 'open' || invoice.status === 'uncollectible')
+      .map(async (invoice) => {
+        const primeraLinea = invoice.lines?.data?.[0] || null;
+        const periodoUnix = primeraLinea?.period?.start || invoice.created;
+        const solicitud = solicitudesPorInvoice.get(invoice.id) || null;
+        const subtotal = Number(invoice.subtotal || 0) / 100;
+        const total = Number(invoice.total || 0) / 100;
+        const comision = await obtenerComisionStripe(stripe, invoice.id, invoice.status);
+        const comisionStripe = comision ? comision.fee : null;
+        // Lo que de verdad llega a la cuenta de Clarvo — sin comisión
+        // resoluble (edge case raro) se cae al bruto, nunca null, para
+        // que la tabla siempre tenga un número que mostrar.
+        const montoNeto = comision ? comision.net : total;
+        return {
+          id: invoice.id,
+          folio: invoice.number || invoice.id,
+          periodoEtiqueta: etiquetaMes(periodoUnix),
+          periodoOrden: periodoUnix,
+          subtotal,
+          total,
+          // Math.max(0, ...): nunca negativo por redondeo de centavos.
+          descuento: Math.max(0, Math.round((subtotal - total) * 100) / 100),
+          comisionStripe,
+          montoNeto,
+          estado: estadoDeInvoice(invoice),
+          fechaCobro: invoice.status_transitions?.paid_at
+            ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
+            : null,
+          fechaVencimiento: invoice.due_date ? new Date(invoice.due_date * 1000).toISOString() : null,
+          lineas: lineasDeInvoice(invoice, comisionStripe),
+          hostedUrl: invoice.hosted_invoice_url || null,
+          pdfUrl: invoice.invoice_pdf || null,
+          solicitudFactura: solicitud
+            ? { folio: solicitud.folio, estado: solicitud.estado, motivoRechazo: solicitud.motivo_rechazo }
+            : null,
+        };
+      })
+  );
+  return facturas.sort((a, b) => b.periodoOrden - a.periodoOrden);
 }
 
-// Decisión del usuario (punto en curso — reemplaza el criterio anterior
-// de "precio de catálogo", que vivía aquí como montoCatalogoTenant() y
-// se retiró por completo: ya no se usa en ningún lado). El CFDI real
-// debe coincidir con lo que Stripe de verdad cobró en ESE invoice — nunca el
-// precio de catálogo. Si hubo un descuento (cupón de un solo cobro, ver
-// stripeConfig.js), el CFDI se emite por el monto YA con descuento; el
-// mes siguiente, sin descuento activo, el invoice.total vuelve solo al
-// precio de catálogo — no hace falta ninguna lógica especial aquí para
-// "solo una vez", Stripe ya lo resuelve con duration:'once'.
+// Decisión del usuario (punto 477, reafirmada en este punto — el CFDI
+// se factura por lo que de verdad LLEGA a la cuenta de Clarvo, no por lo
+// que el cliente pagó). Dos deducciones posibles sobre el precio de
+// catálogo: el descuento de un cupón (si lo hubo) y la comisión REAL que
+// Stripe retiene por procesar el cobro (siempre presente en un cargo
+// real, tenga o no cupón — ver obtenerComisionStripe arriba). Ninguna de
+// las 2 llega a la cuenta de Clarvo, así que ninguna de las 2 se
+// factura — el CFDI se emite por el NETO (`comision.net`), nunca por
+// `invoice.total` (eso es lo que pagó el cliente, no lo que Clarvo
+// recibió). Sin comisión resoluble (edge case raro: pago manual viejo,
+// reembolso parcial), se cae al bruto de la invoice en vez de bloquear
+// la emisión del CFDI por completo.
 // `invoiceId` nunca se confía a ciegas (es del frontend) — se verifica
 // que el customer del invoice real sea el mismo que el de este tenant
 // antes de usar su monto, mismo criterio que cualquier otro candado
@@ -136,6 +182,8 @@ async function montoRealInvoiceTenant(slug, invoiceId, db = obtenerPool()) {
     return null;
   }
   if (!invoice || invoice.customer !== stripeCustomerId) return null;
+  const comision = await obtenerComisionStripe(stripe, invoice.id, invoice.status);
+  if (comision) return comision.net;
   return Math.round(Number(invoice.total || 0)) / 100;
 }
 

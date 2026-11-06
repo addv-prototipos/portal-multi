@@ -4680,13 +4680,21 @@
                 <span id="facturacion-recibo-fecha" class="micuenta-suscripcion-texto"></span>
               </div>
               <div id="facturacion-recibo-lineas" class="facturacion-recibo-lineas"></div>
+              <!-- Solo visible cuando hay descuento/comisión de Stripe de por
+                   medio: lo que el banco del cliente sí muestra (el cargo
+                   completo) NUNCA debe confundirse con lo que va en el CFDI
+                   (abajo) — son 2 números distintos a propósito. -->
+              <div class="facturacion-recibo-linea facturacion-recibo-subtotal-cobrado" id="facturacion-recibo-cobrado-row" hidden>
+                <span>Total cobrado (tu banco)</span>
+                <span id="facturacion-recibo-cobrado"></span>
+              </div>
               <div class="facturacion-recibo-linea facturacion-recibo-total">
                 <span id="facturacion-recibo-total-label">Total</span>
                 <span id="facturacion-recibo-total"></span>
               </div>
-              <!-- Desglose de descuento de Stripe (propuesta 2, ledger) —
-                   oculto por default; aparece solo si esta invoice real
-                   trajo descuento (invoice.subtotal > invoice.total). -->
+              <!-- Desglose de descuento/comisión de Stripe (propuesta 2,
+                   ledger) — oculto por default; aparece solo si esta invoice
+                   real trajo descuento y/o comisión resoluble. -->
               <p id="facturacion-recibo-nota-stripe" class="facturacion-recibo-nota-stripe" hidden></p>
               <div id="facturacion-factura-aviso" class="field-error aviso-cuota" hidden>
                 <p id="facturacion-factura-aviso-texto"></p>

@@ -537,19 +537,29 @@ solo la frase en español de la UI.
   antes de pagar, o reenviar el evento real firmado a mano
   (`stripe.webhooks.generateTestHeaderString`) al puerto interno 4001 de
   `control` si el pago ya se hizo sin listener.
-- **CFDI real se emite a mano por el portal del SAT, por el monto REAL
-  que Stripe cobró — ya no por precio de catálogo** (punto 477,
-  2026-11-06, reemplaza el criterio del punto 470 addendum, que tenía un
-  bug real: con un cupón activo el CFDI se habría emitido por el precio
-  de lista, no por lo que el cliente pagó). "Solicitar factura" ahora
-  usa `montoRealInvoiceTenant(slug, invoiceId, db)`
-  (`control/utils/facturacionClarvo.js`) — recupera el invoice real de
-  Stripe, verifica que su `customer` sea el del tenant (candado
-  cross-tenant), y usa `invoice.total` (ya con descuento aplicado).
-  `montoCatalogoTenant()` se eliminó, ya no existe. `crearSolicitud()`
-  sigue sin aceptar `monto` del llamador, solo que ahora lo recalcula del
-  invoice real. El historial/"Ver recibo" y el monto de la CFDI ya
-  muestran la MISMA cifra — la divergencia anterior era justo el bug.
+- **CFDI real se emite a mano por el portal del SAT, por el NETO real que
+  llega a la cuenta de Clarvo — ya no por lo que el cliente pagó ni por
+  precio de catálogo** (punto 480, 2026-11-06, reemplaza el criterio del
+  punto 477 — ese ya usaba el invoice real pero el BRUTO, sin restar la
+  comisión que Stripe retiene por procesar el cobro). Decisión explícita
+  del usuario: lo que Stripe retiene no llega a Clarvo, no se factura.
+  `montoRealInvoiceTenant(slug, invoiceId, db)`
+  (`control/utils/facturacionClarvo.js`) regresa
+  `bruto − descuento(cupón) − comisiónStripe` — la comisión real sale de
+  `charge.balance_transaction.fee`/`.net` (`obtenerComisionStripe()`,
+  solo resoluble si la invoice ya está pagada). Sin comisión resoluble
+  se cae al bruto en vez de bloquear el CFDI. "Ver recibo" ahora muestra
+  2 cifras a propósito: "Total cobrado (tu banco)" (bruto) y
+  "Total facturado (tu CFDI)" (neto) — nunca una sola, o el recibo
+  contradice el estado de cuenta real del cliente.
+- **Stripe rechaza expand anidado de más de 4 niveles** (punto 480,
+  confirmado real): para llegar del Invoice a su comisión hacen falta 2
+  llamadas encadenadas — `invoices.retrieve(id, {expand:
+  ['payments.data.payment.payment_intent']})` (4 niveles) y luego
+  `paymentIntents.retrieve(piId, {expand:
+  ['latest_charge.balance_transaction']})` (2 niveles) — nunca una sola
+  con todo el camino (`payments.data.payment.payment_intent.latest_charge.balance_transaction`
+  revienta con "cannot expand more than 4 levels").
 - **Cupones de este catálogo: `duration` siempre `'once'`** (punto 477):
   `crearCodigoDescuento()` rechaza cualquier otra duración — un
   descuento "solo al primer cobro" se resuelve solo (Stripe no repite el

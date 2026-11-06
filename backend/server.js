@@ -5767,9 +5767,10 @@ app.get(
 // candado de negocio); (2) exigirAdminRaizConTenant, mismo que
 // "Datos de pago" — solo la cuenta raíz puede pedir una factura real.
 // `monto` NUNCA llega del frontend — Control lo recalcula siempre del
-// cobro REAL de Stripe para ese invoiceId (ya con cualquier descuento
-// de un solo cobro aplicado ese mes — ver
-// facturacionClarvo.js:montoRealInvoiceTenant, punto en curso).
+// NETO real que llega a la cuenta de Clarvo para ese invoiceId (bruto
+// menos descuento de cupón, si hubo, menos la comisión real que Stripe
+// retiene por procesar el cobro — ver
+// facturacionClarvo.js:montoRealInvoiceTenant, punto 479).
 app.post(
   '/api/admin/mi-cuenta/facturacion/solicitar',
   adminApiLimiter,
