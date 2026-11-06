@@ -29315,3 +29315,49 @@ quedaron con el MISMO SHA256
 desplegó nada a producción (no se pidió). `opencode.md` y `AGENTS.md` /
 `CLAUDE.md` deben actualizarse en el mismo cambio si una regla persistente
 cambia.
+
+## Punto 483 - "Primeros pasos" ofrecía pasos de módulos fuera del plan (6 nov 2026, CERRADO)
+
+Reportado por el usuario con captura real de producción: un tenant plan
+Solicita (sin Ventas ni Inventarios) veía en su checklist "Registra tu
+primera venta" y "Activa Inventarios si vendes producto físico" — el
+"Ir →" de ambos llevaba a una vista que ni existe en su sidebar
+(`requiereFeature()` responde 404 del lado del backend). El usuario
+preguntó explícitamente si había más casos similares por validar.
+
+**Causa real**: `definirPasosOnboarding()` (`frontend/admin.js`) nunca
+cruzaba los pasos del checklist contra el plan del tenant — a diferencia
+de `aplicarRestriccionesPerfil()` (sidebar) y `ONBOARDING_TOUR_PASOS`
+(recorrido guiado, que ya filtraba por `.hidden`/`offsetParent`,
+confirmado SIN bug). Afectaba a los perfiles **administrador** (ve pasos
+de Ventas e Inventarios sin importar el plan) y **ventas** (sus 3 pasos
+dependen de 3 flags independientes — ventas/cxc/gastos — pero el perfil
+es asignable con solo UNO de los tres activo, punto 444). `fiscal` e
+`inventario` no tenían el bug: su propia existencia como perfil ya
+implica el módulo correspondiente, 1-a-1 (`perfilPlanVisible()`).
+
+**Fix**: `vistaDisponibleParaOnboarding(vista)` reusa el mismo estado
+`.hidden` que `aplicarRestriccionesPerfil()` ya calculó sobre el botón
+del sidebar — fuente única, mismo patrón que el atajo "Registrar venta"
+del header (que ya hacía exactamente esto). 2 pasos necesitaron gate
+explícito con `planPermite()` en vez del genérico: "Completa tus datos
+fiscales" (la vista `configuraciones` en sí nunca se oculta por plan —
+su gate real es el flag de `admin-config-card`) y "Activa Inventarios si
+vendes producto físico" (el botón del sidebar de Inventarios exige
+ADEMÁS `inventarioActivoGlobalmente` encendido — justo lo que ese paso
+le pide al admin que haga, así que nunca podría cumplirse si se usara
+el check genérico). Si el filtro deja la lista vacía, el checklist no
+se muestra (mismo resultado que "ya completó todo"), nunca una tarjeta
+"0 de 0".
+
+**Verificado con login real en navegador** (Chrome DevTools MCP) contra
+`prueba-cancel-5` (plan Solicita, `ventasHabilitado:false`,
+`inventariosHabilitado:false`, `facturacionHabilitada:true` — confirmado
+por `GET /api/admin/login` real): el checklist pasó de 4 pasos a 2
+reales ("Completa tus datos fiscales", "Invita a tu primer usuario").
+Contraseña del usuario de prueba reseteada a mano
+(`Prueba123!`, scrypt) solo para esta verificación — tenant de QA
+desechable (`prueba-cancel-*`), sin dato real de cliente.
+
+Commit: `c9f580c`. Contenedor `frontend` reconstruido y recreado para
+servir el fix antes de la verificación.
