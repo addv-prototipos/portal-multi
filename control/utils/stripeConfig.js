@@ -116,22 +116,28 @@ async function listarCodigosDescuento() {
   });
 }
 
-async function crearCodigoDescuento({ codigo, tipo, valor, duracion, duracionMeses, vigenciaHasta, usosMaximos }) {
+// Decisión explícita del usuario (punto en curso): un código de descuento
+// de este catálogo SIEMPRE es de un solo cobro — nunca "repeating" ni
+// "forever". Antes se permitían los 3 (duration libre, elegida por el
+// admin al crear el código) — un cupón "forever"/"repeating" redimido al
+// contratar un plan le habría dado descuento PARA SIEMPRE o varios meses
+// seguidos en cada renovación, nunca lo que el negocio quiere ("solo el
+// primer mes, o una sola vez si es anual — nunca cada año"). Se valida
+// aquí (nunca confiar solo en que el selector de /control ya lo oculte)
+// — defensa en profundidad, mismo criterio que el resto del proyecto.
+async function crearCodigoDescuento({ codigo, tipo, valor, duracion, vigenciaHasta, usosMaximos }) {
+  if (duracion && duracion !== 'once') {
+    const err = new Error('Los códigos de descuento solo pueden ser de un solo cobro ("once") — nunca repetidos ni permanentes.');
+    err.codigo = 'validacion';
+    throw err;
+  }
   const stripe = obtenerStripe();
 
-  const cuponParams = { duration: duracion };
+  const cuponParams = { duration: 'once' };
   if (tipo === 'porcentaje') cuponParams.percent_off = Number(valor);
   else {
     cuponParams.amount_off = Math.round(Number(valor) * 100);
     cuponParams.currency = 'mxn';
-  }
-  if (duracion === 'repeating') {
-    if (!duracionMeses) {
-      const err = new Error('Una duración "repetida" necesita cuántos meses.');
-      err.codigo = 'validacion';
-      throw err;
-    }
-    cuponParams.duration_in_months = Number(duracionMeses);
   }
 
   const coupon = await stripe.coupons.create(cuponParams);

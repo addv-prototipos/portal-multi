@@ -1,17 +1,20 @@
 // Pruebas de utils/facturacionGestion.js — ciclo de vida de "Solicitar
 // factura" (CFDI vía SAT). Foco de este archivo: crearSolicitud() nunca
 // confía en un `monto` recibido del llamador — siempre se recalcula del
-// precio de catálogo (montoCatalogoTenant), punto en curso.
+// cobro REAL de Stripe para ese invoiceId (montoRealInvoiceTenant, punto
+// en curso — reemplaza el criterio anterior de "precio de catálogo", para
+// que el CFDI coincida con lo que Stripe de verdad cobró, incluido
+// cualquier descuento de un solo cobro activo ese mes).
 
 jest.mock('../../db', () => ({
   obtenerPool: jest.fn(),
 }));
 jest.mock('../../utils/facturacionClarvo', () => ({
-  montoCatalogoTenant: jest.fn(),
+  montoRealInvoiceTenant: jest.fn(),
 }));
 
 const { obtenerPool } = require('../../db');
-const { montoCatalogoTenant } = require('../../utils/facturacionClarvo');
+const { montoRealInvoiceTenant } = require('../../utils/facturacionClarvo');
 const { ErrorFacturacionGestion, crearSolicitud } = require('../../utils/facturacionGestion');
 
 function mockPool() {
@@ -32,43 +35,55 @@ const DATOS_BASE = {
 
 describe('utils/facturacionGestion.js', () => {
   beforeEach(() => {
-    montoCatalogoTenant.mockReset();
+    montoRealInvoiceTenant.mockReset();
   });
 
-  test('faltan datos obligatorios -> ErrorFacturacionGestion "datos_incompletos", nunca llama a montoCatalogoTenant', async () => {
+  test('faltan datos obligatorios -> ErrorFacturacionGestion "datos_incompletos", nunca llama a montoRealInvoiceTenant', async () => {
     const pool = mockPool();
 
     const error = await crearSolicitud({ ...DATOS_BASE, rfc: '' }, pool).catch((e) => e);
 
     expect(error).toBeInstanceOf(ErrorFacturacionGestion);
     expect(error.codigo).toBe('datos_incompletos');
-    expect(montoCatalogoTenant).not.toHaveBeenCalled();
+    expect(montoRealInvoiceTenant).not.toHaveBeenCalled();
   });
 
-  test('ignora cualquier `monto` que mande el llamador — siempre usa montoCatalogoTenant', async () => {
+  test('ignora cualquier `monto` que mande el llamador — siempre usa montoRealInvoiceTenant', async () => {
     const pool = mockPool();
     pool.query
       .mockResolvedValueOnce([[]]) // SELECT existente: ninguna
       .mockResolvedValueOnce([{ insertId: 1 }]); // INSERT
-    montoCatalogoTenant.mockResolvedValueOnce({ total: 950, lineas: [] });
+    montoRealInvoiceTenant.mockResolvedValueOnce(479.2);
 
     await crearSolicitud({ ...DATOS_BASE, monto: 49.64 }, pool);
 
-    expect(montoCatalogoTenant).toHaveBeenCalledWith('panes', pool);
+    expect(montoRealInvoiceTenant).toHaveBeenCalledWith('panes', 'in_real123', pool);
     const [sqlInsert, paramsInsert] = pool.query.mock.calls[1];
     expect(sqlInsert).toMatch(/INSERT INTO tenant_solicitudes_factura/);
-    expect(paramsInsert).toContain(950);
+    expect(paramsInsert).toContain(479.2);
     expect(paramsInsert).not.toContain(49.64);
   });
 
-  test('solicitud nueva (sin fila previa): guarda el monto de catálogo como snapshot', async () => {
+  test('solicitud nueva (sin fila previa): guarda el monto real del invoice como snapshot', async () => {
     const pool = mockPool();
     pool.query.mockResolvedValueOnce([[]]).mockResolvedValueOnce([{ insertId: 5 }]);
-    montoCatalogoTenant.mockResolvedValueOnce({ total: 399, lineas: [] });
+    montoRealInvoiceTenant.mockResolvedValueOnce(399);
 
     const resultado = await crearSolicitud(DATOS_BASE, pool);
 
     expect(resultado).toEqual({ id: 5, folio: expect.stringMatching(/^SOL-/), estado: 'solicitada' });
+  });
+
+  test('montoRealInvoiceTenant no encuentra el invoice (null) -> ErrorFacturacionGestion "invoice_no_encontrado", nunca inserta', async () => {
+    const pool = mockPool();
+    pool.query.mockResolvedValueOnce([[]]); // SELECT existente: ninguna
+    montoRealInvoiceTenant.mockResolvedValueOnce(null);
+
+    const error = await crearSolicitud(DATOS_BASE, pool).catch((e) => e);
+
+    expect(error).toBeInstanceOf(ErrorFacturacionGestion);
+    expect(error.codigo).toBe('invoice_no_encontrado');
+    expect(pool.query).toHaveBeenCalledTimes(1); // solo el SELECT, nunca el INSERT
   });
 
   test('ya existe una solicitud no rechazada -> ErrorFacturacionGestion "ya_existe", nunca vuelve a calcular el monto', async () => {
@@ -79,7 +94,7 @@ describe('utils/facturacionGestion.js', () => {
 
     expect(error).toBeInstanceOf(ErrorFacturacionGestion);
     expect(error.codigo).toBe('ya_existe');
-    expect(montoCatalogoTenant).not.toHaveBeenCalled();
+    expect(montoRealInvoiceTenant).not.toHaveBeenCalled();
   });
 
   test('reenviar una solicitud rechazada: reutiliza la misma fila, nunca recalcula el monto (snapshot del primer intento se conserva)', async () => {
@@ -91,7 +106,7 @@ describe('utils/facturacionGestion.js', () => {
     const resultado = await crearSolicitud(DATOS_BASE, pool);
 
     expect(resultado).toEqual({ id: 1, folio: 'SOL-123', estado: 'solicitada' });
-    expect(montoCatalogoTenant).not.toHaveBeenCalled();
+    expect(montoRealInvoiceTenant).not.toHaveBeenCalled();
     const [sqlUpdate] = pool.query.mock.calls[1];
     expect(sqlUpdate).toMatch(/UPDATE tenant_solicitudes_factura/);
     expect(sqlUpdate).not.toMatch(/monto/);

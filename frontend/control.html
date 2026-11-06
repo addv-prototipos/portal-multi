@@ -1059,18 +1059,12 @@
                   <label for="stripe-descuento-valor">Valor</label>
                   <input type="number" id="stripe-descuento-valor" min="0" step="0.01" />
                 </div>
-                <div class="field">
-                  <label for="stripe-descuento-duracion">Duración</label>
-                  <select id="stripe-descuento-duracion">
-                    <option value="once">Una vez</option>
-                    <option value="repeating">Repetida (N meses)</option>
-                    <option value="forever">Para siempre</option>
-                  </select>
-                </div>
-                <div class="field" id="stripe-descuento-duracion-meses-campo">
-                  <label for="stripe-descuento-duracion-meses">Número de meses</label>
-                  <input type="number" id="stripe-descuento-duracion-meses" min="1" step="1" />
-                </div>
+                <!-- Decisión del negocio: todo código nuevo es de UN SOLO cobro
+                     (duration:'once' fijo en el backend, ver stripeConfig.js)
+                     — nunca repetido ni permanente, para que un cupón jamás
+                     aplique descuento en cada renovación. Sin selector: no
+                     hay nada que elegir. -->
+                <p class="field-hint" style="margin:-4px 0 4px">Aplica solo al primer cobro — nunca se repite en renovaciones.</p>
                 <div class="field">
                   <label for="stripe-descuento-vigencia">Vigente hasta (opcional)</label>
                   <input type="date" id="stripe-descuento-vigencia" />

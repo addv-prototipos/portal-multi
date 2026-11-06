@@ -1096,32 +1096,27 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   existente — ver el gotcha dedicado más abajo. El Checkout Session del
   onboarding sigue 100% efímero como describe este punto, sin cambios.
 - **CFDI real (facturas fiscales) se emiten a mano por el portal del
-  SAT — nunca automatizado por Stripe ni ningún tercero, y nunca por el
-  monto que Stripe cobró internamente** (punto 470 addendum, 2026-11-05,
-  decisión explícita del usuario): "Solicitar factura" (Mi Cuenta →
-  Facturación de Clarvo) factura al cliente el **precio de catálogo**
-  vigente — plan + upscales activos, el mismo que ve en el sitio al
-  aplicar un plan (ej. $850 + $50 + $50 = $950, ya con IVA incluido por
-  convención de precios al público en México) — nunca `invoice.total` de
-  Stripe, que puede venir prorrateado (ej. un upscale comprado a mitad
-  de ciclo factura $25 en Stripe pero $50 de catálogo) o neto de la
-  comisión real que Stripe cobra a Clarvo (esa comisión es gasto
-  deducible interno de ADDV, invisible para el tenant). Fuente de
-  verdad: `control/utils/facturacionClarvo.js:montoCatalogoTenant()` —
-  `planes.precio_mensual`/`precio_anual` (según
-  `tenants.suscripcion_ciclo`) + `tenant_upscales_activos.monto_recurrente`
-  de cada upscale activo (el precio YA contratado al comprarlo, nunca el
-  catálogo actual si cambió después). `crearSolicitud()`
-  (`facturacionGestion.js`) nunca acepta `monto` del llamador — lo
-  recalcula siempre ahí ("nunca confiar en lo que mandó el frontend"
-  para un monto de negocio, mismo criterio que datos fiscales). **El
-  historial/tabla "Facturación de Clarvo" y el modal "Ver recibo" SÍ
-  siguen mostrando los montos REALES de Stripe por invoice** (con su PDF
-  real de respaldo) — decisión explícita de mantener separados "registro
-  real de cobro" vs. "monto de la CFDI fiscal", nunca un descuido si las
-  2 cifras no coinciden. Si se toca este flujo de nuevo, replicar el
-  mismo criterio: cualquier monto que termine en una CFDI real viene del
-  catálogo de Clarvo, nunca de Stripe directo.
+  SAT — por el monto REAL que Stripe cobró, nunca por precio de
+  catálogo** (punto 477, 2026-11-06, **reemplaza por completo** el
+  criterio anterior de "precio de catálogo" del punto 470 addendum — ese
+  criterio tenía un bug real: con un cupón de descuento activo, el CFDI
+  se habría emitido por el precio de lista aunque el cliente pagara
+  menos). "Solicitar factura" (Mi Cuenta → Facturación de Clarvo) ahora
+  recibe un `invoiceId` del invoice real que el tenant elige de su
+  historial y `montoRealInvoiceTenant(slug, invoiceId, db)`
+  (`control/utils/facturacionClarvo.js`) recupera ESE invoice de Stripe
+  y usa `invoice.total` (ya con cualquier descuento aplicado) — nunca
+  confía en el `invoiceId` a ciegas: verifica que `invoice.customer`
+  coincida con el `stripe_customer_id` del tenant antes de usar su
+  monto (candado cross-tenant de siempre). `montoCatalogoTenant()` se
+  eliminó por completo — ya no existe en el código. `crearSolicitud()`
+  (`facturacionGestion.js`) sigue sin aceptar nunca un `monto` del
+  llamador ("nunca confiar en lo que mandó el frontend" para un monto de
+  negocio) — solo que ahora lo recalcula del invoice real, no del
+  catálogo. El historial/tabla "Facturación de Clarvo" y el modal "Ver
+  recibo" muestran los MISMOS montos reales de Stripe que ahora
+  respalda el CFDI — ya no hay 2 cifras distintas a propósito, esa
+  divergencia era justo el bug que este punto corrigió.
 - **`payment_method_types` ya no se acepta al crear un Checkout Session**
   (confirmado real contra Stripe, 2026-10-26, ver `DOCS/confStripe.html`
   paso 5): Stripe gobierna 100% los métodos de pago habilitados desde el
@@ -1288,6 +1283,18 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   `disco_upscale_mb`/`usuarios_upscale` DESPUÉS de llamar a
   `actualizarDatosTenant()`, nunca antes. Si se toca el flujo de
   `/control` para esto en el futuro, replicar el mismo re-sumado ahí.
+- **Cupones de este catálogo: `duration` SIEMPRE `'once'`, decisión de
+  producto, no limitación técnica de Stripe** (punto 477, 2026-11-06):
+  `crearCodigoDescuento()` (`control/utils/stripeConfig.js`) rechaza
+  cualquier `duracion !== 'once'` — el formulario de `/control` (Descuentos)
+  ya ni siquiera muestra el selector "Duración"/"Número de meses" que
+  antes permitía `'repeating'`/`'forever'`. Razón: un descuento "solo al
+  primer cobro" se resuelve solo (la invoice del mes siguiente de la
+  misma Subscription ya no trae el cupón, Stripe lo maneja internamente)
+  sin que el código de la app tenga que decidir nada sobre "cada
+  cuánto". Si se necesita alguna vez un descuento repetido/permanente,
+  es una decisión de producto nueva que requiere aprobación explícita —
+  no asumir que basta reabrir el selector viejo.
 - **Un Promotion Code de Stripe nunca "desaparece" al eliminar su
   Coupon** (punto 427, 2026-10-27): `stripe.coupons.del()` invalida el
   código para siempre, pero `stripe.promotionCodes.list()` lo sigue

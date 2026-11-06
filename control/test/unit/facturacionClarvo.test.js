@@ -1,7 +1,8 @@
 // Pruebas de utils/facturacionClarvo.js — "Facturación de Clarvo" en Mi
-// Cuenta (historial real de Stripe) + montoCatalogoTenant (punto en
-// curso: "Solicitar factura" se pide por precio de CATÁLOGO, nunca por
-// lo que Stripe cobró internamente — ver el comentario de la función).
+// Cuenta (historial real de Stripe) + montoRealInvoiceTenant (punto en
+// curso: "Solicitar factura" se pide por el cobro REAL de Stripe para un
+// invoiceId dado, nunca por precio de catálogo — ver el comentario de la
+// función).
 
 jest.mock('../../db', () => ({
   obtenerPool: jest.fn(),
@@ -12,7 +13,7 @@ jest.mock('../../utils/stripePagos', () => ({
 
 const { obtenerPool } = require('../../db');
 const { obtenerStripe } = require('../../utils/stripePagos');
-const { listarFacturasTenant, montoCatalogoTenant } = require('../../utils/facturacionClarvo');
+const { listarFacturasTenant, montoRealInvoiceTenant } = require('../../utils/facturacionClarvo');
 
 function mockPool() {
   const pool = { query: jest.fn() };
@@ -21,77 +22,73 @@ function mockPool() {
 }
 
 describe('utils/facturacionClarvo.js', () => {
-  describe('montoCatalogoTenant', () => {
-    test('tenant inexistente -> total 0, sin líneas', async () => {
+  beforeEach(() => {
+    obtenerStripe.mockReset();
+  });
+
+  describe('montoRealInvoiceTenant', () => {
+    test('tenant sin stripe_customer_id -> null, nunca llama a Stripe', async () => {
       const pool = mockPool();
-      pool.query.mockResolvedValueOnce([[]]);
+      pool.query.mockResolvedValueOnce([[{ stripe_customer_id: null }]]);
 
-      const resultado = await montoCatalogoTenant('fantasma', pool);
+      const resultado = await montoRealInvoiceTenant('fantasma', 'in_123', pool);
 
-      expect(resultado).toEqual({ total: 0, lineas: [] });
+      expect(resultado).toBeNull();
+      expect(obtenerStripe).not.toHaveBeenCalled();
     });
 
-    test('plan mensual + 2 upscales activos: suma precio de catálogo, nunca lo que cobró Stripe', async () => {
+    test('invoice no existe en Stripe (retrieve lanza) -> null, nunca truena', async () => {
       const pool = mockPool();
-      pool.query
-        .mockResolvedValueOnce([[
-          { id: 30, suscripcion_ciclo: 'mensual', plan_nombre: 'Plan Panadero', precio_mensual: '850.00', precio_anual: '8500.00' },
-        ]])
-        .mockResolvedValueOnce([[
-          { nombre: 'Usuario adicional', monto_recurrente: '50.00' },
-          { nombre: 'Espacio adicional (500 MB)', monto_recurrente: '50.00' },
-        ]]);
+      pool.query.mockResolvedValueOnce([[{ stripe_customer_id: 'cus_1' }]]);
+      obtenerStripe.mockReturnValue({
+        invoices: { retrieve: jest.fn().mockRejectedValue(new Error('No such invoice')) },
+      });
 
-      const resultado = await montoCatalogoTenant('panes', pool);
+      const resultado = await montoRealInvoiceTenant('panes', 'in_falso', pool);
 
-      expect(resultado.total).toBe(950);
-      expect(resultado.lineas).toEqual([
-        { descripcion: 'Clarvo — Plan Panadero (mes)', monto: 850 },
-        { descripcion: 'Usuario adicional', monto: 50 },
-        { descripcion: 'Espacio adicional (500 MB)', monto: 50 },
-      ]);
+      expect(resultado).toBeNull();
     });
 
-    test('ciclo anual: usa precio_anual, nunca precio_mensual', async () => {
+    test('invoice real pero de OTRO customer -> null (candado cross-tenant)', async () => {
       const pool = mockPool();
-      pool.query
-        .mockResolvedValueOnce([[
-          { id: 7, suscripcion_ciclo: 'anual', plan_nombre: 'Plan Crece', precio_mensual: '799.00', precio_anual: '7990.00' },
-        ]])
-        .mockResolvedValueOnce([[]]);
+      pool.query.mockResolvedValueOnce([[{ stripe_customer_id: 'cus_1' }]]);
+      obtenerStripe.mockReturnValue({
+        invoices: {
+          retrieve: jest.fn().mockResolvedValue({ customer: 'cus_OTRO_TENANT', total: 85000 }),
+        },
+      });
 
-      const resultado = await montoCatalogoTenant('cliente1', pool);
+      const resultado = await montoRealInvoiceTenant('panes', 'in_ajeno', pool);
 
-      expect(resultado.total).toBe(7990);
-      expect(resultado.lineas).toEqual([{ descripcion: 'Clarvo — Plan Crece (año)', monto: 7990 }]);
+      expect(resultado).toBeNull();
     });
 
-    test('sin upscales activos: solo el plan', async () => {
+    test('invoice real del mismo customer, sin descuento -> monto = total / 100', async () => {
       const pool = mockPool();
-      pool.query
-        .mockResolvedValueOnce([[
-          { id: 3, suscripcion_ciclo: 'mensual', plan_nombre: 'Plan Solicita', precio_mensual: '399.00', precio_anual: null },
-        ]])
-        .mockResolvedValueOnce([[]]);
+      pool.query.mockResolvedValueOnce([[{ stripe_customer_id: 'cus_1' }]]);
+      obtenerStripe.mockReturnValue({
+        invoices: {
+          retrieve: jest.fn().mockResolvedValue({ customer: 'cus_1', total: 85000 }),
+        },
+      });
 
-      const resultado = await montoCatalogoTenant('cliente2', pool);
+      const resultado = await montoRealInvoiceTenant('panes', 'in_real123', pool);
 
-      expect(resultado.total).toBe(399);
-      expect(resultado.lineas).toHaveLength(1);
+      expect(resultado).toBe(850);
     });
 
-    test('plan sin precio configurado (NULL): no inventa un monto, solo suma lo que sí existe', async () => {
+    test('invoice real con descuento de un solo cobro -> monto YA con descuento (total, nunca subtotal)', async () => {
       const pool = mockPool();
-      pool.query
-        .mockResolvedValueOnce([[
-          { id: 9, suscripcion_ciclo: 'mensual', plan_nombre: 'Plan sin precio', precio_mensual: null, precio_anual: null },
-        ]])
-        .mockResolvedValueOnce([[{ nombre: 'Usuario adicional', monto_recurrente: '50.00' }]]);
+      pool.query.mockResolvedValueOnce([[{ stripe_customer_id: 'cus_1' }]]);
+      obtenerStripe.mockReturnValue({
+        invoices: {
+          retrieve: jest.fn().mockResolvedValue({ customer: 'cus_1', subtotal: 59900, total: 47920 }),
+        },
+      });
 
-      const resultado = await montoCatalogoTenant('cliente3', pool);
+      const resultado = await montoRealInvoiceTenant('panes', 'in_con_cupon', pool);
 
-      expect(resultado.total).toBe(50);
-      expect(resultado.lineas).toEqual([{ descripcion: 'Usuario adicional', monto: 50 }]);
+      expect(resultado).toBe(479.2);
     });
   });
 
@@ -104,6 +101,48 @@ describe('utils/facturacionClarvo.js', () => {
 
       expect(resultado).toEqual([]);
       expect(obtenerStripe).not.toHaveBeenCalled();
+    });
+
+    test('invoice pagada con descuento: expone subtotal/total/descuento y prorratea por línea', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[{ stripe_customer_id: 'cus_1' }]])
+        .mockResolvedValueOnce([[]]); // solicitudes de factura: ninguna
+
+      obtenerStripe.mockReturnValue({
+        invoices: {
+          list: jest.fn().mockResolvedValue({
+            data: [
+              {
+                id: 'in_1',
+                number: 'F-001',
+                status: 'paid',
+                created: 1700000000,
+                subtotal: 59900,
+                total: 47920,
+                status_transitions: { paid_at: 1700000100 },
+                due_date: null,
+                hosted_invoice_url: 'https://stripe/hosted',
+                invoice_pdf: 'https://stripe/pdf',
+                lines: {
+                  data: [
+                    { amount: 59900, description: '1 × Clarvo - Crece (at $599.00 / month)', period: { start: 1700000000 } },
+                  ],
+                },
+              },
+            ],
+          }),
+        },
+      });
+
+      const [factura] = await listarFacturasTenant('panes', { db: pool });
+
+      expect(factura.subtotal).toBe(599);
+      expect(factura.total).toBe(479.2);
+      expect(factura.descuento).toBe(119.8);
+      expect(factura.lineas).toEqual([
+        { descripcion: '1 × Clarvo - Crece', monto: 599, descuento: 119.8, montoNeto: 479.2 },
+      ]);
     });
   });
 });

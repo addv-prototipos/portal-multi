@@ -523,18 +523,25 @@ solo la frase en español de la UI.
   antes de pagar, o reenviar el evento real firmado a mano
   (`stripe.webhooks.generateTestHeaderString`) al puerto interno 4001 de
   `control` si el pago ya se hizo sin listener.
-- **CFDI real se emite a mano por el portal del SAT, nunca por Stripe ni
-  terceros, y nunca por el monto que Stripe cobró internamente** (punto
-  470 addendum, 2026-11-05): "Solicitar factura" factura al cliente el
-  precio de CATÁLOGO vigente (plan + upscales activos, ya con IVA
-  incluido) — nunca `invoice.total` de Stripe (puede venir prorrateado o
-  neto de la comisión real de Stripe, que es gasto deducible interno de
-  ADDV). Fuente: `control/utils/facturacionClarvo.js:montoCatalogoTenant()`
-  (plan + `tenant_upscales_activos.monto_recurrente` de cada upscale
-  activo) — `crearSolicitud()` nunca acepta `monto` del llamador, lo
-  recalcula siempre. El historial/"Ver recibo" SÍ sigue mostrando los
-  montos reales de Stripe por invoice (decisión explícita, no un
-  descuido si difieren del monto de la CFDI).
+- **CFDI real se emite a mano por el portal del SAT, por el monto REAL
+  que Stripe cobró — ya no por precio de catálogo** (punto 477,
+  2026-11-06, reemplaza el criterio del punto 470 addendum, que tenía un
+  bug real: con un cupón activo el CFDI se habría emitido por el precio
+  de lista, no por lo que el cliente pagó). "Solicitar factura" ahora
+  usa `montoRealInvoiceTenant(slug, invoiceId, db)`
+  (`control/utils/facturacionClarvo.js`) — recupera el invoice real de
+  Stripe, verifica que su `customer` sea el del tenant (candado
+  cross-tenant), y usa `invoice.total` (ya con descuento aplicado).
+  `montoCatalogoTenant()` se eliminó, ya no existe. `crearSolicitud()`
+  sigue sin aceptar `monto` del llamador, solo que ahora lo recalcula del
+  invoice real. El historial/"Ver recibo" y el monto de la CFDI ya
+  muestran la MISMA cifra — la divergencia anterior era justo el bug.
+- **Cupones de este catálogo: `duration` siempre `'once'`** (punto 477):
+  `crearCodigoDescuento()` rechaza cualquier otra duración — un
+  descuento "solo al primer cobro" se resuelve solo (Stripe no repite el
+  cupón en la invoice siguiente de la misma Subscription), sin lógica
+  extra en la app. El selector de duración se quitó del formulario de
+  `/control`.
 - **`127.0.0.1` y `localhost` son orígenes DISTINTOS para CORS/CSP**
   (punto 430): estandarizar `ONBOARDING_CORS_ORIGIN`/
   `PUBLIC_APP_BASE_URL` (`portalFac/.env`) y `clarvo-Site/.env` a la

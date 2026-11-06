@@ -28765,3 +28765,83 @@ lo solicite (mismo criterio de "localhost por defecto" ya establecido).
 
 Archivos: `backend/server.js`, `control/server.js`,
 `control/utils/facturacionGestion.js`, `frontend/admin.js`.
+
+## Punto 477 — Desglose real del recibo de factura (Stripe aplica descuentos, no "comisión") + cupones forzados a un solo cobro (5-6 nov 2026, CERRADO en localhost)
+
+Partió de una captura real del modal "Ver desglose" mostrando $479.20 en
+vez de $599 — el usuario pidió "agrega la comisión de Stripe" asumiendo
+que era un fee del procesador. Verificado contra `node_modules/stripe`:
+no existe tal comisión visible en el invoice — $479.20 = $599 × 0.80, un
+cupón de 20% (`stripeConfig.js`, Descuentos de `/control`), no un cargo
+de Stripe. Se lo señalé al usuario antes de implementar (nunca asumir
+sobre un monto de dinero sin verificar) — confirmó que el concepto real
+es "desglose con descuentos visibles, nunca ocultos", no una comisión.
+
+**Bug de negocio real encontrado y corregido de paso**: "Solicitar
+factura" (CFDI) usaba `montoCatalogoTenant()` (precio de catálogo:
+`planes.precio_mensual/anual` + `tenant_upscales_activos`), **nunca** lo
+que Stripe cobró de verdad — con un cupón activo, el CFDI se habría
+emitido por $599 cuando el cliente pagó $479.20. `montoCatalogoTenant()`
+se eliminó por completo (ya sin ningún uso) y se agregó
+`montoRealInvoiceTenant(slug, invoiceId, db)`
+(`control/utils/facturacionClarvo.js`): recupera el invoice REAL de
+Stripe por `invoiceId` (nunca confía en el que manda el frontend —
+verifica que `invoice.customer` coincida con el `stripe_customer_id` del
+tenant, candado cross-tenant de siempre) y usa `invoice.total` (ya con
+cualquier descuento aplicado). `facturacionGestion.js:crearSolicitud()`
+reescrito para usarla; si el invoice no se puede verificar, nuevo
+código de error `invoice_no_encontrado` en vez de insertar con un monto
+inventado.
+
+**"El descuento solo aplica una vez" — validado, no requiere lógica
+extra**: los cupones de este catálogo ya se crean con `duration:'once'`
+en Stripe (nunca `'repeating'`/`'forever'`) — la invoice del mes
+siguiente de la misma Subscription simplemente no vuelve a traer
+descuento, Stripe lo resuelve solo. Se cerró la puerta a que el admin
+pudiera elegir otra duración desde `/control`: `crearCodigoDescuento()`
+ahora rechaza cualquier `duracion !== 'once'`; se quitó el selector
+"Duración"/"Número de meses" del formulario (`control.html`/`control.js`)
+y se sustituyó por una nota fija ("Aplica solo al primer cobro — nunca
+se repite en renovaciones"). Mismo criterio aplica igual a upscales
+cobrados vía Subscription Item (punto 440/462): el descuento vive a
+nivel Subscription, no por tipo de cargo.
+
+**Desglose del recibo (Propuesta 2 de 4, elegida por el usuario)** — ledger
+agrupado por concepto en `#facturacion-recibo-modal-overlay`
+(`admin.html`/`admin.js`/`admin.css`): cada línea muestra el monto bruto,
+y si tuvo descuento, una sub-línea "Descuento (cupón)" en rojo claro +
+el neto ya cobrado. Stripe no da el desglose por línea cuando el cupón
+va a nivel Subscription (confirmado contra el `.d.ts`) — se prorratea en
+`facturacionClarvo.js:lineasDeInvoice()` proporcional al peso de cada
+línea en el subtotal, marcado explícitamente como estimado en el código
+(nunca presentado como un cálculo nativo de Stripe). Con descuento
+presente, el label pasa de "Total" a "Total cobrado y facturado" + nota
+fija explicando que el CFDI se emite solo por lo que llegó a Clarvo —
+el descuento/comisión de Stripe nunca aparece en la factura fiscal, para
+que el cliente no la reclame como "faltante".
+
+**Pruebas**: `node --check` limpio en los 6 archivos `.js` tocados.
+Suite `control` reescrita y en verde (470/470 — incluye
+`facturacionClarvo.test.js`/`facturacionGestion.test.js` migrados de
+`montoCatalogoTenant` a `montoRealInvoiceTenant`, con
+`beforeEach(() => obtenerStripe.mockReset())` nuevo para evitar
+contaminación de mocks entre tests del mismo archivo). Suite `backend`
+1381/1382 — el 1 que falla (`multitenant.test.js`, campo
+`facturacionHabilitadaPlan`) es preexistente, en un archivo sin ningún
+cambio de este punto (confirmado con `git diff` limpio antes de tocar
+nada) — fuera de alcance, no se investigó más a fondo aquí. Verificado
+en Docker local: rebuild + `--force-recreate` de
+`backend`/`control`/`frontend`, los 3 arrancan `healthy`, 0 errores en
+logs, `GET /api/health` responde 200.
+
+**Sin desplegar a producción todavía** — el usuario no lo ha pedido para
+este punto; queda en el working tree/commit local hasta que lo solicite
+(mismo criterio de "localhost por defecto" ya establecido, y la regla
+explícita de esta sesión de nunca asumir permiso de deploy entre turnos).
+
+Archivos: `backend/server.js`, `control/utils/facturacionClarvo.js`,
+`control/utils/facturacionGestion.js`, `control/utils/stripeConfig.js`,
+`control/test/unit/facturacionClarvo.test.js`,
+`control/test/unit/facturacionGestion.test.js`, `frontend/admin.html`,
+`frontend/admin.js`, `frontend/admin.css`, `frontend/control.html`,
+`frontend/control.js`.

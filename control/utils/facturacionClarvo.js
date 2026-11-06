@@ -31,12 +31,34 @@ function limpiarDescripcionLinea(descripcion) {
   return descripcion.replace(/\s*\(at\s+\$[\d,.]+\s*\/\s*\w+\)\s*$/i, '');
 }
 
+// Desglose real (propuesta 2, "tarjeta de desglose") — el descuento que
+// trae esta invoice (si tiene uno, SOLO en el cobro donde de verdad se
+// aplicó: los cupones de este catálogo son siempre duration:'once', ver
+// stripeConfig.js, así que las invoices SIGUIENTES de la misma
+// suscripción simplemente no traen descuento, sin que este código tenga
+// que decidir nada sobre "cada cuánto aplica" — eso ya lo resuelve
+// Stripe solo). El descuento vive a nivel INVOICE (el cupón se adjunta a
+// la Subscription completa, nunca a una línea), así que Stripe no
+// entrega un desglose nativo por línea — se prorratea aquí
+// proporcional al peso de cada línea en el subtotal, y se marca
+// `prorrateado:true` para que la UI nunca lo presente como un dato que
+// Stripe calculó así.
 function lineasDeInvoice(invoice) {
   const data = Array.isArray(invoice.lines?.data) ? invoice.lines.data : [];
-  return data.map((linea) => ({
-    descripcion: limpiarDescripcionLinea(linea.description || 'Cargo de suscripción'),
-    monto: Number(linea.amount || 0) / 100,
-  }));
+  const subtotalBruto = Number(invoice.subtotal || 0);
+  const descuentoTotalCentavos = Math.max(0, Number(invoice.subtotal || 0) - Number(invoice.total || 0));
+  return data.map((linea) => {
+    const montoBruto = Number(linea.amount || 0) / 100;
+    const descuentoLinea = subtotalBruto > 0
+      ? Math.round((Number(linea.amount || 0) / subtotalBruto) * descuentoTotalCentavos) / 100
+      : 0;
+    return {
+      descripcion: limpiarDescripcionLinea(linea.description || 'Cargo de suscripción'),
+      monto: montoBruto,
+      descuento: descuentoLinea,
+      montoNeto: Math.round((montoBruto - descuentoLinea) * 100) / 100,
+    };
+  });
 }
 
 // Excluye 'draft' (todavía no es un cobro real) y 'void' (se canceló antes
@@ -62,12 +84,17 @@ async function listarFacturasTenant(slug, { limite = 12, db = obtenerPool() } = 
       const primeraLinea = invoice.lines?.data?.[0] || null;
       const periodoUnix = primeraLinea?.period?.start || invoice.created;
       const solicitud = solicitudesPorInvoice.get(invoice.id) || null;
+      const subtotal = Number(invoice.subtotal || 0) / 100;
+      const total = Number(invoice.total || 0) / 100;
       return {
         id: invoice.id,
         folio: invoice.number || invoice.id,
         periodoEtiqueta: etiquetaMes(periodoUnix),
         periodoOrden: periodoUnix,
-        total: Number(invoice.total || 0) / 100,
+        subtotal,
+        total,
+        // Math.max(0, ...): nunca negativo por redondeo de centavos.
+        descuento: Math.max(0, Math.round((subtotal - total) * 100) / 100),
         estado: estadoDeInvoice(invoice),
         fechaCobro: invoice.status_transitions?.paid_at
           ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
@@ -84,54 +111,32 @@ async function listarFacturasTenant(slug, { limite = 12, db = obtenerPool() } = 
     .sort((a, b) => b.periodoOrden - a.periodoOrden);
 }
 
-// Punto en curso — corrección: "Solicitar factura" (CFDI real vía SAT)
-// nunca se pide por lo que Stripe cobró internamente (puede venir
-// prorrateado, o neto de su comisión) — se pide por el PRECIO DE
-// CATÁLOGO vigente (el mismo que se muestra al aplicar el plan en el
-// sitio: plan + upscales activos, ya con IVA incluido por convención de
-// precios al público en México — ver Checkout real, que nunca desglosa
-// IVA aparte). La comisión real de Stripe es contabilidad interna de
-// ADDV (gasto deducible), invisible para el tenant. Monto de cada
-// upscale = `monto_recurrente` (el precio YA contratado/congelado al
-// comprarlo, nunca el precio de catálogo actual si cambió después —
-// mismo criterio que cualquier snapshot de precio ya contratado en este
-// proyecto). Nunca se recibe del frontend: se recalcula aquí siempre
-// ("nunca confiar en lo que mandó el frontend" para un monto de
-// negocio).
-async function montoCatalogoTenant(slug, db = obtenerPool()) {
-  const [tenantFilas] = await db.query(
-    `SELECT t.id, t.suscripcion_ciclo, p.nombre AS plan_nombre,
-            p.precio_mensual, p.precio_anual
-       FROM tenants t LEFT JOIN planes p ON p.id = t.plan_id
-      WHERE t.slug = ?`,
-    [slug]
-  );
-  const tenant = tenantFilas[0];
-  if (!tenant) return { total: 0, lineas: [] };
-
-  const ciclo = tenant.suscripcion_ciclo === 'anual' ? 'anual' : 'mensual';
-  const precioPlan = ciclo === 'anual' ? tenant.precio_anual : tenant.precio_mensual;
-  const lineas = [];
-  if (precioPlan != null) {
-    lineas.push({
-      descripcion: `Clarvo — ${tenant.plan_nombre || 'tu plan'} (${ciclo === 'anual' ? 'año' : 'mes'})`,
-      monto: Number(precioPlan),
-    });
+// Decisión del usuario (punto en curso — reemplaza el criterio anterior
+// de "precio de catálogo", que vivía aquí como montoCatalogoTenant() y
+// se retiró por completo: ya no se usa en ningún lado). El CFDI real
+// debe coincidir con lo que Stripe de verdad cobró en ESE invoice — nunca el
+// precio de catálogo. Si hubo un descuento (cupón de un solo cobro, ver
+// stripeConfig.js), el CFDI se emite por el monto YA con descuento; el
+// mes siguiente, sin descuento activo, el invoice.total vuelve solo al
+// precio de catálogo — no hace falta ninguna lógica especial aquí para
+// "solo una vez", Stripe ya lo resuelve con duration:'once'.
+// `invoiceId` nunca se confía a ciegas (es del frontend) — se verifica
+// que el customer del invoice real sea el mismo que el de este tenant
+// antes de usar su monto, mismo criterio que cualquier otro candado
+// cross-tenant del proyecto.
+async function montoRealInvoiceTenant(slug, invoiceId, db = obtenerPool()) {
+  const [filas] = await db.query('SELECT stripe_customer_id FROM tenants WHERE slug = ?', [slug]);
+  const stripeCustomerId = filas[0]?.stripe_customer_id || null;
+  if (!stripeCustomerId) return null;
+  const stripe = obtenerStripe();
+  let invoice;
+  try {
+    invoice = await stripe.invoices.retrieve(invoiceId);
+  } catch (err) {
+    return null;
   }
-
-  const [upscales] = await db.query(
-    `SELECT f.nombre, u.monto_recurrente
-       FROM tenant_upscales_activos u
-       JOIN funcionalidades_upscale f ON f.id = u.funcionalidad_id
-      WHERE u.tenant_id = ? AND u.activo = 1`,
-    [tenant.id]
-  );
-  for (const upscale of upscales) {
-    lineas.push({ descripcion: upscale.nombre, monto: Number(upscale.monto_recurrente) });
-  }
-
-  const total = Math.round(lineas.reduce((suma, l) => suma + l.monto, 0) * 100) / 100;
-  return { total, lineas };
+  if (!invoice || invoice.customer !== stripeCustomerId) return null;
+  return Math.round(Number(invoice.total || 0)) / 100;
 }
 
-module.exports = { listarFacturasTenant, montoCatalogoTenant };
+module.exports = { listarFacturasTenant, montoRealInvoiceTenant };

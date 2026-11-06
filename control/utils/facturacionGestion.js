@@ -6,7 +6,7 @@
 // bytes de archivo — ver facturacionArchivos.js).
 
 const { obtenerPool } = require('../db');
-const { montoCatalogoTenant } = require('./facturacionClarvo');
+const { montoRealInvoiceTenant } = require('./facturacionClarvo');
 const { eliminarFacturaZip, enviarCorreoBase, listarUsuariosAdminTenant } = require('./notificarBackend');
 
 // Retención de 30 días para solicitudes "lista" (bug real reportado: se
@@ -28,13 +28,14 @@ function folioNuevo() {
   return `SOL-${numero}-${Date.now().toString(36).toUpperCase()}`;
 }
 
-// `monto`: NUNCA se recibe del llamador — el cliente factura al precio
-// de CATÁLOGO vigente (plan + upscales, el mismo que ve en el sitio),
-// nunca lo que Stripe cobró internamente (prorrateo, comisión). Se
-// recalcula aquí siempre (`montoCatalogoTenant`) y se guarda como
-// snapshot en la fila, igual que razón social/RFC/régimen — si el
-// catálogo cambia después, la solicitud ya enviada conserva el monto
-// con el que se generó.
+// `monto`: NUNCA se recibe del llamador — decisión del usuario (punto en
+// curso, reemplaza el criterio anterior de "precio de catálogo"): el
+// CFDI se emite por lo que Stripe REALMENTE cobró en ESE invoice
+// (`invoiceId`, ya con cualquier descuento aplicado) — nunca por el
+// precio de catálogo, que podría no coincidir si hubo un cupón de un
+// solo cobro activo ese mes (ver stripeConfig.js — duration:'once'
+// siempre). Se recalcula aquí siempre (`montoRealInvoiceTenant`) y se
+// guarda como snapshot en la fila, igual que razón social/RFC/régimen.
 async function crearSolicitud(datos, db = obtenerPool()) {
   const { slug, invoiceId, periodoEtiqueta, razonSocial, rfc, regimenFiscal, codigoPostal } = datos;
   if (!slug || !invoiceId || !razonSocial || !rfc || !regimenFiscal || !codigoPostal) {
@@ -60,7 +61,10 @@ async function crearSolicitud(datos, db = obtenerPool()) {
     }
     throw new ErrorFacturacionGestion('Ya existe una solicitud de factura para este cobro.', 'ya_existe');
   }
-  const { total: monto } = await montoCatalogoTenant(slug, db);
+  const monto = await montoRealInvoiceTenant(slug, invoiceId, db);
+  if (monto == null) {
+    throw new ErrorFacturacionGestion('No se pudo verificar el cobro real en Stripe — intenta de nuevo.', 'invoice_no_encontrado');
+  }
   const folio = folioNuevo();
   const [resultado] = await db.query(
     `INSERT INTO tenant_solicitudes_factura

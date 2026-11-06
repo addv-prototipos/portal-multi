@@ -410,6 +410,8 @@
     facturacionReciboFecha: document.getElementById('facturacion-recibo-fecha'),
     facturacionReciboLineas: document.getElementById('facturacion-recibo-lineas'),
     facturacionReciboTotal: document.getElementById('facturacion-recibo-total'),
+    facturacionReciboTotalLabel: document.getElementById('facturacion-recibo-total-label'),
+    facturacionReciboNotaStripe: document.getElementById('facturacion-recibo-nota-stripe'),
     facturacionReciboPdf: document.getElementById('facturacion-recibo-pdf'),
     facturacionFacturaAviso: document.getElementById('facturacion-factura-aviso'),
     facturacionFacturaAvisoTexto: document.getElementById('facturacion-factura-aviso-texto'),
@@ -9369,10 +9371,30 @@
       : factura.fechaVencimiento
       ? `Vence el ${formatearFechaCorta(factura.fechaVencimiento)}`
       : '';
+    // Propuesta 2 (ledger) — un grupo por concepto (plan, cada upscale),
+    // con su propia línea "Retenido por Stripe" cuando ese concepto trae
+    // descuento. factura.lineas ya trae {monto, descuento, montoNeto}
+    // por línea (prorrateado del descuento real del invoice — ver
+    // facturacionClarvo.js:lineasDeInvoice, nunca inventado aquí).
     els.facturacionReciboLineas.innerHTML = factura.lineas
-      .map((l) => `<div class="facturacion-recibo-linea"><span>${escapeHtml(l.descripcion)}</span><span>$${formatearMoneda(l.monto)}</span></div>`)
+      .map((l) => {
+        const tieneDescuento = l.descuento > 0.004; // tolerancia de centavo por redondeo
+        return `
+          <div class="facturacion-recibo-grupo">
+            <div class="facturacion-recibo-linea"><span>${escapeHtml(l.descripcion)}</span><span>$${formatearMoneda(l.monto)}</span></div>
+            ${tieneDescuento ? `<div class="facturacion-recibo-linea facturacion-recibo-linea-descuento"><span>Retenido por Stripe</span><span>&minus;$${formatearMoneda(l.descuento)}</span></div>` : ''}
+          </div>`;
+      })
       .join('');
+    els.facturacionReciboTotalLabel.textContent = factura.descuento > 0.004 ? 'Total cobrado y facturado' : 'Total';
     els.facturacionReciboTotal.textContent = `$${formatearMoneda(factura.total)}`;
+    if (factura.descuento > 0.004) {
+      els.facturacionReciboNotaStripe.hidden = false;
+      els.facturacionReciboNotaStripe.textContent =
+        `Este descuento aplicó solo a este cobro (nunca se repite en renovaciones) — $${formatearMoneda(factura.total)} es lo que verás reflejado en tu factura. El servicio de Stripe es un costo interno de Clarvo, nunca entra al CFDI.`;
+    } else {
+      els.facturacionReciboNotaStripe.hidden = true;
+    }
     if (factura.pdfUrl) {
       els.facturacionReciboPdf.href = factura.pdfUrl;
       els.facturacionReciboPdf.hidden = false;

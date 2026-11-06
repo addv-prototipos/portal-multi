@@ -4371,21 +4371,11 @@
     document.getElementById('stripe-descuento-codigo').value = item ? item.codigo : '';
     document.getElementById('stripe-descuento-tipo').value = item ? item.tipo : 'porcentaje';
     document.getElementById('stripe-descuento-valor').value = item ? item.valor : '';
-    document.getElementById('stripe-descuento-duracion').value = item ? item.duracion : 'once';
-    document.getElementById('stripe-descuento-duracion-meses').value = item && item.duracionMeses ? item.duracionMeses : '';
     document.getElementById('stripe-descuento-vigencia').value = item && item.vigenciaHasta ? item.vigenciaHasta.slice(0, 10) : '';
     document.getElementById('stripe-descuento-usos').value = item && item.usosMaximos ? item.usosMaximos : '';
     document.getElementById('stripe-descuentos-error').textContent = '';
     document.getElementById('stripe-descuento-form').hidden = false;
-    alternarCampoDuracionMeses();
   }
-
-  function alternarCampoDuracionMeses() {
-    const duracion = document.getElementById('stripe-descuento-duracion').value;
-    document.getElementById('stripe-descuento-duracion-meses-campo').hidden = duracion !== 'repeating';
-  }
-  const selectDuracionDescuento = document.getElementById('stripe-descuento-duracion');
-  if (selectDuracionDescuento) selectDuracionDescuento.addEventListener('change', alternarCampoDuracionMeses);
 
   const btnStripeDescuentoNuevo = document.getElementById('btn-stripe-descuento-nuevo');
   if (btnStripeDescuentoNuevo) btnStripeDescuentoNuevo.addEventListener('click', () => abrirDescuentoForm(null));
@@ -4404,8 +4394,9 @@
       codigo: document.getElementById('stripe-descuento-codigo').value.trim(),
       tipo: document.getElementById('stripe-descuento-tipo').value,
       valor: document.getElementById('stripe-descuento-valor').value,
-      duracion: document.getElementById('stripe-descuento-duracion').value,
-      duracionMeses: document.getElementById('stripe-descuento-duracion-meses').value || null,
+      // Fijo — decisión del negocio: todo código nuevo es de un solo
+      // cobro, nunca repetido ni permanente (ver stripeConfig.js).
+      duracion: 'once',
       vigenciaHasta: document.getElementById('stripe-descuento-vigencia').value || null,
       usosMaximos: document.getElementById('stripe-descuento-usos').value || null,
     };

@@ -4681,9 +4681,13 @@
               </div>
               <div id="facturacion-recibo-lineas" class="facturacion-recibo-lineas"></div>
               <div class="facturacion-recibo-linea facturacion-recibo-total">
-                <span>Total</span>
+                <span id="facturacion-recibo-total-label">Total</span>
                 <span id="facturacion-recibo-total"></span>
               </div>
+              <!-- Desglose de descuento de Stripe (propuesta 2, ledger) —
+                   oculto por default; aparece solo si esta invoice real
+                   trajo descuento (invoice.subtotal > invoice.total). -->
+              <p id="facturacion-recibo-nota-stripe" class="facturacion-recibo-nota-stripe" hidden></p>
               <div id="facturacion-factura-aviso" class="field-error aviso-cuota" hidden>
                 <p id="facturacion-factura-aviso-texto"></p>
               </div>
