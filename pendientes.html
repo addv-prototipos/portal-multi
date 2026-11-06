@@ -450,7 +450,7 @@
   </section>
 
   <section>
-    <h2>Inventarios <span class="count">7 pendientes</span></h2>
+    <h2>Inventarios <span class="count">8 pendientes</span></h2>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
@@ -503,6 +503,13 @@
             <td class="col-item">Revisar lectura de código de barras (cámara + SDK)</td>
             <td class="col-detalle">Auditar el flujo real de <strong>lectura de código de barras</strong> en Inventarios/Ventas. <strong>Revisión 29 sep 2026 — avance de la auditoría:</strong> el flujo está <strong>bien construido</strong> — <code>frontend/scanner.js</code> con doble motor (<code>BarcodeDetector</code> nativo + <code>html5-qrcode</code> vendorizado), detección de <code>isSecureContext</code> con mensaje explícito cuando no hay HTTPS, vendorizado sin CDN, y presente también en <code>prod/frontend/assets/vendor/</code>. Lo que la auditoría encontró pendiente: (a) <strong>HTTPS no existe en el nginx del contenedor</strong> — ni <code>frontend/nginx.conf.template</code> ni su espejo en <code>prod/</code> tienen <code>listen 443</code> ni <code>ssl_certificate</code>; el TLS lo termina un nginx del <strong>host</strong> con certbot fuera de Docker (<code>prod/deploy.sh:242-298</code>), así que en desarrollo por IP de LAN la cámara nunca podrá abrir — ver el pendiente 280 (HTTPS A/B); (b) falta probar con un <strong>celular físico</strong> contra HTTPS real (permisos de cámara en iOS/Android, rendimiento en gama baja); (c) falta definir criterios de aceptación por formato 1D. Ver <code>PROJECT_STATE.md</code> punto 306 y el pendiente 291.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir — falta auditar en dispositivo real</span></td>
+          </tr>
+          <tr data-app="admin" data-id="inv-import-mapeo-bloqueado">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="inv-import-mapeo-bloqueado" aria-label="Marcar completado"></td>
+            <td class="col-punto">475</td>
+            <td class="col-item">Importar catálogo (Inventario): "Continuar a validación" no se activa — defecto 17, en pausa a pedido explícito</td>
+            <td class="col-detalle">Reportado real en producción (tenants y sitio base) — el modal "Importar catálogo", paso 3 "Mapear cabeceras", deja el botón "Continuar a validación" deshabilitado aunque varios campos ya muestren "Asignado a mano"/"Reconocido". Diagnóstico parcial en código (sin reproducir aún): <code>mapeoListoParaSiguienteImport()</code> (<code>frontend/admin.js</code>) solo exige 3 campos obligatorios reales — <code>sku</code>, <code>nombre</code>, <code>unidad_base</code> — y además, si un campo llegó auto-detectado (<code>requiereConfirmacion:true</code>), exige que el checkbox "Confirmo" de esa fila se haya marcado (<code>admin.js:21809</code>). El resto de columnas visibles en la captura (Costo/Precio/Stock máximo/Punto de reorden/Existencia inicial) son <code>obligatorio:false</code> y no deberían bloquear nada. <strong>El usuario pidió explícitamente dejarlo para el final</strong> y reproducirlo con archivos reales (<code>C:\Users\Antonio\Desktop\inventario.xlsx</code>/<code>.xls</code>) antes de tocar código — no implementado todavía. Ver <code>PROJECT_STATE.md</code> punto 475.</td>
+            <td class="col-estado"><span class="pill pill-amber">Diagnóstico parcial — en pausa, esperando señal del usuario</span></td>
           </tr>
         </tbody>
       </table>
