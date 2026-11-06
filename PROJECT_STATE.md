@@ -28341,6 +28341,36 @@ grupo dueño del socket de Docker es el mismo en ambos — verificar
 `ls -la /var/run/docker.sock` en el host real de destino antes de dar
 por buena una imagen que ya "funcionaba en local".
 
+**Segundo addendum (5 nov 2026, mismo día): "26 contenedores, 18
+detenidos, 16 con problema" en producción — ninguno era un incidente
+real.** Reportado por el usuario con capturas. Diagnóstico real
+(`docker ps -a` contra el VPS): los 26 eran 8 servicios reales
+(todos sanos, "Up ... (healthy)") + 18 tareas VIEJAS de Swarm, residuo
+de cada `docker service update --force` hecho ESE MISMO DÍA (deploy de
+Kerberos + 2 fixes de nginx + fix del GID del socket — Swarm conserva
+las tareas anteriores de un servicio, no las borra solas) + 3 tareas de
+`garage` de 7 días atrás (un arranque fallido ya resuelto desde
+entonces, `garage` lleva 7 días sano). **Bug real confirmado y
+corregido**: `kerberos/routes/metrics.js:overview` calculaba
+`contenedoresConProblema` con
+`contenedores.filter((c) => c.salud === 'unhealthy')`, **sin filtrar
+primero por `estado === 'running'`** — Docker conserva el último
+healthcheck conocido de un contenedor aunque ya esté detenido, así que
+cada tarea vieja que hubiera fallado su healthcheck justo antes de
+apagarse contaba como "con problema" para siempre. Fix: agregar
+`c.estado === 'running' &&` al filtro — test existente
+(`metrics.test.js`) seguía pasando sin cambios porque su fixture ya
+tenía el estado "unhealthy" sobre el contenedor EN EJECUCIÓN, no sobre
+el detenido (coincidencia, no cobertura real del bug — considerar un
+test nuevo que cubra explícitamente "detenido + unhealthy stale" si se
+vuelve a tocar este archivo). Limpieza adicional:
+`docker container prune -f` en el VPS (acción segura — Docker documenta
+que solo borra contenedores DETENIDOS, nunca toca uno corriendo) quitó
+las 19 tareas viejas de un jalón. Verificado real tras ambos cambios:
+`docker ps -a` → 8 contenedores (antes 26), `overview.resumen` →
+`contenedoresConProblema: 0`. Archivos:
+`kerberos/routes/metrics.js`.
+
 ## Punto 474 — Gate de Términos y Condiciones nunca aparecía en producción: `terminos_versiones` real estaba vacía (5 nov 2026, CERRADO)
 
 **Reporte del usuario**: en `https://clarvo.mx/mi-negocio/admin` el login
