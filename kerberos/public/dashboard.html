@@ -16,7 +16,7 @@
         <span class="env" id="entorno-chip">monitoreo · solo lectura</span>
       </div>
       <nav class="pagenav" id="pagenav" aria-label="Secciones del tablero">
-        <a href="#estado-general">Estado general</a><a href="#resumen">Resumen</a><a href="#rendimiento">Rendimiento</a><a href="#servicios">Contenedores</a><a href="#mapa">Mapa</a>
+        <a href="#resumen">Resumen</a><a href="#rendimiento">Rendimiento</a><a href="#estado-general">Estado general</a><a href="#servicios">Contenedores</a><a href="#mapa">Mapa</a>
       </nav>
       <div class="topbar-right">
         <div class="status-chip" id="status-chip" role="status" aria-live="polite">
@@ -32,25 +32,6 @@
   </header>
 
   <main>
-    <section id="estado-general">
-      <div class="section-head">
-        <h2>Estado general de Clarvo</h2>
-        <span class="hint" id="hint-servicios">&nbsp;</span>
-      </div>
-      <div class="card estado-general-card reveal">
-        <div class="estado-general-top" id="estado-general-top">
-          <span class="dot" aria-hidden="true"></span>
-          <span class="estado-general-texto" id="estado-general-texto">Conectando...</span>
-        </div>
-        <p class="estado-general-sub">Control, panel de administración y portal de clientes — un vistazo rápido antes de entrar al detalle.</p>
-        <div class="aviso-vacio" id="aviso-salud" hidden role="alert" style="margin-top:14px">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-          <span id="aviso-salud-texto"></span>
-        </div>
-        <div class="salud-fila" id="lista-salud"></div>
-      </div>
-    </section>
-
     <section id="resumen">
       <div class="section-head">
         <h2>Resumen</h2>
@@ -69,6 +50,26 @@
         <span class="hint">Tendencia acumulada desde que se abrió esta pestaña</span>
       </div>
       <div class="charts reveal" id="charts"></div>
+    </section>
+
+    <section id="estado-general">
+      <div class="section-head">
+        <h2>Estado general de Clarvo</h2>
+        <span class="hint" id="hint-servicios">&nbsp;</span>
+      </div>
+      <div class="card estado-general-card reveal">
+        <div class="estado-general-top" id="estado-general-top">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="estado-general-texto" id="estado-general-texto">Conectando...</span>
+          <span class="estado-general-pct tabular" id="estado-general-pct">—</span>
+        </div>
+        <p class="estado-general-sub">Sitio, admin, portal de clientes, control y backend — un vistazo rápido antes de entrar al detalle.</p>
+        <div class="aviso-vacio" id="aviso-salud" hidden role="alert" style="margin-top:14px">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          <span id="aviso-salud-texto"></span>
+        </div>
+        <div class="salud-fila" id="lista-salud"></div>
+      </div>
     </section>
 
     <section id="servicios">

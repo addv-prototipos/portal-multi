@@ -29,6 +29,7 @@
     listaSalud: document.getElementById('lista-salud'),
     estadoGeneralTop: document.getElementById('estado-general-top'),
     estadoGeneralTexto: document.getElementById('estado-general-texto'),
+    estadoGeneralPct: document.getElementById('estado-general-pct'),
     tbody: document.getElementById('tbody-contenedores'),
     ctrSummary: document.getElementById('ctr-summary'),
     ctrConteo: document.getElementById('contenedores-conteo'),
@@ -263,29 +264,38 @@
 
   // ---------- Estado general + salud de los servicios ----------
 
-  // El backend real de Kerberos solo conoce 3 procesos distintos
-  // (backend/control/frontend, ver SERVICIOS_HEALTH en
-  // kerberos/routes/metrics.js) — el panel de administración (/admin) Y
-  // el portal de clientes se sirven del MISMO proceso "backend", así que
-  // no hay (ni tendría sentido fabricar) un cuarto check separado para
-  // "clientes": si "backend" está arriba, ambos lo están. La etiqueta
-  // deja eso explícito en vez de fingir una separación que no existe.
+  // 5 checks reales (ver SERVICIOS_HEALTH en kerberos/routes/metrics.js):
+  // sitio/admin/portal se verifican de punta a punta contra la URL
+  // pública real (clarvo.mx, a través de nginx); control y backend se
+  // verifican internos (su propio healthcheck, dentro de la red de
+  // Docker). Admin y portal de clientes comparten el mismo proceso
+  // "backend" por debajo, pero cada uno se revisa por SU PROPIA ruta
+  // (/admin, /login) — así un problema de ruteo/nginx específico de una
+  // de las dos superficies se detecta aunque el proceso backend siga
+  // vivo, en vez de asumir que "si backend responde, ambas funcionan".
   var NOMBRE_SERVICIO = {
-    backend: 'Backend — admin y clientes',
+    sitio: 'Sitio (clarvo.mx)',
+    admin: 'Admin',
+    portal: 'Portal de clientes',
     control: 'Control',
-    frontend: 'Sitio (frontend)',
+    backend: 'Backend (API)',
   };
 
   function pintarEstadoGeneral(checks) {
     if (!checks.length) {
       els.estadoGeneralTop.className = 'estado-general-top es-neutro';
       els.estadoGeneralTexto.textContent = 'Sin datos todavía';
+      els.estadoGeneralPct.textContent = '—';
       return;
     }
+    var disponibles = checks.filter(function (c) { return c.disponible; }).length;
+    var pct = Math.round((disponibles / checks.length) * 100);
+    els.estadoGeneralPct.textContent = pct + '%';
+
     var caidos = checks.filter(function (c) { return !c.disponible; });
     if (!caidos.length) {
       els.estadoGeneralTop.className = 'estado-general-top';
-      els.estadoGeneralTexto.textContent = 'Operativo — control, admin y clientes respondiendo';
+      els.estadoGeneralTexto.textContent = 'Operativo — sitio, admin, portal, control y backend respondiendo';
       return;
     }
     var nombresCaidos = caidos.map(function (c) { return NOMBRE_SERVICIO[c.nombre] || c.nombre; }).join(', ');
@@ -681,6 +691,7 @@
       els.hintServicios.textContent = '';
       els.estadoGeneralTop.className = 'estado-general-top es-neutro';
       els.estadoGeneralTexto.textContent = 'No se pudo revisar';
+      els.estadoGeneralPct.textContent = '—';
       mostrarAviso(els.avisoSalud, els.avisoSaludTexto,
         'No se pudo revisar la salud de los servicios en este momento.');
       return false;

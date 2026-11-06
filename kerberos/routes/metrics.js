@@ -1,4 +1,5 @@
 const http = require('http');
+const https = require('https');
 const express = require('express');
 
 const { dockerRequest, dockerRequestRaw } = require('../utils/dockerClient');
@@ -14,10 +15,17 @@ const ERROR_DOCKER = 'No se pudo conectar con el motor de Docker.';
 // otra mitad del riesgo).
 const ID_CONTENEDOR_VALIDO = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
 
+// Pedido explícito del usuario (con captura): 5 checks, uno por cada
+// superficie que necesita ver arriba — sitio público, admin y portal de
+// clientes se verifican de punta a punta (a través de nginx, con la URL
+// pública real), control y backend se verifican internos (contra su
+// propio healthcheck, dentro de la red de Docker).
 const SERVICIOS_HEALTH = [
-  { nombre: 'backend', variable: 'BACKEND_HEALTH_URL' },
+  { nombre: 'sitio', variable: 'SITE_HEALTH_URL' },
+  { nombre: 'admin', variable: 'ADMIN_HEALTH_URL' },
+  { nombre: 'portal', variable: 'PORTAL_HEALTH_URL' },
   { nombre: 'control', variable: 'CONTROL_HEALTH_URL' },
-  { nombre: 'frontend', variable: 'FRONTEND_HEALTH_URL' },
+  { nombre: 'backend', variable: 'BACKEND_HEALTH_URL' },
 ];
 
 function aMegabytes(bytes) {
@@ -168,11 +176,18 @@ function revisarServicio(nombre, url) {
       return;
     }
 
+    // Sitio/admin/portal viajan como https://clarvo.mx/... (verificación
+    // de punta a punta, por la URL pública real) — control/backend siguen
+    // como http:// internos (nombre de servicio de Docker). El módulo y
+    // el puerto por default se eligen según el protocolo de la URL, nunca
+    // asumidos como http:80.
+    const cliente = destino.protocol === 'https:' ? https : http;
+    const puertoDefault = destino.protocol === 'https:' ? 443 : 80;
     const inicio = Date.now();
-    const peticion = http.request(
+    const peticion = cliente.request(
       {
         hostname: destino.hostname,
-        port: destino.port || 80,
+        port: destino.port || puertoDefault,
         path: `${destino.pathname}${destino.search}`,
         method: 'GET',
         timeout: TIMEOUT_HEALTH_MS,

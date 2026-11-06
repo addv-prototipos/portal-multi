@@ -569,9 +569,8 @@ services:
   # /control, mismo mecanismo de acceso (ADMIN_USERS + KERBEROS_USERS,
   # ver kerberos/utils/auth.js). Solo lectura — nunca puede apagar/
   # reiniciar contenedores (requisito explícito del usuario), solo
-  # listar/leer vía el socket de Docker montado read-only. SOLO LOCAL por
-  # ahora: no se expone en frontend/nginx.conf.template ni se despliega a
-  # producción hasta que el usuario lo apruebe explícitamente — puerto
+  # listar/leer vía el socket de Docker montado read-only. Ya desplegado
+  # en producción (/kerberos, punto 473) — localmente el puerto sigue
   # publicado solo a 127.0.0.1, nunca a la red completa.
   kerberos:
     build:
@@ -591,12 +590,16 @@ services:
       INTERNAL_CACHE_SECRET: ${INTERNAL_CACHE_SECRET:-}
       SESSION_SECRET: ${SESSION_SECRET:-}
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
-      # Nombres de los otros 3 servicios en esta misma red, para los
-      # health checks reales que expone routes/metrics.js — nunca URLs
-      # públicas, siempre el nombre interno de Docker.
-      BACKEND_HEALTH_URL: http://backend:4000/api/health
+      # 5 checks reales que expone routes/metrics.js. En local no hay
+      # dominio público (clarvo.mx), así que sitio/admin/portal viajan
+      # igual por el nombre interno de "frontend" (nginx en contenedor) —
+      # mismas rutas que en producción (/, /admin, /login), solo cambia el
+      # host. Control/backend van directo contra su propio healthcheck.
+      SITE_HEALTH_URL: http://frontend:80/
+      ADMIN_HEALTH_URL: http://frontend:80/admin
+      PORTAL_HEALTH_URL: http://frontend:80/login
       CONTROL_HEALTH_URL: http://control:4001/health
-      FRONTEND_HEALTH_URL: http://frontend:80/
+      BACKEND_HEALTH_URL: http://backend:4000/api/health
     volumes:
       # Socket de Docker montado READ-ONLY — ver utils/dockerClient.js,
       # que solo permite GET (nunca start/stop/restart/exec). Esta es la

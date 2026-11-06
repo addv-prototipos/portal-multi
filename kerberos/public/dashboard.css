@@ -276,6 +276,16 @@ section:first-of-type { padding-top: 24px; }
 .estado-general-top.es-crit .dot { background: var(--crit); box-shadow: 0 0 0 4px var(--crit-soft); }
 .estado-general-top.es-neutro .dot { background: var(--muted); box-shadow: none; }
 .estado-general-texto { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+.estado-general-pct {
+  margin-left: auto;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ok);
+}
+.estado-general-top.es-warn .estado-general-pct { color: var(--warn); }
+.estado-general-top.es-crit .estado-general-pct { color: var(--crit); }
+.estado-general-top.es-neutro .estado-general-pct { color: var(--muted); }
 .estado-general-sub { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; line-height: 1.5; }
 .salud-fila { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
 .salud-fila .servicio {
