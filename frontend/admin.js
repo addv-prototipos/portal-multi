@@ -21771,6 +21771,7 @@
     reconocido: { texto: 'Reconocido', clase: 'estatus-listo' },
     sugerido: { texto: 'Sugerido, revisa', clase: 'estatus-pendiente' },
     manual: { texto: 'Asignado a mano', clase: 'estatus-listo' },
+    fijo: { texto: 'Valor fijo', clase: 'estatus-listo' },
   };
 
   let estadoImport = null;
@@ -21890,6 +21891,10 @@
     for (const c of obligatorios) {
       const a = estadoImport.mapeo[c.campo];
       if (!a) return false;
+      if (a.valorFijo) {
+        if (!a.valor || !a.valor.trim()) return false;
+        continue;
+      }
       if (a.requiereConfirmacion && !a.confirmado) return false;
     }
     return true;
@@ -22050,12 +22055,21 @@
 
     const filasHtml = INV_IMPORT_CAMPOS.map((c) => {
       const asignacion = estadoImport.mapeo[c.campo];
-      const columnaIdx = asignacion ? asignacion.columnaIndice : '';
+      const esValorFijo = Boolean(asignacion && asignacion.valorFijo);
+      const columnaIdx = asignacion && !esValorFijo ? asignacion.columnaIndice : '';
       const opciones = ['<option value="">— Sin mapear —</option>']
         .concat(
           estadoImport.cabeceras.map(
             (cab, idx) => `<option value="${idx}" ${idx === columnaIdx ? 'selected' : ''}>${escapeHtml(String(cab))}</option>`
           )
+        )
+        // Alternativa solo en obligatorios (34.3.2) — cuando el archivo no
+        // trae ninguna columna para este campo, un valor fijo evita
+        // obligar al admin a sacrificar otra columna solo para avanzar.
+        .concat(
+          c.obligatorio
+            ? [`<option value="__fijo__" ${esValorFijo ? 'selected' : ''}>— Usar el mismo valor en todas las filas —</option>`]
+            : []
         )
         .join('');
       const previewValores = columnaIdx !== '' && estadoImport.vistaPrevia.length > 0
@@ -22065,13 +22079,18 @@
           .filter((v) => v !== undefined && v !== '')
           .join(', ')
         : '—';
-      const badge = asignacion ? (INV_IMPORT_CONFIANZA[asignacion.confianza] || INV_IMPORT_CONFIANZA.manual) : { texto: 'Sin mapear', clase: 'estatus-neutro' };
-      const necesitaConfirmar = asignacion && asignacion.requiereConfirmacion && !asignacion.confirmado;
+      const badge = esValorFijo
+        ? INV_IMPORT_CONFIANZA.fijo
+        : asignacion ? (INV_IMPORT_CONFIANZA[asignacion.confianza] || INV_IMPORT_CONFIANZA.manual) : { texto: 'Sin mapear', clase: 'estatus-neutro' };
+      const necesitaConfirmar = asignacion && !esValorFijo && asignacion.requiereConfirmacion && !asignacion.confirmado;
+      const celdaPreview = esValorFijo
+        ? `<input type="text" class="inv-import-valor-fijo-input" data-campo="${c.campo}" value="${escapeHtmlAttr(asignacion.valor || '')}" placeholder="Ej. Pieza" aria-label="Valor fijo para ${escapeHtmlAttr(c.etiqueta)}" />`
+        : escapeHtml(previewValores);
       return `
         <tr>
           <td>${escapeHtml(c.etiqueta)}${c.obligatorio ? ' <span class="required">*</span>' : ''}<button type="button" class="campo-ayuda" data-campo="${c.campo}" aria-label="Ver ayuda de ${escapeHtmlAttr(c.etiqueta)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Ayuda</button></td>
           <td><select class="inv-import-mapeo-select" data-campo="${c.campo}" aria-label="Columna para ${escapeHtmlAttr(c.etiqueta)}">${opciones}</select></td>
-          <td class="inv-import-mapeo-preview" data-tooltip="${escapeHtmlAttr(previewValores)}">${escapeHtml(previewValores)}</td>
+          <td class="inv-import-mapeo-preview"${esValorFijo ? '' : ` data-tooltip="${escapeHtmlAttr(previewValores)}"`}>${celdaPreview}</td>
           <td>
             <span class="estatus-badge ${badge.clase}">${escapeHtml(badge.texto)}</span>
             ${necesitaConfirmar ? `<label class="inv-import-confirmar"><input type="checkbox" class="inv-import-confirmar-check" data-campo="${c.campo}" /> Confirmo</label>` : ''}
@@ -22096,7 +22115,21 @@
     if (e.target.classList.contains('inv-import-mapeo-select')) {
       const campo = e.target.dataset.campo;
       const val = e.target.value;
-      if (val !== '') {
+      const def = INV_IMPORT_CAMPOS.find((c) => c.campo === campo);
+      if (val === '__fijo__') {
+        // Alternativa cuando un campo obligatorio no tiene ninguna columna
+        // que mapearle (ej. catálogos sin "unidad de medida" registrada) —
+        // el admin escribe un solo valor que se aplica a TODAS las filas,
+        // en vez de forzarlo a sacrificar otra columna para avanzar.
+        estadoImport.mapeo[campo] = {
+          valorFijo: true,
+          valor: '',
+          confianza: 'fijo',
+          esObligatorio: def ? def.obligatorio : false,
+          requiereConfirmacion: false,
+          confirmado: false,
+        };
+      } else if (val !== '') {
         const idx = Number(val);
         // Un campo recibe a lo más una columna (34.3 regla 1) — si otro
         // campo ya usaba esta columna, se desasigna.
@@ -22105,7 +22138,6 @@
             delete estadoImport.mapeo[otroCampo];
           }
         });
-        const def = INV_IMPORT_CAMPOS.find((c) => c.campo === campo);
         estadoImport.mapeo[campo] = {
           columnaIndice: idx,
           confianza: 'manual',
@@ -22122,6 +22154,15 @@
       const campo = e.target.dataset.campo;
       if (estadoImport.mapeo[campo]) estadoImport.mapeo[campo].confirmado = e.target.checked;
       actualizarCoberturaImport();
+    } else if (e.target.classList.contains('inv-import-valor-fijo-input')) {
+      const campo = e.target.dataset.campo;
+      const asignacion = estadoImport.mapeo[campo];
+      if (asignacion && asignacion.valorFijo) {
+        asignacion.valor = e.target.value;
+        asignacion.confirmado = Boolean(e.target.value.trim());
+      }
+      estadoImport.validado = false;
+      actualizarCoberturaImport();
     }
   }
 
@@ -22135,7 +22176,7 @@
   function mapeoFinalParaEnviar() {
     const mapeoFinal = {};
     Object.entries(estadoImport.mapeo).forEach(([campo, info]) => {
-      mapeoFinal[campo] = info.columnaIndice;
+      mapeoFinal[campo] = info.valorFijo ? { valorFijo: info.valor } : info.columnaIndice;
     });
     return mapeoFinal;
   }
@@ -23618,6 +23659,9 @@
     });
   }
   if (els.invImportMapeoBody) els.invImportMapeoBody.addEventListener('change', manejarCambioMapeoImport);
+  // 'input' además de 'change': el valor fijo (34.3.2) debe habilitar
+  // "Continuar a validación" mientras se escribe, no solo al salir del campo.
+  if (els.invImportMapeoBody) els.invImportMapeoBody.addEventListener('input', manejarCambioMapeoImport);
   if (els.invImportMapeoBody)
     els.invImportMapeoBody.addEventListener('click', (e) => {
       // .closest(), no e.target directo: desde que .campo-ayuda lleva

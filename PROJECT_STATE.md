@@ -28845,3 +28845,60 @@ Archivos: `backend/server.js`, `control/utils/facturacionClarvo.js`,
 `control/test/unit/facturacionGestion.test.js`, `frontend/admin.html`,
 `frontend/admin.js`, `frontend/admin.css`, `frontend/control.html`,
 `frontend/control.js`.
+
+## Punto 478 — Defecto 17: importar catálogo de Inventario, "Continuar a validación" nunca se activaba con catálogos sin unidad de medida (6 nov 2026, CERRADO en localhost)
+
+Repro real pedida explícitamente por el usuario antes de tocar código
+(ver nota del punto 475) con sus archivos reales
+(`C:\Users\Antonio\Desktop\inventario.xlsx`/`.xls`, refaccionaria,
+11,552 filas) — confirmado: el candado de `mapeoListoParaSiguienteImport()`
+funciona bien (probé mapear manualmente otra columna y el botón se
+activaba), el problema real es que el archivo del usuario **nunca tuvo
+columna de unidad de medida** (su catálogo nunca la registró, todo es
+implícitamente "pieza") — el wizard solo dejaba elegir entre columnas
+reales del archivo, sin ninguna alternativa para un campo obligatorio
+que el archivo simplemente no trae.
+
+**Fix aprobado por el usuario** ("ofrecer alternativa en los obligatorios
+cuando no se tiene forma de mapear", sin restringir a qué campo): cada
+campo obligatorio (`sku`, `nombre`, `unidad_base` hoy — cualquier
+obligatorio futuro lo hereda gratis) gana una opción extra en su select
+de mapeo, "— Usar el mismo valor en todas las filas —" — al elegirla
+aparece un `<input>` donde el admin escribe una vez el valor
+(`frontend/admin.js:renderMapeoTablaImport()`/`manejarCambioMapeoImport()`,
+nuevo shape `estadoImport.mapeo[campo] = {valorFijo:true, valor:'...'}`
+en vez de `{columnaIndice}`). `mapeoFinalParaEnviar()` lo serializa como
+`{valorFijo:'<texto>'}` en vez de un índice numérico.
+
+**Backend** (`backend/utils/inventarioImportacion.js`): `obtener(campo)`
+detecta `typeof idx === 'object'` y regresa el valor fijo directo para
+TODAS las filas, sin pasar por overrides/limpieza de mezcla (eso es solo
+para texto real detectado en una columna). `columnasMapeadas` y
+`detectarDatosMezclados()` ahora filtran explícitamente los valores
+numéricos — un valor fijo nunca cuenta como "columna usada" ni se
+escanea buscando datos mezclados (no hay columna real detrás).
+`server.js` no necesitó cambios (su único chequeo temprano es
+`mapeoFinal.sku === undefined`, que un objeto nunca dispara).
+
+**Validado real de punta a punta** (Playwright/msedge local, sesión
+PAN/tenant "panes", contraseña temporal via `UPDATE usuarios SET
+password_hash=...` solo para esta prueba — **nunca tocar la contraseña
+real de un tenant de producción con este método**): subido el
+`inventario.xlsx` real (11,552 filas, sin columna de unidad), elegida
+la alternativa en "Unidad de medida", escrito "Pieza" → "Obligatorios
+cubiertos: 3/3" → botón activo → Validar archivo →
+**"11552 de 11552 fila(s) válida(s)"**. No se ejecutó la importación
+real (habría creado 11k productos de prueba en "panes", innecesario).
+
+**Pruebas**: `node --check` limpio en los 2 archivos tocados. Suite
+`backend` 627/628 (el 1 que falla, `multitenant.test.js` por
+`facturacionHabilitadaPlan`, es preexistente y ajeno a este punto —
+confirmado con `git diff` limpio en esos archivos antes de tocar nada).
+Suite `control` no tocada por este punto. Docker local reconstruido
+(`backend`+`frontend`), ambos `healthy`, 0 errores en logs.
+
+**Sin desplegar a producción todavía** — el usuario no lo ha pedido para
+este punto; queda en el working tree/commit local hasta que lo solicite.
+
+Archivos: `backend/utils/inventarioImportacion.js`, `frontend/admin.js`,
+`frontend/admin.css`.

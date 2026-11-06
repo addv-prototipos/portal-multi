@@ -392,7 +392,8 @@ function detectarDatosMezclados(filasCrudas, mapeoFinal) {
 
   for (const campo of CAMPOS_TEXTO_LIBRE_PARA_MEZCLA) {
     const idx = mapeoFinal[campo];
-    if (idx === undefined || idx === null) continue;
+    // 34.3.2: valor fijo (sin columna real) — nada que detectar aquí.
+    if (idx === undefined || idx === null || typeof idx === 'object') continue;
 
     const tokensConfirmados = new Map();
     for (let i = 0; i < filasCrudas.length; i++) {
@@ -458,7 +459,10 @@ async function validarFilasImportacion(cabecerasOriginales, filasCrudas, opcione
   const unidadesPorNombre = new Map(unidadesFilas.map((u) => [u.nombre.trim().toLowerCase(), u.id]));
   const deteccionMezcla = detectarDatosMezclados(filasCrudas, mapeoFinal);
 
-  const columnasMapeadas = new Set(Object.values(mapeoFinal));
+  // 34.3.2: un campo obligatorio sin columna correspondiente en el archivo
+  // puede mapearse a { valorFijo: '<texto>' } en vez de un índice — nunca
+  // cuenta como "columna usada" (no hay columna real detrás).
+  const columnasMapeadas = new Set(Object.values(mapeoFinal).filter((v) => typeof v === 'number'));
   const columnasExtra = cabecerasOriginales
     .map((original, idx) => ({
       indice: idx,
@@ -496,6 +500,10 @@ async function validarFilasImportacion(cabecerasOriginales, filasCrudas, opcione
     const obtener = (campo) => {
       const idx = mapeoFinal[campo];
       if (idx === undefined || idx === null) return '';
+      // 34.3.2: valor fijo elegido por el admin para TODAS las filas —
+      // nunca pasa por overrides/limpieza de mezcla (eso es para texto
+      // real detectado en una columna, aquí no hay columna).
+      if (typeof idx === 'object') return String(idx.valorFijo || '').trim();
       const valor = filaCruda[idx];
       let texto = valor === undefined || valor === null ? '' : String(valor).trim();
       if (!texto) return texto;
