@@ -28312,3 +28312,45 @@ Archivos: `kerberos/` (app completa), `control/utils/kerberosEnv.js`,
 `kerberos-users.env.example`, `.gitignore`, `VULTR/docker-stack.yml`
 (gitignored, solo en el servidor), `VULTR/nginx-host-clarvo.mx.conf`
 (gitignored, solo en el servidor).
+
+## Punto 474 — Gate de Términos y Condiciones nunca aparecía en producción: `terminos_versiones` real estaba vacía (5 nov 2026, CERRADO)
+
+**Reporte del usuario**: en `https://clarvo.mx/mi-negocio/admin` el login
+ya no pedía aceptar el aviso de privacidad "como se hacía". No era
+regresión de código — `obtenerEstadoParaTenant()`
+(`control/utils/terminosCondiciones.js`) responde `pendiente: false`
+SIEMPRE que no exista ninguna fila con `activo=1` en
+`terminos_versiones` (primer check de la función, antes de mirar nada
+del tenant). Confirmado con queries reales contra la BD de producción:
+la tabla estaba **completamente vacía** — nunca se publicó ninguna
+versión ahí desde `/control` (dev sí tenía 2 filas, v1.1 activa, de ahí
+que el usuario lo hubiera visto funcionar antes en otro ambiente). La
+cuenta del usuario en `mi-negocio` (`ANTONIOPRADOO`) sí es cuenta raíz
+real (`es_cuenta_raiz=1`) — el gate le aplicaba, solo no había nada que
+ofrecerle.
+
+**Hallazgo adicional antes de publicar cualquier cosa**: el contenido
+v1.1 de dev traía su propio `resumen_cambios` etiquetado como
+**"Documento completo de prueba (12 cláusulas, para validar scroll
+real)"** — señal explícita de que ese registro se creó para probar el
+mecanismo de scroll del gate (punto en el historial de sesiones
+anteriores), no como la versión final revisada. Se confirmó con el
+usuario antes de tocar producción — las 12 cláusulas en sí son texto
+real y completo (suscripción/Stripe, datos, terceros, cancelación,
+responsabilidad, ley aplicable), decidió publicarlas tal cual. Se
+publicó con un `resumen_cambios` limpio ("Versión inicial publicada en
+producción"), nunca la etiqueta de prueba original.
+
+**Cómo se publicó**: NUNCA con un `INSERT` manual a mano (riesgo de
+desalinear con lo que `publicarVersion()` espera) — se copiaron el
+contenido exacto (verificado por checksum) y un script de una sola vez
+al contenedor `control` real y se llamó a
+`control/utils/terminosCondiciones.js:publicarVersion()` directo (la
+MISMA función que usa la UI de `/control` → Términos y Condiciones) vía
+`docker exec ... node /tmp/publish-terminos.js` — garantiza exactamente
+el mismo camino/validación que si el usuario lo hubiera publicado a
+mano desde la UI, sin reinventar el `INSERT`. Verificado después:
+`terminos_versiones` en producción ahora tiene 1 fila, `activo=1`.
+
+Archivos: ninguno de código — solo dato nuevo en la BD de producción
+(`control_tenants.terminos_versiones`). `PROJECT_STATE.md` (este punto).
