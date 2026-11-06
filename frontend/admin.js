@@ -23368,6 +23368,23 @@
     guardarEstadoOnboarding({ vistos: { ...vistos, [clave]: true } });
   }
 
+  // Punto en curso (bug real reportado en producción, tenant plan
+  // "Solicita", perfil administrador): "Primeros pasos" mostraba
+  // "Registra tu primera venta" y "Activa Inventarios si vendes producto
+  // físico" aunque el plan no incluyera Ventas ni Inventarios — el "Ir →"
+  // llevaba a una vista que ni siquiera existe en su sidebar (404 contra
+  // el backend, ver requiereFeature()). Mismo criterio que
+  // aplicarRestriccionesPerfil() (líneas ~2913-2924): un paso cuyo "Ir →"
+  // apunta a una vista gateada por plan solo se ofrece si esa vista
+  // está realmente disponible — se reusa el MISMO estado `.hidden` que
+  // esa función ya calculó sobre el botón del sidebar (fuente única,
+  // nunca una segunda copia de las condiciones de plan), mismo patrón
+  // que el atajo "Registrar venta" del header (línea ~2939).
+  function vistaDisponibleParaOnboarding(vista) {
+    const boton = mapaNavPorVista()[vista];
+    return !boton || !boton.hidden;
+  }
+
   function definirPasosOnboarding() {
     const estado = leerEstadoOnboarding();
     const vistos = estado.vistos || {};
@@ -23379,10 +23396,18 @@
         { texto: 'Consulta el catálogo de Constancias', vista: 'constancias', hecho: !!vistos.constancias },
       ],
       administrador: [
-        { texto: 'Completa tus datos fiscales', vista: 'configuraciones', hecho: datosFiscalesCompletos === true },
+        // "Completa tus datos fiscales" no usa vistaDisponibleParaOnboarding
+        // porque la vista "configuraciones" en sí nunca se oculta por plan
+        // (el modal tiene varias tarjetas, cada una gateada por separado) —
+        // su gate real es el mismo flag que oculta admin-config-card.
+        { texto: 'Completa tus datos fiscales', vista: 'configuraciones', hecho: datosFiscalesCompletos === true, disponible: planPermite('facturacionHabilitada') },
         { texto: 'Registra tu primera venta', vista: 'ordenes', hecho: ventaHecha },
         { texto: 'Invita a tu primer usuario', vista: 'usuarios', hecho: !!estado.usuarioCreado },
-        { texto: 'Activa Inventarios si vendes producto físico', vista: 'configuraciones', hecho: inventarioActivoGlobalmente === true, opcional: true },
+        // Gate explícito con planPermite() (no vistaDisponibleParaOnboarding):
+        // el botón del sidebar de "inventarios" exige ADEMÁS
+        // inventarioActivoGlobalmente encendido — justo lo que este paso le
+        // está pidiendo al admin que haga, así que nunca podría cumplirse.
+        { texto: 'Activa Inventarios si vendes producto físico', vista: 'configuraciones', hecho: inventarioActivoGlobalmente === true, opcional: true, disponible: planPermite('inventariosHabilitado') },
       ],
       ventas: [
         { texto: 'Registra tu primera venta', vista: 'ordenes', hecho: ventaHecha },
@@ -23407,7 +23432,19 @@
         { texto: 'Revisa tu perfil en Mi Cuenta', vista: 'mi-cuenta', hecho: !!vistos['mi-cuenta'] },
       ],
     };
-    return mapa[perfilActual] || null;
+    const pasos = mapa[perfilActual];
+    if (!pasos) return null;
+    // Perfiles cuya existencia misma ya implica el módulo correspondiente
+    // (perfilPlanVisible(): fiscal→facturación, inventario→inventarios,
+    // 1-a-1) no necesitan este filtro — solo "administrador" (ve TODOS los
+    // módulos que el plan traiga, variable por tenant) y "ventas" (su
+    // perfil es válido con CUALQUIERA de ventas/cxc/gastos, no los 3)
+    // pueden tener pasos sin módulo real detrás.
+    const filtrados = pasos.filter((p) => (p.disponible !== undefined ? p.disponible : vistaDisponibleParaOnboarding(p.vista)));
+    // Si el filtro deja la lista vacía (plan sin ningún módulo de los que
+    // ese perfil normalmente cubre), no hay nada que mostrar — mismo
+    // resultado que "ya completó todo", nunca una tarjeta con "0 de 0".
+    return filtrados.length ? filtrados : null;
   }
 
   function contenedorOnboarding() {
