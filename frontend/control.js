@@ -440,6 +440,25 @@
     superModalTitle: document.getElementById('super-modal-title'),
     btnAyudaVistaSuper: document.getElementById('btn-ayuda-vista-super'),
 
+    // Punto 471: Usuarios Kerberos (.env) — sección hermana de Super
+    // Admins, en la misma pantalla "super".
+    kerberosCount: document.getElementById('kerberos-count'),
+    kerberosError: document.getElementById('kerberos-error'),
+    kerberosTableBody: document.getElementById('kerberos-table-body'),
+    kerberosEmpty: document.getElementById('kerberos-empty'),
+    btnKerberosNuevo: document.getElementById('btn-kerberos-nuevo'),
+    btnKerberosRefresh: document.getElementById('btn-kerberos-refresh'),
+    kerberosModalOverlay: document.getElementById('kerberos-modal-overlay'),
+    kerberosForm: document.getElementById('kerberos-form'),
+    kerberosUsuario: document.getElementById('kerberos-usuario'),
+    kerberosPassword: document.getElementById('kerberos-password'),
+    btnKerberosPasswordToggle: document.getElementById('btn-kerberos-password-toggle'),
+    kerberosModalError: document.getElementById('kerberos-modal-error'),
+    kerberosBtnCancelar: document.getElementById('kerberos-btn-cancelar'),
+    kerberosBtnGuardar: document.getElementById('kerberos-btn-guardar'),
+    kerberosBtnGuardarLabel: document.getElementById('kerberos-btn-guardar-label'),
+    kerberosModalTitle: document.getElementById('kerberos-modal-title'),
+
     // Punto 370/428: ajuste global "Ajustes de imágenes" — tarjeta
     // siempre visible, sin botón de plegar (ver control.html).
     imagenMaxMbInput: document.getElementById('imagen-max-mb'),
@@ -3770,6 +3789,7 @@
     if (vista === 'sucursales') cargarSucursales();
     if (vista === 'super') {
       cargarSuperAdmins();
+      cargarKerberosUsuarios();
       cargarImagenMaxGlobal();
       cargarImportMaxGlobal();
       cargarDiscoCapacidad();
@@ -5785,6 +5805,172 @@
       cargarSuperAdmins();
     } catch (_) { els.superModalError.textContent = 'No se pudo conectar.'; }
     finally { els.superBtnGuardar.disabled = false; if (els.superBtnGuardarLabel) els.superBtnGuardarLabel.textContent = superEditando ? 'Actualizar' : 'Crear'; }
+  });
+
+  // ---------- Punto 471: Usuarios Kerberos (.env) ----------
+  // Mismo patrón que Super Admins de arriba, con una diferencia
+  // deliberada: aquí NO hay regla de "debe quedar al menos uno" — la
+  // lista de Kerberos puede quedar vacía (un super admin de ADMIN_USERS
+  // ya entra a Kerberos sin alta aquí).
+  let kerberosEditando = null;
+
+  // Mismas reglas que control/utils/kerberosEnv.js (validarUsuario/
+  // validarPassword) — duplicadas en el cliente solo para avisar antes
+  // de mandar la petición; el servidor sigue siendo el que valida.
+  function validarUsuarioKerberos(usuario) {
+    if (!usuario) return 'Usuario requerido.';
+    if (usuario.length < 3) return 'Usuario mínimo 3 caracteres.';
+    if (usuario.length > 64) return 'Usuario máximo 64 caracteres.';
+    if (!/^[A-Za-z0-9._-]+$/.test(usuario)) return 'Usuario solo letras, números, punto, guión y guión bajo.';
+    return null;
+  }
+
+  function validarPasswordKerberos(password) {
+    if (!password) return 'Contraseña requerida.';
+    if (password.length < 8) return 'Contraseña mínimo 8 caracteres.';
+    if (password.length > 128) return 'Contraseña máximo 128 caracteres.';
+    if (/[,:\r\n"#]/.test(password)) return 'Contraseña no puede contener "," ":" comillas, "#" ni saltos de línea.';
+    if (!/[0-9]/.test(password)) return 'Contraseña debe incluir al menos un número.';
+    if (!/[a-z]/.test(password)) return 'Contraseña debe incluir al menos una letra minúscula.';
+    if (!/[A-Z]/.test(password)) return 'Contraseña debe incluir al menos una letra mayúscula.';
+    return null;
+  }
+
+  async function cargarKerberosUsuarios() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    if (!els.kerberosTableBody) return;
+    els.kerberosError.textContent = '';
+    Esqueleto.aplicarEsqueletoTabla(els.kerberosTableBody, 2);
+    try {
+      const res = await fetch(`${API_BASE}/kerberos-usuarios`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) { clearSession(); showLogin(); return; }
+      if (!res.ok) {
+        Esqueleto.aplicarErrorTabla(els.kerberosTableBody, 2, 'No se pudieron cargar los usuarios de Kerberos.', cargarKerberosUsuarios);
+        return;
+      }
+      const data = await res.json();
+      renderKerberosUsuarios(data.kerberosUsuarios || []);
+      Esqueleto.quitarEsqueletoTabla(els.kerberosTableBody);
+    } catch (_) {
+      Esqueleto.aplicarErrorTabla(els.kerberosTableBody, 2, 'No se pudo conectar con el servidor.', cargarKerberosUsuarios);
+    }
+  }
+
+  function renderKerberosUsuarios(lista) {
+    if (!els.kerberosTableBody) return;
+    els.kerberosCount.textContent = `${lista.length} ${lista.length === 1 ? 'usuario' : 'usuarios'}`;
+    els.kerberosTableBody.innerHTML = '';
+    els.kerberosEmpty.hidden = lista.length > 0;
+    lista.forEach((usuario) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td data-label="Usuario"><strong>${escapeHtml(usuario)}</strong></td><td data-label=""></td>`;
+      const celda = tr.lastElementChild;
+      const wrap = document.createElement('div');
+      wrap.className = 'admin-row-actions';
+      wrap.appendChild(crearBotonAccion('btn-icono-accion', 'Cambiar contraseña', 'M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4', () => abrirKerberosModal(usuario)));
+      wrap.appendChild(crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Eliminar', 'M18 6L6 18M6 6l12 12', () => confirmarAccion({
+        titulo: '¿Eliminar usuario de Kerberos?',
+        mensaje: `"${usuario}" ya no podrá entrar al monitor Kerberos. Esta lista puede quedar vacía sin problema.`,
+        textoBoton: 'Eliminar',
+        onConfirmar: () => eliminarKerberosUsuario(usuario),
+      })));
+      celda.appendChild(wrap);
+      els.kerberosTableBody.appendChild(tr);
+    });
+  }
+
+  async function eliminarKerberosUsuario(usuario) {
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/kerberos-usuarios/${encodeURIComponent(usuario)}`, { method: 'DELETE', headers: { Authorization: authHeader } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(data.error || 'No se pudo eliminar.', true); return; }
+      showToast(`Usuario de Kerberos "${usuario}" eliminado. .env actualizado.`);
+      // Las 3 rutas de escritura ya devuelven la lista completa
+      // actualizada — se repinta con eso en vez de pedir otro GET.
+      renderKerberosUsuarios(data.kerberosUsuarios || []);
+    } catch (_) { showToast('No se pudo conectar.', true); }
+  }
+
+  function abrirKerberosModal(usuario) {
+    kerberosEditando = usuario || null;
+    if (els.kerberosModalTitle) els.kerberosModalTitle.textContent = usuario ? `Cambiar contraseña — ${usuario}` : 'Nuevo usuario Kerberos';
+    if (els.kerberosUsuario) { els.kerberosUsuario.value = usuario || ''; els.kerberosUsuario.readOnly = !!usuario; }
+    if (els.kerberosPassword) {
+      els.kerberosPassword.value = '';
+      els.kerberosPassword.type = 'password';
+    }
+    if (els.btnKerberosPasswordToggle) {
+      els.btnKerberosPasswordToggle.setAttribute('aria-pressed', 'false');
+      els.btnKerberosPasswordToggle.setAttribute('aria-label', 'Mostrar contraseña');
+    }
+    if (els.kerberosModalError) els.kerberosModalError.textContent = '';
+    document.getElementById('error-kerberos-usuario').textContent = '';
+    document.getElementById('error-kerberos-password').textContent = '';
+    if (els.kerberosBtnGuardarLabel) els.kerberosBtnGuardarLabel.textContent = usuario ? 'Actualizar' : 'Crear';
+    els.kerberosModalOverlay.hidden = false;
+    (usuario ? els.kerberosPassword : els.kerberosUsuario).focus();
+  }
+
+  function cerrarKerberosModal() {
+    els.kerberosModalOverlay.hidden = true;
+    kerberosEditando = null;
+  }
+
+  if (els.btnKerberosNuevo) els.btnKerberosNuevo.addEventListener('click', () => abrirKerberosModal(null));
+  if (els.btnKerberosRefresh) els.btnKerberosRefresh.addEventListener('click', cargarKerberosUsuarios);
+  if (els.kerberosBtnCancelar) els.kerberosBtnCancelar.addEventListener('click', cerrarKerberosModal);
+  if (els.kerberosModalOverlay) els.kerberosModalOverlay.addEventListener('click', (e) => { if (e.target === els.kerberosModalOverlay) cerrarKerberosModal(); });
+
+  if (els.btnKerberosPasswordToggle) {
+    els.btnKerberosPasswordToggle.addEventListener('click', () => {
+      const esPassword = els.kerberosPassword.type === 'password';
+      els.kerberosPassword.type = esPassword ? 'text' : 'password';
+      els.btnKerberosPasswordToggle.setAttribute('aria-pressed', String(esPassword));
+      els.btnKerberosPasswordToggle.setAttribute('aria-label', esPassword ? 'Ocultar contraseña' : 'Mostrar contraseña');
+    });
+  }
+
+  if (els.kerberosForm) els.kerberosForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const usuario = els.kerberosUsuario.value.trim();
+    const password = els.kerberosPassword.value;
+    const errorUsuario = document.getElementById('error-kerberos-usuario');
+    const errorPassword = document.getElementById('error-kerberos-password');
+    errorUsuario.textContent = '';
+    errorPassword.textContent = '';
+    els.kerberosModalError.textContent = '';
+    // En edición el usuario es readOnly: solo se valida la contraseña.
+    const errU = kerberosEditando ? null : validarUsuarioKerberos(usuario);
+    const errP = validarPasswordKerberos(password);
+    if (errU) errorUsuario.textContent = errU;
+    if (errP) errorPassword.textContent = errP;
+    if (errU || errP) return;
+    const authHeader = getAuthHeader();
+    els.kerberosBtnGuardar.disabled = true;
+    if (els.kerberosBtnGuardarLabel) els.kerberosBtnGuardarLabel.textContent = 'Guardando…';
+    try {
+      let res;
+      if (kerberosEditando) {
+        res = await fetch(`${API_BASE}/kerberos-usuarios/${encodeURIComponent(kerberosEditando)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: authHeader }, body: JSON.stringify({ password }) });
+      } else {
+        res = await fetch(`${API_BASE}/kerberos-usuarios`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: authHeader }, body: JSON.stringify({ usuario, password }) });
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { els.kerberosModalError.textContent = data.error || 'No se pudo guardar.'; return; }
+      // Mismo motivo que en Super Admins y Planes: cerrar antes de
+      // notificar, o el toast se oculta junto con el modal que lo
+      // contiene. El mensaje se captura antes porque cerrarKerberosModal()
+      // resetea kerberosEditando.
+      const mensajeGuardado = kerberosEditando
+        ? `Contraseña de "${kerberosEditando}" actualizada.`
+        : `Usuario de Kerberos "${usuario}" creado.`;
+      cerrarKerberosModal();
+      showToast(mensajeGuardado);
+      renderKerberosUsuarios(data.kerberosUsuarios || []);
+    } catch (_) { els.kerberosModalError.textContent = 'No se pudo conectar.'; }
+    finally { els.kerberosBtnGuardar.disabled = false; if (els.kerberosBtnGuardarLabel) els.kerberosBtnGuardarLabel.textContent = kerberosEditando ? 'Actualizar' : 'Crear'; }
   });
 
   // ---------- Punto 370/428: Ajustes de imágenes (ajuste global de plataforma) ----------

@@ -472,6 +472,14 @@ services:
     # archivo del HOST que se monta ahí).
     volumes:
       - ./admin-users.env:/usr/src/app/.env:rw
+      # Kerberos (app de monitoreo independiente): mismo patrón exacto
+      # que admin-users.env de arriba, pero para la lista exclusiva de
+      # usuarios de Kerberos (control/utils/kerberosEnv.js). La ruta
+      # dentro del contenedor coincide con el default que ya resuelve
+      # kerberosEnv.js (path.join(__dirname, '..', 'kerberos-users.env')
+      # = /usr/src/app/kerberos-users.env) sin necesitar la variable
+      # KERBEROS_USERS_ENV_PATH.
+      - ./kerberos-users.env:/usr/src/app/kerberos-users.env:rw
       # Capacidad real de disco (punto 433, addendum 2 — hallazgo del
       # usuario, 2026-10-27): Garage reporta el filesystem ext4 DENTRO de
       # la VM de WSL2, que no coincide con el disco real de Windows
@@ -545,10 +553,59 @@ services:
       # sin esta variable, el candado falla CERRADO (rechaza el
       # onboarding) a propósito.
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-1x0000000000000000000000000000000AA}
+      # Kerberos (app de monitoreo independiente): control avisa a este
+      # servicio para recargar KERBEROS_USERS en caliente tras cualquier
+      # alta/edición/baja (mismo patrón que BACKEND_INTERNAL_URL de
+      # arriba para ADMIN_USERS).
+      KERBEROS_INTERNAL_URL: http://kerberos:4100
     networks:
       - fiscal-net
     expose:
       - "4001"
+    security_opt:
+      - no-new-privileges:true
+
+  # Kerberos: app de monitoreo de infraestructura, independiente de
+  # /control, mismo mecanismo de acceso (ADMIN_USERS + KERBEROS_USERS,
+  # ver kerberos/utils/auth.js). Solo lectura — nunca puede apagar/
+  # reiniciar contenedores (requisito explícito del usuario), solo
+  # listar/leer vía el socket de Docker montado read-only. SOLO LOCAL por
+  # ahora: no se expone en frontend/nginx.conf.template ni se despliega a
+  # producción hasta que el usuario lo apruebe explícitamente — puerto
+  # publicado solo a 127.0.0.1, nunca a la red completa.
+  kerberos:
+    build:
+      context: ./kerberos
+      dockerfile: Dockerfile
+    container_name: clrv-kerberos
+    restart: unless-stopped
+    mem_limit: 128m
+    depends_on:
+      control:
+        condition: service_healthy
+    env_file:
+      - ./admin-users.env
+      - ./kerberos-users.env
+    environment:
+      PORT: 4100
+      INTERNAL_CACHE_SECRET: ${INTERNAL_CACHE_SECRET:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      # Nombres de los otros 3 servicios en esta misma red, para los
+      # health checks reales que expone routes/metrics.js — nunca URLs
+      # públicas, siempre el nombre interno de Docker.
+      BACKEND_HEALTH_URL: http://backend:4000/api/health
+      CONTROL_HEALTH_URL: http://control:4001/health
+      FRONTEND_HEALTH_URL: http://frontend:80/
+    volumes:
+      # Socket de Docker montado READ-ONLY — ver utils/dockerClient.js,
+      # que solo permite GET (nunca start/stop/restart/exec). Esta es la
+      # única forma en que Kerberos "ve" contenedores/logs/stats reales.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "127.0.0.1:${KERBEROS_PORT:-4100}:4100"
+    networks:
+      - fiscal-net
     security_opt:
       - no-new-privileges:true
 

@@ -2733,6 +2733,119 @@ app.delete(
   })
 );
 
+// ---------- Kerberos: usuarios exclusivos (KERBEROS_USERS en .env) ----------
+// Mismo patrón que el bloque de Super Admins de arriba, pero para la app
+// Kerberos (independiente de /control). Un super admin (ADMIN_USERS) YA
+// entra a Kerberos sin necesidad de alta aquí — ver kerberos/utils/auth.js.
+// Esta lista es solo para cuentas que SOLO deben poder entrar a Kerberos,
+// nunca a /control (ej. equipo de soporte/monitoreo).
+app.get(
+  '/api/control/kerberos-usuarios',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const { listarKerberosUsers } = require('./utils/kerberosEnv');
+    res.json({ kerberosUsuarios: listarKerberosUsers() });
+  })
+);
+
+app.post(
+  '/api/control/kerberos-usuarios',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const {
+      leerKerberosUsersDeEnv,
+      guardarKerberosUsersEnEnv,
+      parsearKerberosUsers,
+      validarUsuario,
+      validarPassword,
+      notificarKerberosRecarga,
+    } = require('./utils/kerberosEnv');
+    const body = req.body || {};
+    const usuario = String(body.usuario || '').trim();
+    const password = String(body.password || '');
+    const errU = validarUsuario(usuario);
+    if (errU) return res.status(400).json({ error: errU });
+    const errP = validarPassword(password);
+    if (errP) return res.status(400).json({ error: errP });
+    const { valor } = leerKerberosUsersDeEnv();
+    const map = parsearKerberosUsers(valor);
+    if (map.has(usuario)) return res.status(409).json({ error: 'Ese usuario de Kerberos ya existe.' });
+    map.set(usuario, password);
+    const nuevoValor = Array.from(map.entries()).map(([u, p]) => `${u}:${p}`).join(',');
+    try {
+      guardarKerberosUsersEnEnv(nuevoValor);
+      await notificarKerberosRecarga(nuevoValor);
+    } catch (e) {
+      return res.status(500).json({ error: 'No se pudo guardar en .env: ' + e.message });
+    }
+    res.status(201).json({ ok: true, kerberosUsuarios: Array.from(map.keys()).sort() });
+  })
+);
+
+app.put(
+  '/api/control/kerberos-usuarios/:usuario',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const {
+      leerKerberosUsersDeEnv,
+      guardarKerberosUsersEnEnv,
+      parsearKerberosUsers,
+      validarPassword,
+      notificarKerberosRecarga,
+    } = require('./utils/kerberosEnv');
+    const usuario = String(req.params.usuario || '').trim();
+    const password = String((req.body || {}).password || '');
+    const errP = validarPassword(password);
+    if (errP) return res.status(400).json({ error: errP });
+    const { valor } = leerKerberosUsersDeEnv();
+    const map = parsearKerberosUsers(valor);
+    if (!map.has(usuario)) return res.status(404).json({ error: 'Usuario de Kerberos no encontrado.' });
+    map.set(usuario, password);
+    const nuevoValor = Array.from(map.entries()).map(([u, p]) => `${u}:${p}`).join(',');
+    try {
+      guardarKerberosUsersEnEnv(nuevoValor);
+      await notificarKerberosRecarga(nuevoValor);
+    } catch (e) {
+      return res.status(500).json({ error: 'No se pudo guardar en .env: ' + e.message });
+    }
+    res.json({ ok: true, kerberosUsuarios: Array.from(map.keys()).sort() });
+  })
+);
+
+app.delete(
+  '/api/control/kerberos-usuarios/:usuario',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const {
+      leerKerberosUsersDeEnv,
+      guardarKerberosUsersEnEnv,
+      parsearKerberosUsers,
+      notificarKerberosRecarga,
+    } = require('./utils/kerberosEnv');
+    const usuario = String(req.params.usuario || '').trim();
+    const { valor } = leerKerberosUsersDeEnv();
+    const map = parsearKerberosUsers(valor);
+    if (!map.has(usuario)) return res.status(404).json({ error: 'Usuario de Kerberos no encontrado.' });
+    map.delete(usuario);
+    const nuevoValor = Array.from(map.entries()).map(([u, p]) => `${u}:${p}`).join(',');
+    try {
+      guardarKerberosUsersEnEnv(nuevoValor);
+      await notificarKerberosRecarga(nuevoValor);
+    } catch (e) {
+      return res.status(500).json({ error: 'No se pudo guardar en .env: ' + e.message });
+    }
+    res.json({ ok: true, kerberosUsuarios: Array.from(map.keys()).sort() });
+  })
+);
+
 // ---------- Punto 347: Auditoría cross-tenant ----------
 // A diferencia de GET /api/admin/auditoria (backend) que SIEMPRE acota a
 // un solo tenant, aquí es lo opuesto: un super ve accesos de CUALQUIER

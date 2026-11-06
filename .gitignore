@@ -12,6 +12,10 @@
 admin-users.env
 !admin-users.env.example
 
+# Mismo criterio, para la app Kerberos (independiente de /control).
+kerberos-users.env
+!kerberos-users.env.example
+
 # Certificados/llaves privadas — nunca al repositorio si alguna vez se
 # generan localmente para pruebas de HTTPS.
 *.pem

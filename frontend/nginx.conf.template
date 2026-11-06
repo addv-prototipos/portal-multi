@@ -62,6 +62,15 @@ upstream control_upstream {
     keepalive 8;
 }
 
+# Kerberos (app de monitoreo de infraestructura, contenedor propio,
+# mismo criterio que control_upstream de arriba) — nombre de servicio
+# Docker fijo porque siempre vive en la misma red que este frontend,
+# nunca en un servidor aparte (a diferencia de control/).
+upstream kerberos_upstream {
+    server kerberos:4100;
+    keepalive 4;
+}
+
 server {
     listen 80;
     # "localhost" explícito (en vez del comodín "_" genérico) porque el
@@ -512,6 +521,42 @@ server {
         # (≈27.4MB en base64) — con 1m, cualquier logo/favicon real por
         # encima de ~700KB nunca llegaba al backend (hallazgo N-01, sonar_1.1).
         client_max_body_size 27m;
+        proxy_intercept_errors on;
+        error_page 502 503 504 =503 /mantenimiento.html;
+    }
+
+    # Kerberos (app de monitoreo, contenedor propio) — a diferencia de
+    # /control (página estática servida por ESTE frontend, solo su API se
+    # reenvía), Kerberos sirve TODO desde su propio Express (HTML+CSS+JS+
+    # API) — se reenvía la URL COMPLETA sin recortar el prefijo "/kerberos"
+    # (proxy_pass SIN "/" al final del destino, a propósito: con "/" nginx
+    # recorta el location antes de reenviar, lo que rompería las rutas
+    # internas de kerberos/server.js, todas montadas bajo "/kerberos" ellas
+    # mismas). Nunca requiere tenant (super admins + cuentas Kerberos
+    # dedicadas, nada de slug).
+    location ^~ /kerberos {
+        # "^~" obligatorio — sin esto, el catch-all regex anti-enumeración
+        # de tenants (^/(?<tenant_slug>...)/.+$, más abajo) gana contra un
+        # location de prefijo normal para cualquier request con algo
+        # después del primer segmento (ej. "/kerberos/assets/..."),
+        # confundiendo "kerberos" con un slug de tenant y devolviendo 404
+        # — mismo motivo exacto por el que "/api/control/" ya usa "^~".
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
+        add_header Strict-Transport-Security $hsts_header_valor always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Resource-Policy "same-origin" always;
+        proxy_pass http://kerberos_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
+        proxy_read_timeout 30s;
+        proxy_send_timeout 30s;
         proxy_intercept_errors on;
         error_page 502 503 504 =503 /mantenimiento.html;
     }

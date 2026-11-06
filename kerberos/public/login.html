@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Acceso Kerberos — Monitoreo de infraestructura</title>
+  <link rel="icon" href="/kerberos/assets/favicon.png">
+  <link rel="stylesheet" href="/kerberos/login.css">
+</head>
+<body>
+  <main class="auth-screen">
+    <div class="auth-shell">
+      <section class="auth-hero">
+        <img class="auth-hero-branding" src="/kerberos/assets/logoLight.png" alt="Kerberos">
+        <h1 class="auth-hero-headline">
+          Monitoreo de infraestructura — toda la plataforma, <span class="auth-hero-highlight">un vistazo</span>.
+        </h1>
+        <span class="auth-hero-divider" aria-hidden="true"></span>
+        <p class="auth-hero-copy">
+          Un solo tablero para ver cómo está el servidor en este momento, sin
+          entrar por consola ni tocar nada.
+        </p>
+        <ul class="auth-hero-lista">
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2 8 4-16 2 8h6"/></svg>
+            <span>Consumo de CPU y memoria del servidor, al segundo</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+            <span>Disco y almacenamiento disponible</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
+            <span>Estado de cada contenedor y sus bitácoras</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-4l-3 8-4-16-3 8H4"/></svg>
+            <span>Salud de los servicios, en tiempo real</span>
+          </li>
+        </ul>
+        <p class="auth-hero-footer">Clarvo · Acceso restringido · Solo lectura</p>
+      </section>
+
+      <section class="auth-card">
+        <h1>Acceso Kerberos</h1>
+        <p class="panel-subtitle">Monitoreo de infraestructura — solo lectura.</p>
+
+        <form id="form-login" novalidate>
+          <div class="field">
+            <label for="usuario">Usuario</label>
+            <input type="text" id="usuario" name="usuario" autocomplete="username"
+                   autocapitalize="none" spellcheck="false" required>
+          </div>
+
+          <div class="field">
+            <label for="contrasena">Contraseña</label>
+            <div class="password-field">
+              <input type="password" id="contrasena" name="contrasena" autocomplete="current-password" required>
+              <button type="button" class="btn-toggle-pass" id="btn-ver-contrasena"
+                      aria-pressed="false" aria-label="Mostrar contraseña">
+                <svg id="icono-ojo" viewBox="0 0 24 24" width="18" height="18" fill="none"
+                     stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                     stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1.8 12s3.9-7 10.2-7 10.2 7 10.2 7-3.9 7-10.2 7S1.8 12 1.8 12Z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <p class="field-error" id="error-login" role="alert" aria-live="polite"></p>
+
+          <button type="submit" class="btn btn-primary btn-block" id="btn-entrar">Entrar</button>
+        </form>
+
+        <p class="auth-card-hint">
+          Entran tanto los super administradores de <code>/control</code> como
+          las cuentas creadas específicamente para Kerberos desde la sección
+          Super Admins de <code>/control</code>, en la pestaña Usuarios Kerberos.
+        </p>
+      </section>
+    </div>
+  </main>
+
+  <script src="/kerberos/sesion.js"></script>
+  <script src="/kerberos/login.js"></script>
+</body>
+</html>

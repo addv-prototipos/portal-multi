@@ -461,6 +461,46 @@
           </div>
           <p class="field-hint" style="margin-top:12px">Tras guardar, se escribe <code>.env</code> y se recarga en <code>control</code> y <code>backend</code> sin reiniciar (via <code>POST /internal/reload-admin-users</code>). Revisa <code>.env.bak</code> si necesitas revertir.</p>
 
+          <!-- Punto 471: Usuarios Kerberos (KERBEROS_USERS en .env) —
+               sección hermana de Super Admins, en la misma pantalla a
+               propósito: son las dos listas de cuentas de plataforma que
+               se gestionan desde aquí. Un super admin (ADMIN_USERS, la
+               tabla de arriba) YA entra a Kerberos sin alta aquí; esta
+               lista es solo para cuentas que SOLO deben poder entrar a
+               Kerberos, nunca a /control. -->
+          <div class="admin-toolbar" style="margin-top:32px">
+            <div class="admin-toolbar-title">
+              <h2 style="font-size:17px;margin:0;">Usuarios Kerberos</h2>
+              <button type="button" class="campo-ayuda" id="btn-ayuda-vista-kerberos" aria-label="Ayuda sobre Usuarios Kerberos" data-tooltip="Cuentas que solo entran a Kerberos, el monitor de infraestructura. Nunca pueden entrar a /control ni administrar empresas. Se guardan en el .env del host, igual que los super admins."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Ayuda</button>
+            </div>
+            <div class="admin-toolbar-right">
+              <span class="admin-count" id="kerberos-count">0 usuarios</span>
+              <button type="button" class="btn btn-primary" id="btn-kerberos-nuevo">+ Agregar usuario Kerberos</button>
+              <button type="button" class="btn btn-secondary" id="btn-kerberos-refresh">Actualizar</button>
+            </div>
+          </div>
+          <p class="admin-login-hint">
+            Cuentas que solo pueden entrar a Kerberos, el monitor de infraestructura — nunca a <code>/control</code>. Pensadas para soporte y monitoreo, que no debe tocar empresas. Los super admins de arriba ya entran a Kerberos sin necesidad de alta aquí.
+          </p>
+          <p class="field-error" id="kerberos-error" role="alert"></p>
+          <div class="admin-table-wrap">
+            <table class="admin-table" id="kerberos-tabla">
+              <thead>
+                <tr>
+                  <th>Usuario</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="kerberos-table-body"></tbody>
+            </table>
+            <div class="admin-empty admin-empty-rica" id="kerberos-empty" hidden>
+              <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 3l7 3v5c0 4.42-2.98 8.56-7 10-4.02-1.44-7-5.58-7-10V6l7-3z" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="11" r="2.2"/><path d="M12 13.2V16" stroke-linecap="round"/></svg>
+              <p class="admin-empty-titulo">Sin usuarios exclusivos de Kerberos</p>
+              <p>Agrega una cuenta solo si alguien debe ver el monitor sin poder entrar a <code>/control</code>.</p>
+            </div>
+          </div>
+          <p class="field-hint" style="margin-top:12px">Se guarda en <code>.env</code> (<code>KERBEROS_USERS=usuario:pass,...</code>) y se recarga sin reiniciar. Revisa <code>.env.bak</code> si necesitas revertir.</p>
+
           <!-- Punto 370/428: ajustes globales de plataforma (tabla
                ajustes_globales, control_tenants) — un solo valor, no por
                tenant/plan. Antes tarjetas colapsables (como "Borrado
@@ -1576,6 +1616,43 @@
         <div class="btn-row">
           <button type="button" class="btn btn-secondary" id="super-btn-cancelar">Cancelar</button>
           <button type="submit" class="btn btn-primary" id="super-btn-guardar"><span id="super-btn-guardar-label">Guardar</span></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Usuario Kerberos (punto 471, .env) — mismo patrón que el
+       modal de Super Admin de arriba. Las reglas de contraseña son más
+       estrictas que las de super (8+ con mayúscula, minúscula y número)
+       porque así las valida control/utils/kerberosEnv.js. -->
+  <div class="modal-overlay" id="kerberos-modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="kerberos-modal-title">
+      <h2 id="kerberos-modal-title">Nuevo usuario Kerberos</h2>
+      <form id="kerberos-form" novalidate>
+        <div class="field">
+          <label for="kerberos-usuario">Usuario <span class="required">*</span></label>
+          <input type="text" id="kerberos-usuario" maxlength="64" autocomplete="off" placeholder="ej. soporte1" required />
+          <p class="field-hint">Solo letras, números, punto, guión y guión bajo. 3-64 caracteres.</p>
+          <p class="field-error" id="error-kerberos-usuario" role="alert"></p>
+        </div>
+        <div class="field">
+          <label for="kerberos-password">Contraseña <span class="required">*</span></label>
+          <div class="password-field">
+            <input type="password" id="kerberos-password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" required />
+            <button type="button" class="btn-toggle-pass" id="btn-kerberos-password-toggle" aria-label="Mostrar contraseña" aria-pressed="false">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+              </svg>
+            </button>
+          </div>
+          <p class="field-hint">8-128 caracteres, con al menos una mayúscula, una minúscula y un número. No puede contener "," ":" comillas ni "#". Se guarda en .env como texto plano.</p>
+          <p class="field-error" id="error-kerberos-password" role="alert"></p>
+        </div>
+        <p class="field-error" id="kerberos-modal-error" role="alert"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="kerberos-btn-cancelar">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="kerberos-btn-guardar"><span id="kerberos-btn-guardar-label">Guardar</span></button>
         </div>
       </form>
     </div>

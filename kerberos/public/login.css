@@ -1,0 +1,357 @@
+/* Kerberos — pantalla de acceso.
+   Replica el split-screen de /control (frontend/control.html +
+   auth.css/style.css/admin.css) con sus mismos tokens navy/cian. Se
+   duplica en vez de enlazar los .css de frontend/ porque Kerberos es un
+   contenedor aparte que sirve sus propios estáticos — mismo criterio de
+   duplicación deliberada que ya aplica entre backend/ y control/. */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/kerberos/assets/fonts/inter-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/kerberos/assets/fonts/inter-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/kerberos/assets/fonts/inter-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/kerberos/assets/fonts/inter-700.woff2') format('woff2');
+}
+
+:root {
+  --color-bg: #F6F4EF;
+  --color-surface: #FFFFFF;
+  --color-border: #E3DFD4;
+  --color-ink: #21261F;
+  --color-ink-soft: #5B6158;
+  --color-error: #B3261E;
+  --radius-sm: 6px;
+  --radius-lg: 16px;
+  --shadow-card: 0 1px 2px rgba(33, 38, 31, 0.04), 0 8px 24px rgba(33, 38, 31, 0.06);
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: var(--font-body);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+/* Paleta institucional Clarvo (navy #03285B + cian eléctrico #05DBF2),
+   contenida al shell igual que en auth.css — verificada contra el logo
+   real, ver CLAUDE.md. */
+.auth-shell {
+  --color-accent: #03285B;
+  --color-accent-dark: #0B1320;
+  --color-accent-soft: #E7ECF3;
+  --auth-electric: #05DBF2;
+  --auth-highlight: #2F6FED;
+
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  max-width: 1080px;
+  min-height: 560px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.auth-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  left: 50%;
+  background-image: radial-gradient(var(--auth-electric) 1px, transparent 1px);
+  background-size: 20px 20px;
+  opacity: 0.06;
+  pointer-events: none;
+}
+
+.auth-hero {
+  flex: 1 1 55%;
+  min-width: 0;
+  padding: 48px 40px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-hero-branding {
+  display: block;
+  height: auto;
+  max-width: 220px;
+  margin-bottom: 32px;
+}
+
+.auth-hero-branding {
+  display: block;
+  height: auto;
+  max-width: 260px;
+  margin-bottom: 32px;
+}
+
+.auth-hero-headline {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(26px, 3.2vw, 40px);
+  line-height: 1.2;
+  margin: 0 0 14px;
+  color: var(--color-accent);
+  max-width: 22ch;
+}
+.auth-hero-highlight { color: var(--auth-highlight); }
+
+.auth-hero-divider {
+  display: block;
+  width: 40px;
+  height: 3px;
+  background: var(--auth-highlight);
+  border-radius: 2px;
+  margin: 4px 0 20px;
+}
+
+.auth-hero-copy {
+  margin: 0;
+  max-width: 42ch;
+  color: var(--color-ink-soft);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+/* Lista de lo que el tablero muestra — sustituye la imagen decorativa
+   del login de /control (login-decoracion-marca.png, que no forma parte
+   de los assets de Kerberos) por contenido útil. */
+.auth-hero-lista {
+  list-style: none;
+  margin: 22px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.auth-hero-lista li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--color-ink-soft);
+}
+.auth-hero-lista svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  stroke: var(--auth-highlight);
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.auth-hero-footer {
+  margin: auto 0 0;
+  padding-top: 24px;
+  font-size: 12px;
+  color: var(--color-ink-soft);
+  opacity: 0.8;
+}
+
+.auth-card {
+  flex: 0 0 380px;
+  max-width: 380px;
+  width: 100%;
+  margin: auto 40px auto 0;
+  align-self: center;
+  position: relative;
+  z-index: 1;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 28px 24px 26px;
+}
+
+.auth-card h1 {
+  font-family: var(--font-body);
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  text-align: center;
+  color: var(--color-ink);
+}
+
+.auth-card .panel-subtitle {
+  font-size: 14px;
+  color: var(--color-ink-soft);
+  line-height: 1.5;
+  text-align: center;
+  margin: 0 0 22px;
+}
+
+/* ---------- Campos ---------- */
+
+.field { margin-bottom: 18px; }
+
+.field label {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: 6px;
+}
+
+.field input[type="text"],
+.field input[type="password"] {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.password-field {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+.password-field input { flex: 1; }
+
+/* Misma especificidad que la regla de arriba, así que tiene que ir
+   DESPUÉS en el archivo para ganarle — si no, el texto pasa debajo del
+   ícono del ojo (mismo comentario que en style.css). */
+.password-field input[type="password"],
+.password-field input[type="text"] {
+  padding-right: 42px;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.btn-toggle-pass {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-soft);
+  cursor: pointer;
+}
+.btn-toggle-pass:hover { color: var(--color-ink); background: var(--color-bg); }
+.btn-toggle-pass[aria-pressed="true"] { color: var(--color-accent); }
+.btn-toggle-pass:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.field-error {
+  font-size: 12.5px;
+  color: var(--color-error);
+  margin: 6px 0 0;
+}
+.field-error:empty { display: none; }
+
+/* ---------- Botón ---------- */
+
+.btn {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px 20px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.btn-block { width: 100%; }
+.btn-primary {
+  background: var(--color-accent);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--color-accent-dark); }
+.btn-primary:disabled {
+  background: #93A2B8;
+  cursor: not-allowed;
+}
+.btn-primary:focus-visible {
+  outline: 2px solid var(--auth-electric);
+  outline-offset: 2px;
+}
+
+.auth-card-hint {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--color-ink-soft);
+  text-align: center;
+}
+.auth-card-hint code {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 11.5px;
+}
+
+@media (max-width: 860px) {
+  .auth-shell { flex-direction: column; min-height: 0; }
+  .auth-shell::before { left: 0; opacity: 0.04; }
+  .auth-hero { padding: 32px 28px 20px; }
+  .auth-hero-headline { display: none; }
+  .auth-hero-divider { display: none; }
+  .auth-hero-lista { display: none; }
+  .auth-hero-footer { display: none; }
+  .auth-card { flex: none; max-width: 100%; margin: 0; }
+}
