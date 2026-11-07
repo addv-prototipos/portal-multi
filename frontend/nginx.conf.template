@@ -582,8 +582,15 @@ server {
     # internas de kerberos/server.js, todas montadas bajo "/kerberos" ellas
     # mismas). Nunca requiere tenant (super admins + cuentas Kerberos
     # dedicadas, nada de slug).
+    # Punto en curso — pedido explícito del usuario: Kerberos queda FUERA
+    # del modo mantenimiento. Monitorea el resto del stack (incluido el
+    # propio deploy en curso vía el banner de limpieza de Docker) — si se
+    # tapara igual que backend/control/el portal, nadie podría ver el
+    # estado de la infraestructura justo cuando más importa verlo. Sigue
+    # mostrando mantenimiento.html SOLO si Kerberos mismo está caído (su
+    # propio proxy_intercept_errors/error_page más abajo, sin cambios) —
+    # nunca por el centinela manual de este archivo.
     location ^~ /kerberos {
-        include /etc/nginx/mantenimiento-gate.conf;
         # "^~" obligatorio — sin esto, el catch-all regex anti-enumeración
         # de tenants (^/(?<tenant_slug>...)/.+$, más abajo) gana contra un
         # location de prefijo normal para cualquier request con algo
