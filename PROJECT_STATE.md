@@ -29537,6 +29537,12 @@ cada uno. Búsqueda real por HTTP (`GET /api/admin/catalogo-clave-sat/buscar?q=t
 credenciales reales) → 10 resultados reales, `esEjemplo:false`. 809 tests
 unitarios de `backend/` sin regresiones.
 
-**Pendiente** (siguiente paso de esta sesión): desplegar a producción
-(backend) y correr el mismo backfill contra los tenants reales de
-clarvo.mx, con validación real ahí también.
+**Desplegado y validado en producción** (mismo día): backup real de
+`mysql-primary` antes de tocar nada (verificado tamaño, no 0 bytes) →
+deploy del backend con modo mantenimiento activo (mismo protocolo del
+punto 485) → backfill corrido contra los 2 tenants reales activos de
+clarvo.mx (`el-infierno`, `mini-me`) → `52,513 claves` cada uno.
+Validado a nivel de datos (sin resetear ninguna contraseña de cliente
+real, la función `buscarClaveProdServ()` se probó directo, misma que
+usa el endpoint HTTP real): tenant `el-infierno` → búsqueda real
+"tornillo" → 20 resultados reales, `esEjemplo:false`. Commit `6b6e394`.
