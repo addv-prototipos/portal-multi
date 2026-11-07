@@ -29497,3 +29497,46 @@ fix del reloj), `c9f580c` (checklist por plan), `0898ee6` (campana/
 correo factura-cobro), `6ff0b0d` (interruptor de mantenimiento),
 `1d774e1` (Kerberos exento). Todos en `main`, local — **pendiente
 confirmar con el usuario si se hace push a origin**.
+
+## Punto 486 - Catálogo "Clave SAT" vacío por tenant hasta actualizar a mano (7 nov 2026, CERRADO)
+
+Bug reportado: en cualquier tenant, la búsqueda de "Clave SAT" en
+Configuraciones fiscales no encontraba nada hasta que un admin entraba
+a mano y le daba clic en "Actualizar". Causa real (`backend/db.js:417-431`,
+`backend/utils/claveProdServ.js`): `ensureSchema()` crea la tabla
+`catalogo_clave_prod_serv` VACÍA por tenant — el sembrado de 10 claves de
+ejemplo (`sembrarCatalogoClaveProdServSiVacio`) solo corría UNA VEZ contra
+el pool base al arrancar el backend, nunca por tenant. `CLAVE_PROD_SERV_SYNC_URL`
+ya estaba configurada (fuente real, phpcfdi/resources-sat-catalogs,
+~52,500 claves) — el problema nunca fue la fuente, era que nadie la
+disparaba sola.
+
+**Decisión de arquitectura**: se mantiene per-tenant (sin mover a tabla
+compartida) — no hay cambio de esquema, consistente con el patrón ya
+establecido de `ensureSchema()` por tenant, y evita introducir acceso
+cross-database nuevo sin precedente en este proyecto.
+
+**Fix** (`backend/server.js:POST /internal/activar-tenant/:slug`): tras
+`ensureSchema(poolTenant)`, siembra síncrona de los 10 ejemplos (rápida,
+sin red, nunca deja la búsqueda vacía ni un segundo) + sincronización del
+catálogo real en segundo plano (`ejecutarComoTenant` + fire-and-forget,
+nunca bloquea ni hace fallar la activación si el origen externo no
+responde) — mismo criterio de todos los correos/notificaciones
+fire-and-forget ya usados en el proyecto. **Backfill**
+(`backend/scripts/sincronizar-catalogo-sat-tenants.js`, nuevo): recorre
+todos los tenants `estado='activo'` de `control_tenants.tenants` y aplica
+el mismo sembrado+sync — idempotente (UNIQUE KEY + DELETE+INSERT
+transaccional en `guardarCatalogo`), seguro de re-correr.
+
+**Verificado real, local**: tenant nuevo activado vía
+`/internal/activar-tenant/:slug` → 52,513 claves reales en ~2s sin tocar
+nada a mano. Tenant YA EXISTENTE (`prueba-cancel-8`) confirmado en 0 filas
+antes del backfill → backfill corrido contra los 3 tenants activos
+locales (`panes`, `prueba-cancel-8`, `test-sa-de-cv`) → 52,513 claves
+cada uno. Búsqueda real por HTTP (`GET /api/admin/catalogo-clave-sat/buscar?q=tornillo`,
+credenciales reales) → 10 resultados reales, `esEjemplo:false`. 809 tests
+unitarios de `backend/` sin regresiones.
+
+**Pendiente** (siguiente paso de esta sesión): desplegar a producción
+(backend) y correr el mismo backfill contra los tenants reales de
+clarvo.mx, con validación real ahí también.

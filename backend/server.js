@@ -1101,6 +1101,23 @@ app.post('/internal/activar-tenant/:slug', async (req, res) => {
       database: dbName,
     });
     await ensureSchema(poolTenant);
+    // Punto en curso (bug real reportado): `ensureSchema()` solo crea la
+    // tabla `catalogo_clave_prod_serv` VACÍA — sin esto, la búsqueda de
+    // "Clave SAT" en Configuraciones fiscales no encontraba nada hasta que
+    // un admin entraba a mano y le daba "Actualizar". Primero el catálogo
+    // de 10 ejemplos (síncrono, rápido, sin red, mismo criterio que ya usa
+    // sembrarCatalogoClaveProdServSiVacio() al arrancar el backend) para
+    // que la búsqueda nunca esté vacía ni un segundo; luego, en segundo
+    // plano (nunca bloquea la activación ni la hace fallar si el origen
+    // externo no responde), el catálogo real completo (~52,500 claves,
+    // CLAVE_PROD_SERV_SYNC_URL ya configurada) lo reemplaza solo.
+    await ejecutarComoTenant(poolTenant, sembrarCatalogoClaveProdServSiVacio);
+    ejecutarComoTenant(poolTenant, sincronizarClaveProdServDesdeOrigen).catch((err) => {
+      console.error(
+        `No se pudo sincronizar el catálogo real de Clave SAT para el tenant "${slug}" recién activado (se queda con el catálogo de ejemplo mientras tanto):`,
+        err.message
+      );
+    });
     res.json({ ok: true, dbName });
   } catch (err) {
     console.error(`Error activando (aprovisionamiento físico de) el tenant "${slug}":`, err);
