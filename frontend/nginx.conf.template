@@ -93,6 +93,33 @@ server {
 
     client_max_body_size 27m;
 
+    # Modo mantenimiento (punto en curso, 2026-11-06): interruptor manual
+    # para un deploy — a diferencia del error_page 502/503/504 de cada
+    # location de abajo (que SOLO se dispara cuando backend/control de
+    # verdad no responden), esto fuerza mantenimiento.html para
+    # ABSOLUTAMENTE TODO mientras exista el archivo centinela, sin
+    # esperar a que un proxy falle. Activar/desactivar desde el host:
+    #   docker exec <contenedor-frontend> touch    /usr/share/nginx/html/.mantenimiento
+    #   docker exec <contenedor-frontend> rm -f     /usr/share/nginx/html/.mantenimiento
+    # No requiere redeploy de este contenedor para activarse/desactivarse
+    # (el archivo vive en la capa escribible, nunca se hornea en la
+    # imagen). El healthcheck del propio Dockerfile apunta a
+    # /mantenimiento-health (exento aquí) para que Swarm/Docker nunca
+    # marque el contenedor "unhealthy" solo por estar en mantenimiento.
+    #
+    # Probado real: un `return 503;` suelto a nivel server{} (antes de
+    # elegir location) NUNCA lo intercepta error_page — nginx solo asocia
+    # error_page a una respuesta que se generó DENTRO de una location.
+    # Por eso el check (mantenimiento-gate.conf, `if (-f ...) return 503;`)
+    # se incluye como PRIMERA línea de cada location real de abajo, nunca
+    # aquí suelto — mismo criterio de repetir-por-location que ya usa
+    # este archivo para las cabeceras de seguridad (ver M-12 más abajo).
+    error_page 503 /mantenimiento.html;
+    location = /mantenimiento-health {
+        add_header Content-Type "text/plain" always;
+        return 200 "ok";
+    }
+
     # Segmento 7 (seguridad multi-tenant): cabeceras de defensa aplicables
     # a TODA respuesta sin riesgo de romper nada existente.
     # X-Frame-Options SAMEORIGIN (no DENY, 2026-09-17): con DENY, Chrome
@@ -154,6 +181,7 @@ server {
     # el archivo nuevo si si cambio). Esto evita que el navegador siga
     # usando una version vieja por dias despues de un `docker-compose up --build`.
     location ~* \.(?:css|js)$ {
+        include /etc/nginx/mantenimiento-gate.conf;
         add_header Cache-Control "no-cache";
         # Hallazgo M-12 (sonar.html, 2026-10-14): en nginx, un location
         # que define CUALQUIER add_header apaga la herencia de TODOS los
@@ -228,11 +256,13 @@ server {
     }
 
     location / {
+        include /etc/nginx/mantenimiento-gate.conf;
         try_files $uri $uri/ /login.html;
     }
 
     # Panel de administracion, accesible en /admin (sin necesidad de .html)
     location = /admin {
+        include /etc/nginx/mantenimiento-gate.conf;
         try_files /admin.html =404;
     }
 
@@ -242,26 +272,33 @@ server {
     # -- solo su API (/api/control/*) se reenvia al contenedor aparte, ver
     # el location "^~ /api/control/" mas abajo.
     location = /control {
+        include /etc/nginx/mantenimiento-gate.conf;
         try_files /control.html =404;
     }
 
     # Rutas amigables (sin .html) para las paginas del portal de usuario
     location = /dashboard {
+        include /etc/nginx/mantenimiento-gate.conf;
         try_files /dashboard.html =404;
     }
     location = /tickets {
+        include /etc/nginx/mantenimiento-gate.conf;
         try_files /tickets.html =404;
     }
     location = /login {
+        include /etc/nginx/mantenimiento-gate.conf;
         try_files /login.html =404;
     }
     location = /csf {
+        include /etc/nginx/mantenimiento-gate.conf;
         try_files /csf.html =404;
     }
     location = /mi-cuenta {
+        include /etc/nginx/mantenimiento-gate.conf;
         try_files /mi-cuenta.html =404;
     }
     location = /credito {
+        include /etc/nginx/mantenimiento-gate.conf;
         try_files /credito.html =404;
     }
     # Sin access_log (auditoría 2026-09-03, hallazgo #10): el enlace de
@@ -272,6 +309,7 @@ server {
     # validez (30 min). El token igual se invalida al usarse
     # (server.js), esto es defensa en profundidad, no el único control.
     location = /restablecer {
+        include /etc/nginx/mantenimiento-gate.conf;
         access_log off;
         try_files /restablecer.html =404;
     }
@@ -283,6 +321,7 @@ server {
     # ahora viaja como fragmento (#token=, nunca llega al servidor), esto
     # es defensa en profundidad para un enlace viejo con ?token=.
     location = /restablecer.html {
+        include /etc/nginx/mantenimiento-gate.conf;
         access_log off;
         try_files /restablecer.html =404;
     }
@@ -292,6 +331,7 @@ server {
     # tiene un enlace o marcador viejo apuntando a /index.html, se
     # redirige en vez de devolver 404.
     location = /index.html {
+        include /etc/nginx/mantenimiento-gate.conf;
         return 301 /csf.html;
     }
 
@@ -321,15 +361,18 @@ server {
     # closing parenthesis" — confirmado corriendo esto contra un nginx
     # real (ver PROJECT_STATE.md).
     location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/admin$" {
+        include /etc/nginx/mantenimiento-gate.conf;
         try_files /admin.html =404;
     }
     location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/(?<pagina_tenant>dashboard|tickets|login|csf|mi-cuenta|credito)$" {
+        include /etc/nginx/mantenimiento-gate.conf;
         try_files /$pagina_tenant.html =404;
     }
     # Separado del location de arriba (mismo motivo que "location =
     # /restablecer" sin slug): access_log off para no persistir el token
     # de restablecimiento en texto plano.
     location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/restablecer$" {
+        include /etc/nginx/mantenimiento-gate.conf;
         access_log off;
         try_files /restablecer.html =404;
     }
@@ -374,6 +417,7 @@ server {
     # Location sale literal como "/$tenant_slug/login" y el puerto lo
     # aporta el navegador desde la conexión real — nunca ningún header.
     location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/?$" {
+        include /etc/nginx/mantenimiento-gate.conf;
         absolute_redirect off;
         return 302 /$tenant_slug/login;
     }
@@ -388,6 +432,7 @@ server {
     # limite de tamaño, pagina de mantenimiento), replicar el cambio en
     # "location /api/" también.
     location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/api/(?<resto_api>.*)$" {
+        include /etc/nginx/mantenimiento-gate.conf;
         # Auditoría 2026-09-03 (hallazgo #11): esta ruta se reenvía al
         # backend, que ya manda su propia Content-Security-Policy (helmet
         # + la calibrada a mano para /api/docs) — sin repetir aquí los
@@ -444,6 +489,7 @@ server {
     # ruta válida ya cubierta arriba -- solo lo que ninguna otra regla
     # reconoció.
     location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/.+$" {
+        include /etc/nginx/mantenimiento-gate.conf;
         # Página 404 con identidad Clarvo (mismo patrón "Aurora profunda"
         # del punto 374, "Portal de clientes desactivado") en vez del 404
         # en blanco de nginx, con redirect a clarvo.mx. Sin "=" en
@@ -473,6 +519,7 @@ server {
     # y SÍ necesita este reenvío) era alcanzable fuera de la red interna
     # de Docker.
     location ^~ /api/public/ {
+        include /etc/nginx/mantenimiento-gate.conf;
         proxy_pass http://control_upstream/api/public/;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
@@ -488,6 +535,7 @@ server {
     }
 
     location ^~ /api/control/ {
+        include /etc/nginx/mantenimiento-gate.conf;
         # Auditoría 2026-09-03 (hallazgo #11): mismo motivo que en la ruta
         # de API con tenant — control ya manda su propia CSP.
         add_header X-Content-Type-Options "nosniff" always;
@@ -535,6 +583,7 @@ server {
     # mismas). Nunca requiere tenant (super admins + cuentas Kerberos
     # dedicadas, nada de slug).
     location ^~ /kerberos {
+        include /etc/nginx/mantenimiento-gate.conf;
         # "^~" obligatorio — sin esto, el catch-all regex anti-enumeración
         # de tenants (^/(?<tenant_slug>...)/.+$, más abajo) gana contra un
         # location de prefijo normal para cualquier request con algo
@@ -570,6 +619,7 @@ server {
     # comportamiento de hoy (antes de este segmento no existia ningun
     # location con regex con el que pudiera competir).
     location ^~ /api/ {
+        include /etc/nginx/mantenimiento-gate.conf;
         # Auditoría 2026-09-03 (hallazgo #11): mismo motivo que las otras 2
         # rutas de API — el backend ya manda su propia CSP.
         add_header X-Content-Type-Options "nosniff" always;

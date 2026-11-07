@@ -21,6 +21,12 @@ RUN rm -rf /usr/share/nginx/html/* /etc/nginx/conf.d/default.conf
 # imagen -- así el contenedor "control" puede vivir en la misma red
 # Docker o en un servidor aparte, solo cambiando esas dos variables.
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+# Estático, sin ${VAR} que sustituir — directo a /etc/nginx/, NUNCA a
+# /etc/nginx/templates/ (ahí envsubst lo escribiría como un conf.d/
+# nuevo por su cuenta, archivo que nadie referencia). "include"d desde
+# dentro de cada location real de default.conf.template (ver ese
+# archivo, sección "Modo mantenimiento").
+COPY mantenimiento-gate.conf /etc/nginx/mantenimiento-gate.conf
 COPY csf.html style.css app.js admin.html admin.css admin.js login.html login.js auth.css dashboard.html dashboard.js tickets.html tickets.js portal.js portal.css mantenimiento.html control.html control.js theme.js offline.js restablecer.html restablecer.js scanner.js aclaraciones.js skeleton.js mi-cuenta.html mi-cuenta.js credito.html credito.js marcaTemaEditor.js comprimir.js 404-clarvo.html 404-clarvo.js /usr/share/nginx/html/
 COPY assets/ /usr/share/nginx/html/assets/
 
@@ -38,7 +44,12 @@ EXPOSE 80
 # (::1), donde nginx no escucha (el "listen 80" de nginx.conf es solo
 # IPv4 en este entorno) -- eso hacía fallar el healthcheck con
 # "Connection refused" aunque el sitio respondiera bien por IPv4.
+# /mantenimiento-health en vez de "/" (punto en curso, modo mantenimiento):
+# "/" devuelve 503 mientras exista el archivo centinela de mantenimiento
+# (ver nginx.conf.template) — si el healthcheck siguiera apuntando ahí,
+# Swarm/Docker marcaría el contenedor "unhealthy" justo durante un deploy
+# a propósito, el peor momento posible para que lo reinicien solo.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget -qO- http://127.0.0.1/ > /dev/null || exit 1
+  CMD wget -qO- http://127.0.0.1/mantenimiento-health > /dev/null || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
