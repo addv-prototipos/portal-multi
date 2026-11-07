@@ -1223,16 +1223,42 @@ app.post('/internal/crear-admin-inicial/:slug', async (req, res) => {
 // configuración/transportador que ya usa el resto de correos sin tenant
 // (ver backend/utils/email.js). Sin tenant de por medio (el prospecto
 // aún no tiene uno), así que no hay AsyncLocalStorage que resolver aquí.
+// Punto en curso ("factura lista"/"cobro" al tenant, campana+correo con
+// link real a Mi Cuenta → Facturación de Clarvo): además de la forma
+// original (cuerpo/html crudos), acepta una forma ESTRUCTURADA
+// (eyebrow/titulo/parrafos/cta) para que control/ (que nunca arma HTML
+// de correo por sí mismo, ver notificarBackend.js) obtenga el mismo
+// cascarón de marca CLARVO que ya usan los correos del tenant — vía
+// construirCorreoBase(), SIN colorPrimario/colorAccent (caen a su
+// default #03285B/#05DBF2, la marca de CLARVO, nunca la del tenant,
+// correcto aquí porque este correo es Clarvo→administrador del tenant,
+// no tenant→su cliente) y marca:'ADDV' para que logoTicketHtml() incruste
+// el logo real de CLARVO en vez de una caja de texto. La forma original
+// sigue intacta para el resto de llamadores (sin cambios de contrato).
 app.post('/internal/enviar-correo-base', async (req, res) => {
   if (!secretoInternoValido(req)) {
     return res.status(403).json({ error: 'No autorizado.' });
   }
-  const { destinatario, asunto, cuerpo, html } = req.body || {};
-  if (!destinatario || !isValidEmail(destinatario) || !asunto || !cuerpo) {
-    return res.status(400).json({ error: 'destinatario, asunto y cuerpo son obligatorios.' });
+  const { destinatario, asunto, cuerpo, html, eyebrow, titulo, parrafos, cta } = req.body || {};
+  if (!destinatario || !isValidEmail(destinatario) || !asunto) {
+    return res.status(400).json({ error: 'destinatario y asunto son obligatorios.' });
+  }
+  if (!cuerpo && !titulo) {
+    return res.status(400).json({ error: 'Falta "cuerpo" o, en su forma estructurada, "titulo".' });
   }
   try {
-    await enviarCorreo({ destinatario, asunto, cuerpo, ...(html ? { html } : {}) });
+    if (titulo) {
+      const correo = construirCorreoBase({
+        marca: MARCA_DEFECTO,
+        eyebrow,
+        titulo,
+        parrafos: Array.isArray(parrafos) ? parrafos : [],
+        cta,
+      });
+      await enviarCorreo({ destinatario, asunto, cuerpo: correo.texto, html: correo.html, adjuntos: correo.adjuntos });
+    } else {
+      await enviarCorreo({ destinatario, asunto, cuerpo, ...(html ? { html } : {}) });
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error(`No se pudo enviar el correo base a ${destinatario}:`, err.message);

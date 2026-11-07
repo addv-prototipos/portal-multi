@@ -9,6 +9,20 @@ const { obtenerPool } = require('../db');
 const { montoRealInvoiceTenant } = require('./facturacionClarvo');
 const { eliminarFacturaZip, enviarCorreoBase, listarUsuariosAdminTenant } = require('./notificarBackend');
 
+// Mismo patrón que onboardingConversion.js/stripePagos.js/reactivacionTenant.js
+// para construir una URL real del panel admin de un tenant.
+const APP_BASE_URL = (process.env.PUBLIC_APP_BASE_URL || 'https://clarvo.mx').replace(/\/$/, '');
+
+// Deep-link compartido con el correo/campana de "cobro de suscripción"
+// (ver webhooksSuscripcion.js) — ambos llevan al mismo lugar real:
+// Mi Cuenta → "Facturación de Clarvo", con scroll automático (frontend/
+// admin.js:aplicarDeepLinkDesdeUrlSiAplica()). Único punto que arma esta
+// URL para no desincronizar el query param contra el que el frontend
+// escucha.
+function urlFacturacionClarvo(slug) {
+  return `${APP_BASE_URL}/${slug}/admin?ir=facturacion-clarvo`;
+}
+
 // Retención de 30 días para solicitudes "lista" (bug real reportado: se
 // quedaban indefinidas en el Kanban/Garage, nunca se borraban). Mismo
 // valor que backend/server.js usa para tickets — no hay una sola fuente
@@ -178,7 +192,10 @@ async function notificarFacturaListaAlTenant(slug, folio) {
   await enviarCorreoBase({
     destinatario: raiz.email,
     asunto: 'Tu factura ya está lista',
-    cuerpo: `Hola,\n\nTu factura (folio ${folio}) ya está lista para descargar — entra a tu panel de administración, Mi Cuenta → "Facturación de Clarvo" para bajarla.\n\n— Clarvo`,
+    eyebrow: 'Facturación de Clarvo',
+    titulo: 'Tu factura ya está lista',
+    parrafos: [`Tu factura (folio ${folio}) ya está lista para descargar.`],
+    cta: { href: urlFacturacionClarvo(slug), texto: 'Ver mi factura' },
   });
 }
 

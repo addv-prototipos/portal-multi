@@ -3254,6 +3254,11 @@
     // el recorrido apuntaba a tarjetas todavía en 0 (la plantilla
     // estática), que no se corregían solas hasta refrescar la página.
     renderOnboardingChecklist();
+    // Si el login vino de un link con ?ir= (correo de "factura
+    // lista"/"cobro"), reemplaza el aterrizaje en "Inicio" de arriba —
+    // deliberado, el clic en el correo expresa una intención más
+    // específica que el default de login.
+    aplicarDeepLinkDesdeUrlSiAplica();
   }
 
   // Credenciales del intento de login en curso — solo viven en memoria
@@ -8043,6 +8048,43 @@
     }
   }
 
+  // Punto en curso ("factura lista"/"cobro" — campana Y correo deben
+  // llevar al mismo lugar real): "Mi Cuenta" sola no basta, hay que
+  // esperar a que cargarMiCuenta() desoculte la tarjeta y entonces hacer
+  // scroll — mismo criterio que cualquier otro salto a una tarjeta que
+  // depende de un fetch async (ver seleccionarSeccionConfig() para el
+  // caso análogo dentro del modal de Configuraciones). Única fuente para
+  // "qué tarjeta es cada sección" — el query param ?ir= del correo
+  // (aplicarDeepLinkDesdeUrlSiAplica()) y el clic de campana comparten
+  // esta misma función, nunca 2 implementaciones del mismo salto.
+  const SECCIONES_DEEP_LINK_MI_CUENTA = {
+    'facturacion-clarvo': () => els.micuentaFacturacionCard,
+  };
+  async function irASeccionMiCuenta(seccion) {
+    cambiarVistaPrincipal('mi-cuenta');
+    await cargarMiCuenta();
+    const resolver = SECCIONES_DEEP_LINK_MI_CUENTA[seccion];
+    const el = resolver && resolver();
+    if (el && !el.hidden) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // El CTA de "factura lista"/"cobro" (control/utils/facturacionGestion.js,
+  // webhooksSuscripcion.js) llega como `?ir=facturacion-clarvo` en la URL
+  // del panel. Se consume UNA sola vez (se limpia de la URL con
+  // replaceState) para que un refresh posterior no repita el salto —
+  // llamar siempre al final del flujo de login/restauración de sesión,
+  // nunca antes (necesita que aplicarRestriccionesPerfil() ya haya
+  // corrido, dentro de showDashboard()).
+  function aplicarDeepLinkDesdeUrlSiAplica() {
+    const params = new URLSearchParams(window.location.search);
+    const ir = params.get('ir');
+    if (!ir || !SECCIONES_DEEP_LINK_MI_CUENTA[ir]) return;
+    params.delete('ir');
+    const resto = params.toString();
+    history.replaceState(null, '', window.location.pathname + (resto ? `?${resto}` : ''));
+    irASeccionMiCuenta(ir);
+  }
+
   function abrirDestinoNotif(tipo, id) {
     if (tipo === 'ticket') {
       abrirTicketPorId(id);
@@ -8057,7 +8099,7 @@
       abrirConfigModal();
       seleccionarSeccionConfig('smtp-config-card');
     } else if (tipo === 'cobro' || tipo === 'factura') {
-      cambiarVistaPrincipal('mi-cuenta');
+      irASeccionMiCuenta('facturacion-clarvo');
     }
   }
 
@@ -23987,6 +24029,12 @@
                   cargarInicio().then(renderOnboardingChecklist);
                 }
               }
+              // Mismo criterio que entrarAlPanel(): corre al final,
+              // después de que la vista restaurada (o "inicio" por
+              // default) ya se resolvió — reemplaza ese aterrizaje si la
+              // URL trae ?ir= (link de correo abierto con una sesión ya
+              // activa en esta pestaña).
+              aplicarDeepLinkDesdeUrlSiAplica();
             });
           }
           if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;

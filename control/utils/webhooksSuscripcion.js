@@ -26,6 +26,39 @@
 
 const { obtenerPool } = require('../db');
 const { suspenderTenant, ErrorTransicionTenant } = require('./tenantLifecycle');
+const { enviarCorreoBase, listarUsuariosAdminTenant } = require('./notificarBackend');
+
+const APP_BASE_URL = (process.env.PUBLIC_APP_BASE_URL || 'https://clarvo.mx').replace(/\/$/, '');
+
+// Mismo destino y mismo query param que "factura lista"
+// (facturacionGestion.js:urlFacturacionClarvo) — comparten la sección
+// "Facturación de Clarvo" de Mi Cuenta, duplicado a propósito (archivos
+// distintos, sin un solo punto compartido entre ellos todavía).
+function urlFacturacionClarvo(slug) {
+  return `${APP_BASE_URL}/${slug}/admin?ir=facturacion-clarvo`;
+}
+
+// Campana ya avisaba "Se cobró tu suscripción" (backend:
+// GET /admin/notificaciones/cobros, lee Stripe en vivo) — sin correo.
+// Mismo criterio que "factura lista" (facturacionGestion.js:marcarLista):
+// solo a la cuenta raíz, fire-and-forget (un correo que falla nunca debe
+// tumbar el webhook ni el UPDATE que ya se guardó).
+async function notificarCobroExitosoAlTenant(slug, invoice) {
+  const usuarios = await listarUsuariosAdminTenant(slug);
+  const raiz = Array.isArray(usuarios) ? usuarios.find((u) => u.es_cuenta_raiz) : null;
+  if (!raiz || !raiz.email) return;
+  const monto = Number(invoice.amount_paid || 0) / 100;
+  const montoTexto = monto.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const folio = invoice.number || invoice.id;
+  await enviarCorreoBase({
+    destinatario: raiz.email,
+    asunto: 'Se cobró tu suscripción de Clarvo',
+    eyebrow: 'Facturación de Clarvo',
+    titulo: 'Se cobró tu suscripción',
+    parrafos: [`Se cobraron $${montoTexto} MXN de tu suscripción (folio ${folio}).`],
+    cta: { href: urlFacturacionClarvo(slug), texto: 'Ver mi recibo' },
+  });
+}
 
 async function cargarTenantPorSubscriptionId(subscriptionId, db) {
   if (!subscriptionId) return null;
@@ -69,6 +102,9 @@ async function manejarPagoRenovacionExitoso(invoice, db) {
     [finPeriodo ? fechaDesdeUnix(finPeriodo) : null, tenant.id]
   );
   console.log(`Corte cobrado: tenant "${tenant.slug}" renovado (invoice ${invoice.id}).`);
+  notificarCobroExitosoAlTenant(tenant.slug, invoice).catch((err) => {
+    console.error(`No se pudo notificar a "${tenant.slug}" el cobro de su suscripción (invoice ${invoice.id}):`, err.message);
+  });
 }
 
 async function manejarPagoRenovacionFallido(invoice, db) {

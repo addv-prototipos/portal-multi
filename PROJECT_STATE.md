@@ -29361,3 +29361,74 @@ desechable (`prueba-cancel-*`), sin dato real de cliente.
 
 Commit: `c9f580c`. Contenedor `frontend` reconstruido y recreado para
 servir el fix antes de la verificación.
+
+## Punto 484 - "Factura lista"/"cobro": campana y correo con deep-link real a Facturación de Clarvo (6 nov 2026, CERRADO)
+
+Pedido del usuario: la campana del admin y el correo a la cuenta raíz
+deben llevar exactamente a la sección "Facturación de Clarvo" de Mi
+Cuenta (con scroll), no solo abrir la vista. Investigación previa
+reveló que **"factura lista" ya existía parcialmente** (punto 469):
+campana (`GET /api/admin/notificaciones/facturas`) y correo
+(`facturacionGestion.js:notificarFacturaListaAlTenant`), pero ninguno
+de los dos hacía lo pedido — la campana solo navegaba a "Mi Cuenta"
+(sin scroll) y el correo era texto plano sin link clicable real. El
+panel tampoco tenía ningún mecanismo para "abrir en sección X" desde
+una URL externa (confirmado con grep, no existía).
+
+**2 decisiones confirmadas por el usuario** (`AskUserQuestion`): (1)
+botón con marca real de Clarvo en el correo, no solo texto plano — (2)
+incluir también "cobro de suscripción" (hasta ahora solo tenía campana,
+sin correo), no solo "factura lista".
+
+**Implementado**:
+- **Deep-link compartido** (`frontend/admin.js`): `?ir=facturacion-clarvo`
+  en la URL → `aplicarDeepLinkDesdeUrlSiAplica()` (se consume UNA vez,
+  limpia el query param con `history.replaceState`) → `irASeccionMiCuenta()`
+  (navega a Mi Cuenta, `await cargarMiCuenta()` para que la tarjeta ya
+  esté visible, luego `scrollIntoView`). Enganchado en los 2 puntos
+  donde el panel decide la vista inicial: `entrarAlPanel()` (login
+  nuevo) e `init()` (sesión guardada restaurada). La campana
+  (`abrirDestinoNotif`, tipo 'cobro'/'factura') ahora llama a la MISMA
+  función — una sola implementación del salto, nunca 2.
+- **Correo con marca real de Clarvo** (`backend/server.js`):
+  `/internal/enviar-correo-base` ahora acepta una forma estructurada
+  (`eyebrow`/`titulo`/`parrafos`/`cta`) además de la original
+  (`cuerpo`/`html`) — construye el HTML vía `construirCorreoBase()` (ya
+  existente, usado por los correos de cliente) SIN `colorPrimario`/
+  `colorAccent` (caen a su default `#03285B`/`#05DBF2`, la marca de
+  CLARVO — correcto aquí porque es Clarvo→administrador del tenant, no
+  tenant→su cliente) y `marca:'ADDV'` para el logo real incrustado
+  (CID). `control/utils/notificarBackend.js:enviarCorreoBase()` reenvía
+  la forma estructurada tal cual.
+- **"Factura lista"** (`facturacionGestion.js:notificarFacturaListaAlTenant`):
+  ahora manda `cta: {href: '.../admin?ir=facturacion-clarvo', texto:'Ver mi factura'}`
+  en vez de solo texto con instrucciones.
+- **"Cobro de suscripción" — correo NUEVO** (`webhooksSuscripcion.js`):
+  `notificarCobroExitosoAlTenant()`, llamada fire-and-forget desde
+  `manejarPagoRenovacionExitoso()` (el webhook `invoice.payment_succeeded`,
+  mismo punto donde ya se actualiza `suscripcion_expira_en`) — mismo
+  candado (solo cuenta raíz), mismo deep-link.
+
+**Verificado con clics reales en navegador** (Chrome DevTools MCP,
+contenedores `backend`/`control`/`frontend` reconstruidos): (1) login
+vía `http://.../admin?ir=facturacion-clarvo` → aterriza en Mi Cuenta
+YA scrolleada a "Facturación de Clarvo", URL limpia después (confirmado
+con screenshot); (2) clic en un item de campana "Se cobró tu
+suscripción" desde "Inicio" → mismo salto+scroll (screenshot); (3)
+`/internal/enviar-correo-base` llamado directo (dentro del contenedor,
+`node -e fetch(...)`) con la forma estructurada → `HTTP 200 {"ok":true}`,
+SMTP real de la plataforma (`/control` → Accesos → SMTP, punto 443)
+aceptó el envío; (4) `construirCorreoBase()` probado aislado: `html`
+contiene el `<a href>` real, navy/cian de marca, logo CID adjunto;
+`texto` (fallback plano) incluye la URL real, auto-clicable en casi
+todo cliente de correo.
+
+472 tests unitarios de `control/` + 809 de `backend/` sin regresiones
+(`npx jest test/unit` en ambos). `node --check` limpio en los 5
+archivos tocados.
+
+**Fuera de alcance, no tocado**: el correo del CLIENTE (end customer
+del tenant) de "factura lista" (`backend/server.js:notificarFacturaListaAlTenant`,
+dominio completamente distinto — CFDI del cliente al ticket, no la
+suscripción del tenant con Clarvo) — mismo nombre de función por
+coincidencia, no confundir los 2.
