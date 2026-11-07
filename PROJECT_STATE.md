@@ -29432,3 +29432,68 @@ del tenant) de "factura lista" (`backend/server.js:notificarFacturaListaAlTenant
 dominio completamente distinto — CFDI del cliente al ticket, no la
 suscripción del tenant con Clarvo) — mismo nombre de función por
 coincidencia, no confundir los 2.
+
+## Punto 485 - Modo mantenimiento real + deploy a producción (6-7 nov 2026, CERRADO)
+
+Pedido del usuario: "despliega en producción, recuerda desactivar los
+contenedores y cargar el unavailable" — la directiva del punto previo
+(detener control/backend/frontend) resultó técnicamente incompleta al
+intentarla de verdad: `mantenimiento.html` solo se mostraba cuando un
+`proxy_pass` a backend/control fallaba de verdad (502/503/504) — los
+shells estáticos (`login.html`, `admin.html`, etc. vía `try_files`)
+seguían sirviéndose normal sin importar que backend estuviera caído, y
+detener TAMBIÉN `frontend` dejaba a los visitantes con un 502 crudo sin
+marca (el nginx del HOST en Vultr no tiene fallback propio). Confirmado
+con el usuario vía pregunta: **nunca se detiene `frontend`** — en vez de
+eso se construyó un interruptor real de modo mantenimiento.
+
+**Mecanismo** (`frontend/`): `mantenimiento-gate.conf` (nuevo,
+`if (-f /usr/share/nginx/html/.mantenimiento) { return 503; }`) incluido
+como primera línea de las 23 `location` reales de
+`nginx.conf.template` — togglea con
+`docker exec <frontend> touch|rm -f /usr/share/nginx/html/.mantenimiento`,
+sin rebuild (vive en la capa escribible). **Hallazgo real durante la
+implementación, no obvio**: un `return 503;` suelto a nivel `server{}`
+(antes de que nginx elija ninguna `location`) **nunca** lo intercepta
+`error_page` — probado con curl real, siempre cae en la página 503
+genérica de nginx. Dentro de una `location` sí funciona. Exentos del
+gate: `/mantenimiento.html` y `/mantenimiento-health` (nuevo, el
+`HEALTHCHECK` del `Dockerfile` apunta ahí en vez de `/` para que
+Swarm/Docker nunca marque "unhealthy" solo por estar en mantenimiento) y
+el `location` de assets/fuentes (el propio cubo necesita su logo e
+Inter para renderizar). **Pedido explícito adicional del usuario**:
+`/kerberos` queda FUERA del gate — monitorea el resto del stack,
+incluido el deploy en curso, así que debe seguir visible; solo muestra
+mantenimiento si Kerberos mismo está caído (su `error_page` de proxy de
+siempre, sin tocar).
+
+**Deploy real ejecutado** (VPS Vultr, `clarvo-prod-01`, Swarm,
+`VULTR/README-VULTR.md`): backup de ambas BD (verificado tamaño real,
+no 0 bytes) → `git archive HEAD` + scp + extracción con verificación de
+`md5sum` (local vs remoto) → build+`docker service update --force` de
+`frontend` primero (sin mecanismo de mantenimiento aún disponible en la
+imagen vieja, downtime breve inevitable solo para ESTE primer despliegue
+de la feature) → mantenimiento ACTIVADO → build+recreate de `backend` y
+`control` → confirmados `healthy` (`docker inspect .State.Health.Status`,
+nunca vía el puerto público, que durante mantenimiento siempre da 503) →
+mantenimiento DESACTIVADO → fix adicional de Kerberos (pedido a media
+implementación) redesplegado solo en `frontend` → `clarvo-Site`
+desplegado con `actualizar.sh` ya existente en el servidor (preserva
+`.env`, nunca lo pisa) → limpieza de contenedores huérfanos →
+**smoke-test obligatorio** (`VULTR/smoke-test-onboarding.js --borrar`):
+alta real desde `https://clarvo.mx`, Checkout real de Stripe, webhook
+activó el tenant SOLO en ~2 min, borrado limpio — 0 errores.
+
+Verificado real en producción (curl + Chrome DevTools): con el
+centinela activo, `/login`/`/admin`/`/control`/`/api/*`/rutas de
+tenant → 503 con el cuerpo real del cubo; `/kerberos` se queda en 200;
+`/assets/*` y `/mantenimiento-health` en 200. `clarvo.mx/#planes` en
+vivo muestra los botones "Comenzar con…" normales (el bug del reloj
+gigante del punto de la propuesta C, corregido antes de este deploy,
+confirmado sin reloj).
+
+Commits: `6318719`/`c98d3b1` (clarvo-Site, botones "Actualizando" +
+fix del reloj), `c9f580c` (checklist por plan), `0898ee6` (campana/
+correo factura-cobro), `6ff0b0d` (interruptor de mantenimiento),
+`1d774e1` (Kerberos exento). Todos en `main`, local — **pendiente
+confirmar con el usuario si se hace push a origin**.
