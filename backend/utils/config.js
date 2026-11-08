@@ -155,6 +155,12 @@ const DEFAULTS_CONFIG_GLOBAL = {
   ticket_mostrar_agradecimiento: true,
   ticket_texto_agradecimiento: '¡Gracias por su compra!',
   ticket_texto_pie: 'Visítanos https://clarvo.mx',
+  // Punto en curso — "Impresión de reportes": qué tan ancho rinde Corte de
+  // ventas al imprimir. 'normal' (default, cero cambio de comportamiento
+  // para quien nunca toca esto) deja la hoja completa de siempre;
+  // '58mm'/'80mm' arma el mismo documento en formato angosto apilado,
+  // igual que el ticket, para que de verdad quepa en un rollo térmico.
+  reporte_tipo_papel: 'normal', // 'normal' | '58mm' | '80mm'
   // Interruptor general de la funcionalidad de "Orden de compra". En
   // `true` (el valor por defecto, para no desactivar de golpe algo que
   // ya es parte central del flujo): el botón "Orden de compra" se ve en
@@ -345,6 +351,9 @@ async function getConfiguracionGlobal() {
     if (parsed.ticket_ancho_papel === '58mm' || parsed.ticket_ancho_papel === '80mm') {
       resultado.ticket_ancho_papel = parsed.ticket_ancho_papel;
     }
+    if (['normal', '58mm', '80mm'].includes(parsed.reporte_tipo_papel)) {
+      resultado.reporte_tipo_papel = parsed.reporte_tipo_papel;
+    }
     if (typeof parsed.ticket_mostrar_cliente === 'boolean') {
       resultado.ticket_mostrar_cliente = parsed.ticket_mostrar_cliente;
     }
@@ -513,6 +522,12 @@ async function setConfiguracionGlobal(cambios) {
       throw new Error('El ancho de papel del ticket debe ser 58mm u 80mm.');
     }
     nuevo.ticket_ancho_papel = cambios.ticket_ancho_papel;
+  }
+  if (cambios.reporte_tipo_papel !== undefined) {
+    if (!['normal', '58mm', '80mm'].includes(cambios.reporte_tipo_papel)) {
+      throw new Error('El tipo de papel de reportes debe ser normal, 58mm u 80mm.');
+    }
+    nuevo.reporte_tipo_papel = cambios.reporte_tipo_papel;
   }
   if (cambios.ticket_mostrar_cliente !== undefined) {
     nuevo.ticket_mostrar_cliente = Boolean(cambios.ticket_mostrar_cliente);

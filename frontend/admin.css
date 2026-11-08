@@ -3273,6 +3273,22 @@
   gap: 24px;
   align-items: start;
 }
+/* Divisor entre "Ticket de venta" e "Impresión de reportes" dentro de la
+   misma tarjeta — 2 propósitos distintos, misma ubicación a propósito
+   (lo que el usuario llamó "el segmento de impresora"). */
+.admin-config-divisor {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 20px 0 14px;
+}
+.admin-config-subtitle-mini {
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  margin: 0 0 14px;
+}
+.admin-config-subtitle-mini strong {
+  color: var(--color-ink);
+}
 @media (max-width: 760px) {
   .ticket-config-grid { grid-template-columns: 1fr; }
 }
@@ -3480,6 +3496,29 @@
   font-size: 12px;
 }
 .corte-imprimir-tabla th { border-bottom: 1.5px solid #000; }
+
+/* Formato térmico de un corte (punto en curso, "Impresión de reportes") —
+   lista apilada en vez de tabla de columnas, mismos tamaños/espaciados
+   que .ticket-imprimir-* (ya probados contra impresoras térmicas reales,
+   ver más arriba) para que la marca visual sea consistente entre ticket
+   y reporte. Solo aparece en el DOM cuando reporte_tipo_papel es 58mm/
+   80mm — nunca compite con .corte-imprimir-* (formato normal), que se
+   queda intacto. */
+.corte-termico-titulo { font-weight: 700; font-size: 12px; margin-bottom: 4px; letter-spacing: 0.02em; }
+.corte-termico-meta { font-size: 10px; color: #333; margin: 1px 0; word-break: break-word; }
+.corte-termico-separador { border-top: 1px dashed #000; margin: 6px 0; }
+.corte-termico-linea {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 2px 0;
+  font-size: 10.5px;
+}
+.corte-termico-linea span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.corte-termico-linea span:last-child { font-weight: 700; white-space: nowrap; }
+.corte-termico-item { margin: 5px 0; padding-bottom: 4px; border-bottom: 1px dotted #999; }
+.corte-termico-item-meta { font-size: 9px; color: #444; margin-bottom: 1px; }
+.corte-termico-vacio { font-size: 10.5px; color: #444; margin: 8px 0; }
 
 /* Etiquetas de código de barras imprimibles (punto 167) — mismo patrón que
    .ticket-imprimir/.corte-imprimir (JS llena #inv-etiqueta-imprimir justo

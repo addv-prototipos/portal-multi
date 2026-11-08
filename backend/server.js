@@ -6221,6 +6221,7 @@ const TICKET_CONFIG_CAMPOS = [
   'ticket_mostrar_agradecimiento',
   'ticket_texto_agradecimiento',
   'ticket_texto_pie',
+  'reporte_tipo_papel',
 ];
 function extraerConfigTicket(config) {
   const resultado = {};
@@ -6255,6 +6256,7 @@ app.put(
         ticket_mostrar_agradecimiento: body.ticket_mostrar_agradecimiento,
         ticket_texto_agradecimiento: body.ticket_texto_agradecimiento,
         ticket_texto_pie: body.ticket_texto_pie,
+        reporte_tipo_papel: body.reporte_tipo_papel,
       });
       res.json(extraerConfigTicket(actualizado));
     } catch (err) {

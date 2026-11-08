@@ -1337,6 +1337,7 @@
     ticketLogoInput: document.getElementById('ticket-logo-input'),
     errorTicketLogo: document.getElementById('error-ticket-logo'),
     ticketAnchoPapelToggle: document.getElementById('ticket-ancho-papel-toggle'),
+    reporteTipoPapelToggle: document.getElementById('reporte-tipo-papel-toggle'),
     ticketMostrarCliente: document.getElementById('ticket-mostrar-cliente'),
     ticketMostrarAgradecimiento: document.getElementById('ticket-mostrar-agradecimiento'),
     ticketTextoAgradecimiento: document.getElementById('ticket-texto-agradecimiento'),
@@ -1973,6 +1974,95 @@
     window.print();
   }
   window.addEventListener('afterprint', () => { delete document.body.dataset.printActivo; });
+
+  // Punto en curso ("Impresión de reportes", Configuraciones → Ticket de
+  // impresión): arma el documento térmico de un corte reusando el mismo
+  // lenguaje visual que ya trae el ticket (.corte-termico-*, mismo
+  // tamaño/espaciado que .ticket-imprimir-* — ver admin.css) en vez de
+  // la tabla de columnas ancha, que no cabe en un rollo de 58/80mm.
+  // Nunca toca el HTML del formato "normal" (sigue siendo exactamente
+  // el de siempre, construido aparte en cada llamador) — esto es
+  // estrictamente la rama NUEVA.
+  function construirCorteTermico({ titulo, rango, resumenLineas, filas }) {
+    const resumenHtml = resumenLineas
+      .map((l) => `<div class="corte-termico-linea"><span>${escapeHtml(l.label)}</span><span>${escapeHtml(l.value)}</span></div>`)
+      .join('');
+    const filasHtml = filas.length
+      ? filas
+          .map(
+            (f) => `
+        <div class="corte-termico-item">
+          <div class="corte-termico-item-meta">${escapeHtml(f.meta)}</div>
+          <div class="corte-termico-linea"><span>${f.detalleHtml != null ? f.detalleHtml : escapeHtml(f.detalle || '')}</span><span>${escapeHtml(f.montoTexto)}</span></div>
+        </div>`
+          )
+          .join('')
+      : '<p class="corte-termico-vacio">Sin ventas en este rango.</p>';
+    return `
+      <div class="corte-termico-titulo">${escapeHtml(titulo)}</div>
+      <div class="corte-termico-meta">${escapeHtml(rango)}</div>
+      <div class="corte-termico-separador"></div>
+      ${resumenHtml}
+      <div class="corte-termico-separador"></div>
+      ${filasHtml}
+    `;
+  }
+
+  // Arregla de raíz el bug reportado (reportes impresos angostos/cortados
+  // incluso en impresora NORMAL): admin.css trae un `@page{size:58mm}`
+  // GLOBAL e incondicional (deuda ya documentada ahí mismo — @page no se
+  // puede condicionar por atributo de <body>) que hasta hoy afectaba a
+  // CUALQUIER impresión de #corte-imprimir sin que nada lo corrigiera,
+  // sin importar qué impresora elija el admin. Se corrige igual que el
+  // ticket: un <style> inyectado en <head> (gana el cascade por venir
+  // después) con el @page real — "normal" usa `size: auto` (dimensión
+  // real del papel que el usuario elija en su diálogo, el comportamiento
+  // que YA debía tener); "58mm"/"80mm" mide el alto real del contenido
+  // (mismo truco que el ticket) para que el rollo térmico no deje un
+  // tramo en blanco larguísimo.
+  function prepararImpresionCorte() {
+    const tipoPapel = ticketConfigActual.reporte_tipo_papel || 'normal';
+    let estiloAncho = document.getElementById('print-page-ancho-corte');
+    if (!estiloAncho) { estiloAncho = document.createElement('style'); estiloAncho.id = 'print-page-ancho-corte'; document.head.appendChild(estiloAncho); }
+    let estiloAlto = document.getElementById('print-page-size-corte');
+    if (!estiloAlto) { estiloAlto = document.createElement('style'); estiloAlto.id = 'print-page-size-corte'; document.head.appendChild(estiloAlto); }
+
+    if (tipoPapel !== '58mm' && tipoPapel !== '80mm') {
+      estiloAncho.textContent = '';
+      estiloAlto.textContent = '@page { size: auto; margin: 12mm; } @media print { @page { size: auto; margin: 12mm; } }';
+      return;
+    }
+
+    const anchoPapel = tipoPapel;
+    // padding/font-size también se fuerzan aquí (no solo el ancho): el
+    // bloque genérico de admin.css para "corte"/"estado-inv" trae
+    // max-width:720px/padding:24px/font-size:13px pensados para hoja
+    // completa — sin pisarlos, el rollo térmico heredaría ese aire y
+    // tipografía grande de página ancha.
+    estiloAncho.textContent = `#corte-imprimir { width: ${anchoPapel} !important; max-width: ${anchoPapel} !important; padding: 3mm 3mm 2mm !important; font-size: 11px !important; } @media print { html, body { width: ${anchoPapel} !important; max-width: ${anchoPapel} !important; } body[data-print-activo="corte"] #corte-imprimir { max-width: ${anchoPapel} !important; padding: 3mm 3mm 2mm !important; font-size: 11px !important; } }`;
+    // Medir CON el ancho ya aplicado (mismo orden que el ticket) — medir
+    // antes calcularía el alto a la anchura de pantalla normal, mucho
+    // más angosto el texto resultante en el rollo real, y la impresora
+    // caería a su largo por default (rollo en blanco).
+    const prevHidden = els.corteImprimir.hidden;
+    const prevDisplay = els.corteImprimir.style.display;
+    const prevPos = els.corteImprimir.style.position;
+    const prevLeft = els.corteImprimir.style.left;
+    const prevVis = els.corteImprimir.style.visibility;
+    els.corteImprimir.hidden = false;
+    els.corteImprimir.style.display = 'block';
+    els.corteImprimir.style.position = 'absolute';
+    els.corteImprimir.style.left = '-9999px';
+    els.corteImprimir.style.visibility = 'hidden';
+    const hPx = els.corteImprimir.scrollHeight || els.corteImprimir.offsetHeight || 200;
+    els.corteImprimir.hidden = prevHidden;
+    els.corteImprimir.style.display = prevDisplay;
+    els.corteImprimir.style.position = prevPos;
+    els.corteImprimir.style.left = prevLeft;
+    els.corteImprimir.style.visibility = prevVis;
+    const hMm = Math.max(40, Math.ceil(hPx * 0.264583 + 10));
+    estiloAlto.textContent = `@page { size: ${anchoPapel} ${hMm}mm; margin: 0; } @media print { @page { size: ${anchoPapel} ${hMm}mm; margin: 0; } html, body { height: ${hMm}mm !important; } #corte-imprimir { height: ${hMm}mm !important; max-height: ${hMm}mm !important; } }`;
+  }
 
   // Lleva la vista hasta `boton` y le agrega 3 pulsos suaves (.btn-atencion,
   // ver admin.css) para que el usuario note el siguiente paso en un
@@ -4108,38 +4198,62 @@
   els.btnImprimirCorte.addEventListener('click', () => {
     if (!corteUltimoResultado) return;
     const { desde, hasta, resumen, ordenes } = corteUltimoResultado;
-    const filasHtml = ordenes.length
-      ? ordenes
-          .map(
-            (o) => `
-              <tr>
-                <td>${escapeHtml(o.numero_compra)}</td>
-                <td>${escapeHtml(o.fecha_compra_formateada.fecha)}</td>
-                <td>${o.email ? escapeHtml(o.email) : 'Sin correo'}</td>
-                <td>${o.facturado ? 'Facturado' : 'Sin facturar'}</td>
-                <td>$${formatearMoneda(o.total)}</td>
-              </tr>`
-          )
-          .join('')
-      : '<tr><td colspan="5">Sin ventas en este rango.</td></tr>';
-    els.corteImprimir.innerHTML = `
-      <div class="corte-imprimir-titulo">Corte de ventas</div>
-      <div class="corte-imprimir-rango">${escapeHtml(desde)} — ${escapeHtml(hasta)}</div>
-      <div class="corte-imprimir-resumen">
-        <div><span>Ventas</span><span>${resumen.ventas}</span></div>
-        <div><span>Subtotal</span><span>$${formatearMoneda(resumen.subtotal)}</span></div>
-        <div><span>IVA</span><span>$${formatearMoneda(resumen.iva)}</span></div>
-        <div><span>Total</span><span>$${formatearMoneda(resumen.total)}</span></div>
-        <div><span>Facturado</span><span>$${formatearMoneda(resumen.facturado)}</span></div>
-        <div><span>Sin facturar</span><span>$${formatearMoneda(resumen.sin_facturar)}</span></div>
-        <div><span>Cobrado</span><span>$${formatearMoneda(resumen.cobrado)}</span></div>
-        <div><span>Pendiente de cobro</span><span>$${formatearMoneda(resumen.pendiente_cobro)}</span></div>
-      </div>
-      <table class="corte-imprimir-tabla">
-        <thead><tr><th>No. Venta</th><th>Fecha</th><th>Correo</th><th>Facturación</th><th>Total</th></tr></thead>
-        <tbody>${filasHtml}</tbody>
-      </table>
-    `;
+    const esTermico = ticketConfigActual.reporte_tipo_papel === '58mm' || ticketConfigActual.reporte_tipo_papel === '80mm';
+    if (esTermico) {
+      els.corteImprimir.innerHTML = construirCorteTermico({
+        titulo: 'Corte de ventas',
+        rango: `${desde} — ${hasta}`,
+        resumenLineas: [
+          { label: 'Ventas', value: String(resumen.ventas) },
+          { label: 'Subtotal', value: `$${formatearMoneda(resumen.subtotal)}` },
+          { label: 'IVA', value: `$${formatearMoneda(resumen.iva)}` },
+          { label: 'Total', value: `$${formatearMoneda(resumen.total)}` },
+          { label: 'Facturado', value: `$${formatearMoneda(resumen.facturado)}` },
+          { label: 'Sin facturar', value: `$${formatearMoneda(resumen.sin_facturar)}` },
+          { label: 'Cobrado', value: `$${formatearMoneda(resumen.cobrado)}` },
+          { label: 'Pendiente de cobro', value: `$${formatearMoneda(resumen.pendiente_cobro)}` },
+        ],
+        filas: ordenes.map((o) => ({
+          meta: `${o.numero_compra} · ${o.fecha_compra_formateada.fecha}`,
+          detalle: `${o.email ? o.email : 'Sin correo'} · ${o.facturado ? 'Facturado' : 'Sin facturar'}`,
+          montoTexto: `$${formatearMoneda(o.total)}`,
+        })),
+      });
+    } else {
+      const filasHtml = ordenes.length
+        ? ordenes
+            .map(
+              (o) => `
+                <tr>
+                  <td>${escapeHtml(o.numero_compra)}</td>
+                  <td>${escapeHtml(o.fecha_compra_formateada.fecha)}</td>
+                  <td>${o.email ? escapeHtml(o.email) : 'Sin correo'}</td>
+                  <td>${o.facturado ? 'Facturado' : 'Sin facturar'}</td>
+                  <td>$${formatearMoneda(o.total)}</td>
+                </tr>`
+            )
+            .join('')
+        : '<tr><td colspan="5">Sin ventas en este rango.</td></tr>';
+      els.corteImprimir.innerHTML = `
+        <div class="corte-imprimir-titulo">Corte de ventas</div>
+        <div class="corte-imprimir-rango">${escapeHtml(desde)} — ${escapeHtml(hasta)}</div>
+        <div class="corte-imprimir-resumen">
+          <div><span>Ventas</span><span>${resumen.ventas}</span></div>
+          <div><span>Subtotal</span><span>$${formatearMoneda(resumen.subtotal)}</span></div>
+          <div><span>IVA</span><span>$${formatearMoneda(resumen.iva)}</span></div>
+          <div><span>Total</span><span>$${formatearMoneda(resumen.total)}</span></div>
+          <div><span>Facturado</span><span>$${formatearMoneda(resumen.facturado)}</span></div>
+          <div><span>Sin facturar</span><span>$${formatearMoneda(resumen.sin_facturar)}</span></div>
+          <div><span>Cobrado</span><span>$${formatearMoneda(resumen.cobrado)}</span></div>
+          <div><span>Pendiente de cobro</span><span>$${formatearMoneda(resumen.pendiente_cobro)}</span></div>
+        </div>
+        <table class="corte-imprimir-tabla">
+          <thead><tr><th>No. Venta</th><th>Fecha</th><th>Correo</th><th>Facturación</th><th>Total</th></tr></thead>
+          <tbody>${filasHtml}</tbody>
+        </table>
+      `;
+    }
+    prepararImpresionCorte();
     imprimirConFlujo('corte');
   });
 
@@ -4880,6 +4994,7 @@
     ticket_mostrar_agradecimiento: true,
     ticket_texto_agradecimiento: '¡Gracias por su compra!',
     ticket_texto_pie: 'Visítanos https://clarvo.mx',
+    reporte_tipo_papel: 'normal',
   };
 
   function renderPreviewTicketConfig() {
@@ -4905,6 +5020,13 @@
       btn.classList.toggle('is-active', activo);
       btn.setAttribute('aria-selected', String(activo));
     });
+    if (els.reporteTipoPapelToggle) {
+      els.reporteTipoPapelToggle.querySelectorAll('.view-toggle-btn').forEach((btn) => {
+        const activo = btn.dataset.tipo === (config.reporte_tipo_papel || 'normal');
+        btn.classList.toggle('is-active', activo);
+        btn.setAttribute('aria-selected', String(activo));
+      });
+    }
     els.ticketMostrarCliente.checked = config.ticket_mostrar_cliente !== false;
     els.ticketMostrarAgradecimiento.checked = config.ticket_mostrar_agradecimiento !== false;
     els.ticketTextoAgradecimiento.value = config.ticket_texto_agradecimiento || '¡Gracias por su compra!';
@@ -5021,6 +5143,7 @@
     els.ticketConfigError.textContent = '';
     setGuardarTicketConfigLoading(true);
     const anchoBtn = els.ticketAnchoPapelToggle.querySelector('.view-toggle-btn.is-active');
+    const reporteBtn = els.reporteTipoPapelToggle && els.reporteTipoPapelToggle.querySelector('.view-toggle-btn.is-active');
     try {
       const res = await fetch(`${API_BASE}/admin/configuraciones/ticket`, {
         method: 'PUT',
@@ -5031,6 +5154,7 @@
           ticket_mostrar_agradecimiento: els.ticketMostrarAgradecimiento.checked,
           ticket_texto_agradecimiento: els.ticketTextoAgradecimiento.value.trim(),
           ticket_texto_pie: els.ticketTextoPie.value.trim(),
+          reporte_tipo_papel: reporteBtn ? reporteBtn.dataset.tipo : 'normal',
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -5145,6 +5269,18 @@
         btn.classList.add('is-active');
         btn.setAttribute('aria-selected', 'true');
         renderPreviewTicketConfig();
+      });
+    });
+  }
+  if (els.reporteTipoPapelToggle) {
+    els.reporteTipoPapelToggle.querySelectorAll('.view-toggle-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        els.reporteTipoPapelToggle.querySelectorAll('.view-toggle-btn').forEach((b) => {
+          b.classList.remove('is-active');
+          b.setAttribute('aria-selected', 'false');
+        });
+        btn.classList.add('is-active');
+        btn.setAttribute('aria-selected', 'true');
       });
     });
   }
@@ -6201,41 +6337,73 @@
   // conteo y sus items) — sin el desglose de IVA/facturado/cobrado, que
   // no se guarda por corte.
   els.btnImprimirCorteHistorico.addEventListener('click', () => {
-    if (!corteDetalleItems.length && els.cortesDetalleConteo.textContent === '0') {
-      const filasVacias = '<tr><td colspan="5">Sin ventas en este rango.</td></tr>';
-      els.corteImprimir.innerHTML = `
-        <div class="corte-imprimir-titulo">Corte de ventas</div>
-        <div class="corte-imprimir-rango">${escapeHtml(els.cortesDetalleRango.textContent)}</div>
-        <table class="corte-imprimir-tabla"><thead><tr><th>No.</th><th>Fecha</th><th>Correo</th><th>Detalle</th><th>Total</th></tr></thead><tbody>${filasVacias}</tbody></table>
-      `;
+    const esTermico = ticketConfigActual.reporte_tipo_papel === '58mm' || ticketConfigActual.reporte_tipo_papel === '80mm';
+    const sinVentas = !corteDetalleItems.length && els.cortesDetalleConteo.textContent === '0';
+
+    if (sinVentas) {
+      if (esTermico) {
+        els.corteImprimir.innerHTML = construirCorteTermico({
+          titulo: 'Corte de ventas',
+          rango: els.cortesDetalleRango.textContent,
+          resumenLineas: [],
+          filas: [],
+        });
+      } else {
+        const filasVacias = '<tr><td colspan="5">Sin ventas en este rango.</td></tr>';
+        els.corteImprimir.innerHTML = `
+          <div class="corte-imprimir-titulo">Corte de ventas</div>
+          <div class="corte-imprimir-rango">${escapeHtml(els.cortesDetalleRango.textContent)}</div>
+          <table class="corte-imprimir-tabla"><thead><tr><th>No.</th><th>Fecha</th><th>Correo</th><th>Detalle</th><th>Total</th></tr></thead><tbody>${filasVacias}</tbody></table>
+        `;
+      }
+      prepararImpresionCorte();
       imprimirConFlujo('corte');
       return;
     }
-    const filasHtml = corteDetalleItems
-      .map(
-        (item) => `
-          <tr>
-            <td>${escapeHtml(item.identificador)}</td>
-            <td>${formatearFechaCorta(item.fecha_registro)}</td>
-            <td>${escapeHtml(item.rfc || 'Sin correo')}</td>
-            <td>${renderDetalleItemReporte(item)}</td>
-            <td>${item.monto === null ? '—' : `$${formatearMoneda(item.monto)}`}</td>
-          </tr>`
-      )
-      .join('');
-    els.corteImprimir.innerHTML = `
-      <div class="corte-imprimir-titulo">Corte de ventas</div>
-      <div class="corte-imprimir-rango">${escapeHtml(els.cortesDetalleRango.textContent)}</div>
-      <div class="corte-imprimir-resumen">
-        <div><span>Generado el</span><span>${escapeHtml(els.cortesDetalleFecha.textContent)}</span></div>
-        <div><span>Ventas</span><span>${escapeHtml(els.cortesDetalleVentas.textContent)}</span></div>
-        <div><span>Total</span><span>${escapeHtml(els.cortesDetalleTotal.textContent)}</span></div>
-      </div>
-      <table class="corte-imprimir-tabla">
-        <thead><tr><th>No. Venta</th><th>Fecha</th><th>RFC / Correo</th><th>Detalle</th><th>Total</th></tr></thead>
-        <tbody>${filasHtml}</tbody>
-      </table>
-    `;
+
+    if (esTermico) {
+      els.corteImprimir.innerHTML = construirCorteTermico({
+        titulo: 'Corte de ventas',
+        rango: els.cortesDetalleRango.textContent,
+        resumenLineas: [
+          { label: 'Generado el', value: els.cortesDetalleFecha.textContent },
+          { label: 'Ventas', value: els.cortesDetalleVentas.textContent },
+          { label: 'Total', value: els.cortesDetalleTotal.textContent },
+        ],
+        filas: corteDetalleItems.map((item) => ({
+          meta: `${item.identificador} · ${formatearFechaCorta(item.fecha_registro)}`,
+          detalleHtml: `${item.rfc ? escapeHtml(item.rfc) : 'Sin correo'} · ${renderDetalleItemReporte(item)}`,
+          montoTexto: item.monto === null ? '—' : `$${formatearMoneda(item.monto)}`,
+        })),
+      });
+    } else {
+      const filasHtml = corteDetalleItems
+        .map(
+          (item) => `
+            <tr>
+              <td>${escapeHtml(item.identificador)}</td>
+              <td>${formatearFechaCorta(item.fecha_registro)}</td>
+              <td>${escapeHtml(item.rfc || 'Sin correo')}</td>
+              <td>${renderDetalleItemReporte(item)}</td>
+              <td>${item.monto === null ? '—' : `$${formatearMoneda(item.monto)}`}</td>
+            </tr>`
+        )
+        .join('');
+      els.corteImprimir.innerHTML = `
+        <div class="corte-imprimir-titulo">Corte de ventas</div>
+        <div class="corte-imprimir-rango">${escapeHtml(els.cortesDetalleRango.textContent)}</div>
+        <div class="corte-imprimir-resumen">
+          <div><span>Generado el</span><span>${escapeHtml(els.cortesDetalleFecha.textContent)}</span></div>
+          <div><span>Ventas</span><span>${escapeHtml(els.cortesDetalleVentas.textContent)}</span></div>
+          <div><span>Total</span><span>${escapeHtml(els.cortesDetalleTotal.textContent)}</span></div>
+        </div>
+        <table class="corte-imprimir-tabla">
+          <thead><tr><th>No. Venta</th><th>Fecha</th><th>RFC / Correo</th><th>Detalle</th><th>Total</th></tr></thead>
+          <tbody>${filasHtml}</tbody>
+        </table>
+      `;
+    }
+    prepararImpresionCorte();
     imprimirConFlujo('corte');
   });
 

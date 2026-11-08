@@ -2821,6 +2821,20 @@
                 </div>
               </div>
 
+              <hr class="admin-config-divisor" />
+              <p class="admin-config-subtitle-mini">
+                <strong>Impresión de reportes</strong> — así se imprime "Corte de ventas" (Ventas y Reportes → Cortes). Nunca afecta el ticket de arriba.
+              </p>
+              <div class="field">
+                <label>Tipo de impresora para reportes</label>
+                <div class="view-toggle" role="tablist" id="reporte-tipo-papel-toggle" aria-label="Tipo de papel de los reportes">
+                  <button type="button" class="view-toggle-btn is-active" data-tipo="normal" role="tab" aria-selected="true">Normal (carta)</button>
+                  <button type="button" class="view-toggle-btn" data-tipo="58mm" role="tab" aria-selected="false">Térmica 58mm</button>
+                  <button type="button" class="view-toggle-btn" data-tipo="80mm" role="tab" aria-selected="false">Térmica 80mm</button>
+                </div>
+                <p class="field-hint">"Normal" imprime la hoja completa de siempre. Las 2 opciones térmicas acomodan el mismo reporte en una lista angosta, para que quepa en tu impresora de tickets.</p>
+              </div>
+
               <label class="switch-toggle">
                 <input type="checkbox" id="ticket-mostrar-cliente" checked />
                 <span class="switch-toggle-track"><span class="switch-toggle-thumb"></span></span>

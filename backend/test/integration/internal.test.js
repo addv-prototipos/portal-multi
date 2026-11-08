@@ -12,8 +12,16 @@ jest.mock('../../db', () => ({
   crearBaseDeDatosTenant: jest.fn().mockResolvedValue(undefined),
   eliminarBaseDeDatosTenant: jest.fn().mockResolvedValue(undefined),
   obtenerPoolTenant: jest.fn(() => ({ query: jest.fn(), getConnection: jest.fn() })),
+  ejecutarComoTenant: jest.fn((tenantPool, fn) => fn()),
   cerrarPoolTenant: jest.fn(),
   obtenerPoolControl: jest.fn(),
+}));
+
+jest.mock('../../utils/claveProdServ', () => ({
+  sembrarCatalogoEjemploSiVacio: jest.fn().mockResolvedValue(undefined),
+  buscarClaveProdServ: jest.fn(),
+  getInfoCatalogoClaveProdServ: jest.fn(),
+  sincronizarDesdeOrigen: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('nodemailer', () => ({
