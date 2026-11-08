@@ -29546,3 +29546,107 @@ Validado a nivel de datos (sin resetear ninguna contraseña de cliente
 real, la función `buscarClaveProdServ()` se probó directo, misma que
 usa el endpoint HTTP real): tenant `el-infierno` → búsqueda real
 "tornillo" → 20 resultados reales, `esEjemplo:false`. Commit `6b6e394`.
+
+## Punto 487 - Impresión térmica opcional para "Corte de ventas" (7 nov 2026, CERRADO en local, pendiente de desplegar a producción)
+
+Pedido del usuario: "Corte de ventas" (Ventas → Corte del día, y Reportes →
+Cortes histórico) debe poder imprimirse bien en una impresora térmica de
+tickets cuando el tenant la configure, sin afectar la impresión en hoja
+normal de siempre, y la configuración debe persistir server-side por
+tenant (no en `localStorage` del navegador) para que aplique a todos los
+usuarios de esa empresa.
+
+**Hallazgo al investigar**: el bug real no era "no hay opción térmica" —
+era que ya existía un `@page { size: 58mm auto; margin: 0; }` global en
+`frontend/admin.css` (documentado desde antes, nunca corregido) que
+afectaba la impresión de reportes SIEMPRE, incluso en modo "normal" sin
+ninguna impresora térmica configurada — cualquier impresión de "Corte de
+ventas" salía angosta en cualquier impresora normal. El pedido del
+usuario y la corrección de ese bug viejo se resolvieron en el mismo
+cambio.
+
+**Diseño**: `reporte_tipo_papel` (`'normal' | '58mm' | '80mm'`, default
+`'normal'`) se agregó a `DEFAULTS_CONFIG_GLOBAL`
+(`backend/utils/config.js`) — mismo mecanismo clave/valor server-side ya
+usado para el resto de "Ticket de impresión" (`configuracion_global`,
+persistido por tenant, nunca en el navegador). Expuesto en
+Configuraciones → "Ticket de impresión" → nueva subsección "Impresión de
+reportes" (3 botones tipo toggle: Normal/Térmica 58mm/Térmica 80mm,
+`frontend/admin.html`+`admin.js`), explícitamente aclarado en la UI que
+nunca afecta el ticket de arriba (son 2 configuraciones independientes).
+
+**Mecanismo de impresión** (`frontend/admin.js`, funciones nuevas
+`construirCorteTermico()` + `prepararImpresionCorte()`, llamadas desde
+los 2 handlers de impresión — `btnImprimirCorte` y
+`btnImprimirCorteHistorico`): en modo térmico, construye un HTML angosto
+dedicado (clases `.corte-termico-*`, `frontend/admin.css`) y mide su
+`scrollHeight` real fuera de pantalla con el ancho ya fijado (mismo
+patrón ya probado para los tickets de venta) para inyectar
+`@page { size: <ancho> <alto medido>mm; margin: 0; }` vía `<style>`
+dinámico — nunca un alto fijo adivinado. En modo normal, la tabla ancha
+de siempre queda intacta, pero AHORA se inyecta explícitamente
+`@page { size: auto; margin: 12mm; }`, lo que neutraliza el leak global
+de 58mm — este es el fix retroactivo del bug viejo.
+
+**Imprimir directo sin asistente del navegador**: evaluado y descartado
+—imprimir realmente sin diálogo nativo requiere software fuera del
+navegador (ej. un spooler dedicado); no es posible solo con JS/CSS por
+razones de seguridad del navegador. Se optó por la alternativa discutida
+con el usuario vía `AskUserQuestion`: el diálogo de impresión sigue
+apareciendo, pero ya llega PRE-CONFIGURADO con el tamaño de papel
+correcto (el usuario solo da clic en "Imprimir" en ese diálogo, sin
+ajustar nada a mano).
+
+**Validado real en navegador** (Chrome DevTools MCP, tenant
+`test-sa-de-cv`, local): `window.print()` parcheado a no-op antes de cada
+clic para poder inspeccionar el HTML/CSS inyectado sin bloquear la
+sesión de automatización con el diálogo nativo de impresión (confirmado
+que SÍ es un diálogo nativo real, no un modal JS — no capturable por
+`handle_dialog`, bloquea el renderer hasta cerrarlo a mano o cerrar la
+pestaña). 3 combinaciones probadas con éxito: (1) "Corte del día" en
+térmica 80mm → HTML `.corte-termico-*` correcto + `@page{size:80mm 67mm}`
+medido; (2) "Corte del día" vuelto a Normal → tabla ancha original
+intacta + `@page{size:auto;margin:12mm}` (fix del leak confirmado); (3)
+histórico de Cortes en térmica 58mm → HTML correcto +
+`@page{size:58mm 40mm}` medido. Persistencia server-side confirmada con
+reload de página entre pruebas (el valor sobrevive, no es volátil de
+sesión).
+
+**Bug propio encontrado y corregido en el camino, sin tocar producto**:
+al escribir el handler de histórico (`btnImprimirCorteHistorico`) copié
+un branch `sinVentas` que en un primer vistazo parecía omitir las líneas
+de resumen en modo térmico — resultó ser consistente con el diseño
+ORIGINAL ya existente antes de este cambio (el no-thermal "sin ventas"
+tampoco mostraba resumen, solo título+rango+mensaje) — confirmado vía
+`git diff`, no era una regresión real.
+
+**Regresión real sí encontrada y corregida**: el nuevo código en
+`POST /internal/activar-tenant/:slug` (llamada a `ejecutarComoTenant`,
+agregada en el punto 486) rompió `backend/test/integration/internal.test.js`
+("con el secreto correcto: crea la BD física..." pasó de 200 a 502) — el
+mock de `db` en ese test no incluía `ejecutarComoTenant`, así que la
+llamada real tronaba con `TypeError`. Corregido agregando
+`ejecutarComoTenant: jest.fn((pool, fn) => fn())` al mock de `db` +
+mock completo de `utils/claveProdServ` (ese test no debe arrastrar la
+lógica real del catálogo SAT, solo la de activación de tenant). Suite
+completa: 1381/1382 verde — el único rojo restante
+(`multitenant.test.js`, campo `facturacionHabilitadaPlan` faltante en un
+`toEqual`) es preexistente, de una sesión anterior, no tocado por este
+cambio.
+
+**Diferido por instrucción explícita del usuario, no resuelto en esta
+sesión**: el lector de código de barras no suma al re-escanear el mismo
+artículo en escritorio/tablet (sí funciona en mobile) — el usuario pidió
+monitorearlo juntos en vivo más adelante en vez de que se investigue
+unilateral; el primer intento de reproducirlo fue inconcluyente porque
+los productos de prueba usados tenían existencia 0 (bloqueaba antes de
+llegar a la lógica de incremento). El soporte de lector externo
+USB/Bluetooth ya estaba satisfecho por diseño (campo de texto + tecla
+Enter, cualquier dispositivo HID) — sin cambio de código necesario ahí.
+
+**Pendiente**: desplegar a producción (clarvo.mx) con el mismo protocolo
+de mantenimiento ya usado en los puntos 485/486 — commit local `16992ad`,
+aún no sincronizado al VPS. Confirmar con el usuario antes de desplegar
+(regla permanente: ningún deploy a clarvo.mx sin autorización explícita
+en el turno correspondiente, aunque el patrón ya se haya seguido antes en
+la misma sesión para el punto 486).

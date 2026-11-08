@@ -133,6 +133,32 @@ solo la frase en español de la UI.
 
 ## Gotchas operativos recurrentes (leer antes de tocar Docker/nginx/CSP/tests)
 
+- **`window.print()` real abre el diálogo nativo del SO, no un modal JS —
+  bloquea la automatización de navegador por completo y no lo captura un
+  handler de diálogos JS** (punto 487, 2026-11-07): al probar cualquier
+  flujo que llame `window.print()` con automatización, el diálogo de
+  impresión del navegador congela el renderer (timeout de evaluación,
+  dialog handlers de `alert`/`confirm`/`prompt` no lo ven porque no es ese
+  tipo de diálogo). Única salida confirmada: cerrar la pestaña y abrir una
+  nueva (pierde sesión, hay que loguear de nuevo). Patrón correcto para
+  validar HTML/CSS de impresión sin bloquear la sesión: parchar
+  `window.print = function(){ ... }` a no-op ANTES de cualquier clic real
+  — así el clic dispara el flujo completo (incluida la construcción del
+  HTML/CSS inyectado) sin abrir el diálogo nativo, y se puede inspeccionar
+  el DOM después con tranquilidad.
+- **Tocar un endpoint `/internal/*` ya cubierto por un test de integración
+  con `jest.mock('../../db', ...)` manual: cualquier función nueva de
+  `db.js` que el endpoint empiece a usar (ej. `ejecutarComoTenant`) debe
+  agregarse también al mock, o la llamada real revienta en silencio con
+  `TypeError` y el handler lo atrapa como 502** (punto 487, 2026-11-07):
+  al conectar el sembrado/sync del catálogo SAT a
+  `POST /internal/activar-tenant/:slug` (punto 486), el mock de `db` en
+  `backend/test/integration/internal.test.js` no tenía `ejecutarComoTenant`
+  — rompió el test "crea la BD física y aplica el esquema" (200→502) sin
+  que `node --check` lo detectara. Mismo criterio para cualquier módulo
+  nuevo que el endpoint empiece a importar y usar de verdad — en este
+  caso también hubo que mockear `utils/claveProdServ` completo, para que
+  ese test siga aislado de la lógica real del catálogo.
 - **Bind-montar un archivo que no existe todavía en el host crea un
   DIRECTORIO vacío en su lugar — monta siempre el directorio contenedor,
   nunca el archivo suelto** (punto 479, 2026-11-06): al exponerle a

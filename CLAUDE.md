@@ -216,6 +216,35 @@ usado en todo este repo hasta hoy) cuenta como prueba de
 
 ## Gotchas operativos recurrentes (leer antes de tocar Docker/nginx/CSP/tests)
 
+- **`window.print()` real abre el diálogo nativo del SO, no un modal JS —
+  bloquea Chrome DevTools MCP por completo y no lo captura `handle_dialog`**
+  (punto 487, 2026-11-07): al probar cualquier flujo que llame
+  `window.print()` con automatización (`evaluate_script`, `click`), el
+  diálogo de impresión del navegador congela el renderer — `evaluate_script`
+  se queda colgado (timeout de 120s, va a background), `handle_dialog`
+  responde "No open dialog found" (no es un `alert`/`confirm`/`prompt`, CDP
+  no lo trackea igual), y `press_key Escape` tampoco lo cierra de forma
+  confiable. Única salida confirmada: `close_page` + `new_page` (pierde
+  sesión, hay que loguear de nuevo). Patrón correcto para validar HTML/CSS
+  de impresión sin bloquear la sesión: `evaluate_script` ANTES de cualquier
+  clic real, para parchar `window.print = function(){ window.__printCalls++; }`
+  — así el clic real dispara el flujo completo (incluida la construcción
+  del HTML/CSS inyectado) sin abrir el diálogo nativo, y se puede inspeccionar
+  `document.getElementById(...)` después con tranquilidad.
+- **Tocar un endpoint `/internal/*` ya cubierto por un test de integración
+  con `jest.mock('../../db', ...)` manual: cualquier función nueva de
+  `db.js` que el endpoint empiece a usar (ej. `ejecutarComoTenant`) debe
+  agregarse también al mock, o la llamada real revienta en silencio con
+  `TypeError` y el handler lo atrapa como 502** (punto 487, 2026-11-07):
+  al conectar el sembrado/sync del catálogo SAT a
+  `POST /internal/activar-tenant/:slug` (punto 486), el mock de `db` en
+  `backend/test/integration/internal.test.js` no tenía `ejecutarComoTenant`
+  — rompió el test "crea la BD física y aplica el esquema" (200→502) sin
+  que `node --check` lo detectara. Mismo criterio para cualquier módulo
+  nuevo que el endpoint empiece a importar y usar de verdad (no solo
+  mockear el módulo del endpoint, revisar también sus dependencias nuevas)
+  — en este caso también hubo que mockear `utils/claveProdServ` completo,
+  para que ese test siga aislado de la lógica real del catálogo.
 - **Un `<select>`/`<input>` propio metido DENTRO de `<div class="field">`
   hereda las reglas globales de ese contenedor por especificidad, no por
   intención** (punto 475, 2026-11-05): `.field select`/`.field input`
