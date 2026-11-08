@@ -1533,3 +1533,56 @@ librería). P453: mismo feature desplegado y verificado real en Vultr
 completa de este backfill: este archivo, `README.md`, `CLAUDE.md`,
 `pendientes.html` (ítem `sec-bitacora` actualizado a "parcial"),
 `VULTR/README-VULTR.md` y `VULTR/prodDoc.html`.
+
+**Nota de continuidad**: hay varios puntos (454-484) resueltos en sesiones
+posteriores a C134 cuyo detalle NO se backfillea aquí — este archivo es un
+respaldo manual de la conversación de Claude, no un sustituto de
+`PROJECT_STATE.md` (que sí tiene las 484+ entradas completas). La sesión que
+escribe C135 solo documenta lo que ella misma hizo.
+
+C135 6/7-nov 🎯 P485: modo mantenimiento REAL para despliegues (no solo el
+automático de backend caído) — centinela `.mantenimiento` en `frontend`
+(`touch`/`rm` sin rebuild), incluido en las 23 `location` reales de
+`nginx.conf.template`, exento `/kerberos` a pedido explícito del usuario
+(monitorea el propio despliegue, debe seguir visible) y el healthcheck del
+contenedor (nunca "unhealthy" solo por estar en mantenimiento). Desplegado
+real en Vultr con el runbook completo (backup, `git archive` + verificación
+`md5sum`, rebuild+recreate, smoke-test de onboarding real contra Stripe).
+P486: catálogo "Clave SAT" vacío por tenant hasta que un admin le daba clic
+a mano en "Actualizar" — causa real: el sembrado de ejemplo + sync del
+catálogo oficial (ya con fuente configurada, ~52,500 claves) solo corría
+UNA VEZ contra el pool base al arrancar, nunca por tenant nuevo. Fix:
+conectado a `POST /internal/activar-tenant/:slug` (siembra síncrona +
+sync real en segundo plano, fire-and-forget) + script de backfill para
+tenants ya existentes. Desplegado y backfilleado en los 2 tenants reales
+de producción (`el-infierno`, `mini-me`) — 52,513 claves cada uno.
+
+Confirmación (sin cambio de código, ya soportado por diseño): el lector de
+código de barras SÍ funciona con lector físico USB/Bluetooth, no solo
+cámara — el campo de búsqueda de ambos flujos (orden de venta, alta de
+producto) es un `<input>` de texto plano con `keydown Enter` + debounce en
+`input`, exactamente lo que cualquier lector HID manda al "escribir" el
+código; el botón de cámara solo llena ese mismo campo con el mismo efecto.
+
+P487: impresión térmica opcional para "Corte de ventas" (Corte del día +
+histórico de Cortes) — `reporte_tipo_papel` (normal/58mm/80mm) nuevo en
+Configuraciones → "Ticket de impresión", persistido server-side por
+tenant (nunca `localStorage`), independiente del ticket de venta. De paso
+corrigió un leak viejo de CSS (`@page{size:58mm}` global) que angostaba
+también la impresión "normal" sin ninguna térmica configurada — ahora
+`@page{size:auto;margin:12mm}` explícito cuando no hay papel térmico. En
+modo térmico, el alto de página se mide en tiempo real contra el
+contenido (nunca adivinado). Validado real en navegador con
+`window.print()` parcheado a no-op (gotcha nuevo: el diálogo nativo de
+impresión bloquea Chrome DevTools MCP por completo, no lo captura ningún
+`handle_dialog` — solo se libera cerrando la pestaña). Bug propio
+encontrado y corregido en el camino: mi código nuevo en
+`/internal/activar-tenant/:slug` (del P486) rompió
+`internal.test.js` porque el mock de `db` no tenía `ejecutarComoTenant` —
+corregido, suite completa 1381/1382 verde (el único rojo restante es
+preexistente, ajeno a esta sesión). Desplegado real a producción con el
+mismo runbook del P485 (autorización explícita del usuario) — smoke-test
+de onboarding real 100% verde. Diferido por instrucción explícita del
+usuario: el lector de código de barras no suma al re-escanear el mismo
+artículo en escritorio/tablet (sí en mobile) — se monitoreará en vivo
+juntos más adelante, no se investigó unilateral.

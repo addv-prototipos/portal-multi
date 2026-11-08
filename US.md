@@ -1154,6 +1154,9 @@ clave directo en Configuraciones fiscales, para no salir del portal a buscarla e
   (`CLAVE_PROD_SERV_SYNC_URL`); combobox con búsqueda en vivo, con enlace de respaldo al sitio del SAT
   si no hay resultados.
 - Escribir los 8 dígitos a mano sigue funcionando siempre como captura manual directa.
+- El catálogo llega sembrado y sincronizado SOLO, sin ningún clic manual, en cuanto el tenant se
+  activa — nunca una tabla vacía esperando a que un admin entre y le dé clic en "Actualizar"
+  *(punto 486)*.
 
 ---
 
@@ -1648,3 +1651,35 @@ Como **dueño del producto**, quiero tener Clarvo corriendo en un servidor de pr
   `.env`.
 - Stripe en modo prueba y Turnstile con llave pública de prueba (decisiones explícitas, pendiente
   pasar a real cuando el usuario lo confirme).
+
+### US-127 — Impresión térmica opcional para "Corte de ventas" *(IMPLEMENTADA — punto 487)*
+Como **administrador**, quiero poder configurar que "Corte de ventas" (Corte del día e histórico de
+Cortes) se imprima en una impresora térmica de tickets, sin afectar la impresión en hoja normal de
+siempre, para no tener que recortar o ajustar nada a mano cada vez.
+
+**Criterios de aceptación:**
+- Configuración "Tipo de impresora para reportes" (Normal/Térmica 58mm/Térmica 80mm) en
+  Configuraciones → "Ticket de impresión", independiente del ancho de papel del ticket de venta.
+- Persistida server-side por tenant (`configuracion_global`, nunca `localStorage`) — aplica para
+  todos los usuarios de esa empresa, no solo quien la configuró.
+- En modo normal, la tabla ancha de siempre no cambia; de paso se corrige un leak de CSS viejo
+  (`@page{size:58mm}`) que angostaba la impresión "normal" incluso sin ninguna impresora térmica
+  configurada.
+- En modo térmico, el alto de la hoja se mide en tiempo real contra el contenido (nunca un alto
+  fijo adivinado) para que no sobre ni falte papel.
+- El diálogo de impresión del navegador sigue apareciendo (no es posible evitarlo sin software
+  externo al navegador), pero llega pre-configurado con el tamaño de papel correcto.
+
+### US-128 — Modo mantenimiento real durante un despliegue *(IMPLEMENTADA — punto 485)*
+Como **dueño del producto**, quiero que ningún cliente pueda usar el portal mientras se despliega
+código nuevo, mostrando una página de mantenimiento con marca en vez de un error crudo, para que un
+despliegue nunca se vea como el sitio caído.
+
+**Criterios de aceptación:**
+- Interruptor real (archivo centinela en `frontend`, sin rebuild) que fuerza 503 con la página de
+  mantenimiento en TODAS las rutas del sitio, no solo cuando el backend ya falló de verdad —
+  distinto del mecanismo automático de US-046 (ese solo reacciona a un 502/503/504 real).
+- `/kerberos` (monitor interno del stack) queda exento a propósito — debe seguir visible durante el
+  propio despliegue que está monitoreando.
+- El healthcheck del contenedor nunca se marca "unhealthy" solo por estar en mantenimiento (ruta
+  propia, fuera del gate).
