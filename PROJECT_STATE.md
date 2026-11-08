@@ -29644,9 +29644,22 @@ llegar a la lógica de incremento). El soporte de lector externo
 USB/Bluetooth ya estaba satisfecho por diseño (campo de texto + tecla
 Enter, cualquier dispositivo HID) — sin cambio de código necesario ahí.
 
-**Pendiente**: desplegar a producción (clarvo.mx) con el mismo protocolo
-de mantenimiento ya usado en los puntos 485/486 — commit local `16992ad`,
-aún no sincronizado al VPS. Confirmar con el usuario antes de desplegar
-(regla permanente: ningún deploy a clarvo.mx sin autorización explícita
-en el turno correspondiente, aunque el patrón ya se haya seguido antes en
-la misma sesión para el punto 486).
+**Desplegado a producción el mismo día, con autorización explícita del
+usuario** ("haz push y después despliega a producción"): push a `origin
+main` (`0e930de`) → backup real de ambas BD (verificado tamaño, no 0
+bytes) → `git archive HEAD` + scp + extracción con `md5sum` verificado
+(local vs remoto, 3 archivos tocados) → mantenimiento ACTIVADO (`.mantenimiento`
+en `frontend`, confirmado con curl: `/login` 503, `/kerberos` exento) →
+build + `docker service update --force` de `backend` y `frontend` → ambos
+`healthy` (`docker inspect .State.Health.Status`) → el propio recreate de
+`frontend` limpió el centinela de mantenimiento al traer un contenedor
+nuevo (vuelta a 200 sola, sin paso manual de apagado) → confirmado
+`admin.js` servido en vivo ya trae el código del feature
+(`construirCorteTermico`/`reporte_tipo_papel`, 10 matches) →
+`docker container/image/builder prune` de limpieza → **smoke-test
+obligatorio** (`VULTR/smoke-test-onboarding.js --borrar`, requirió instalar
+`playwright-core` en un directorio temporal fuera del repo por primera vez
+en esta máquina): alta real desde `https://clarvo.mx`, Checkout real de
+Stripe, webhook activó el tenant solo (`smoke-test-1794104364283`) sin
+intervención manual, borrado limpio (baja + eliminación definitiva) — 0
+errores.
