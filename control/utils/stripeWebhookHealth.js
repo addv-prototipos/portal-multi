@@ -75,14 +75,25 @@ function eventosFaltantes(enabledEvents) {
 // y si no coincide, el guardado en BD (ver diseño arriba) — nunca al
 // revés, para no preferir un valor de BD potencialmente más viejo sobre
 // uno de `.env` recién desplegado a propósito.
+// Clave plana de antes del punto 489 (un solo modo, sin switch) — un
+// endpoint YA REGISTRADO en Stripe nunca vuelve a exponer su secreto
+// (Stripe solo lo da UNA vez, al crear), así que el self-healing nunca
+// "migra sola" un secreto viejo a las 2 claves nuevas: se queda huérfano
+// bajo este nombre para siempre si no se sigue probando aquí también.
+// Incidente real (10 nov 2026): tras el deploy del switch, CADA webhook
+// real de Stripe llegó con firma "inválida" — el secreto correcto seguía
+// vivo bajo esta clave vieja, nunca bajo las nuevas por modo.
+const CLAVE_SECRETO_LEGACY = 'stripe_webhook_secret_actual';
+
 async function secretosCandidatos() {
   const candidatos = [];
   if (process.env.STRIPE_WEBHOOK_SECRET) candidatos.push(process.env.STRIPE_WEBHOOK_SECRET);
-  const [dePrueba, deProduccion] = await Promise.all([
+  const [dePrueba, deProduccion, legacy] = await Promise.all([
     getValorTexto(claveSecretoPara('prueba')),
     getValorTexto(claveSecretoPara('produccion')),
+    getValorTexto(CLAVE_SECRETO_LEGACY),
   ]);
-  for (const v of [dePrueba, deProduccion]) {
+  for (const v of [dePrueba, deProduccion, legacy]) {
     if (v && !candidatos.includes(v)) candidatos.push(v);
   }
   return candidatos;

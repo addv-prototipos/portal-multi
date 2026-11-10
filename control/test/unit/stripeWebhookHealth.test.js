@@ -191,4 +191,11 @@ describe('secretosCandidatos — fallback .env -> ajustes_globales, por modo', (
     const candidatos = await secretosCandidatos();
     expect(candidatos).toEqual([]);
   });
+
+  test('incidente real (10 nov 2026): secreto huérfano bajo la clave plana de antes del switch sigue contando como candidato', async () => {
+    delete process.env.STRIPE_WEBHOOK_SECRET;
+    getValorTexto.mockImplementation((clave) => Promise.resolve(clave === 'stripe_webhook_secret_actual' ? 'whsec_legacy' : null));
+    const candidatos = await secretosCandidatos();
+    expect(candidatos).toEqual(['whsec_legacy']);
+  });
 });
