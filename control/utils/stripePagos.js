@@ -18,13 +18,14 @@
 
 const Stripe = require('stripe');
 const { obtenerPool } = require('../db');
+const { obtenerCredencialesActivas } = require('./stripeModo');
 const { obtenerBorradorInterno, ErrorOnboarding } = require('./onboardingBorrador');
 const { resolverPlanPorClave, convertirBorrador } = require('./onboardingConversion');
 
 const APP_BASE_URL = (process.env.PUBLIC_APP_BASE_URL || 'https://clarvo.mx').replace(/\/$/, '');
 
-function obtenerStripe() {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
+async function obtenerStripe() {
+  const { secretKey } = await obtenerCredencialesActivas();
   if (!secretKey) {
     throw new ErrorOnboarding('El cobro con Stripe no está configurado todavía.', 'aprovisionamiento');
   }
@@ -48,7 +49,7 @@ async function crearCheckoutSession(token, { db = obtenerPool() } = {}) {
     throw new ErrorOnboarding('Este plan todavía no tiene un precio configurado. Contáctanos.', 'validacion');
   }
 
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   const intervaloNombre = borrador.ciclo === 'anual' ? 'año' : 'mes';
   // Garantiza el cobro recurrente real (punto en curso, reemplaza el
   // cobro único que tenía este archivo): mode:'subscription' + un Price

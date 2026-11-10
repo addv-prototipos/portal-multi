@@ -18,9 +18,10 @@
 
 const Stripe = require('stripe');
 const { obtenerPool } = require('../db');
+const { obtenerCredencialesActivas } = require('./stripeModo');
 
-function obtenerStripe() {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
+async function obtenerStripe() {
+  const { secretKey } = await obtenerCredencialesActivas();
   if (!secretKey) {
     const err = new Error('El cobro con Stripe no está configurado todavía.');
     err.codigo = 'no_configurado';
@@ -71,22 +72,23 @@ async function setConfigMsi({ plazos, montoMinimo }, db = obtenerPool()) {
 // datos reales y gratis: se leen del propio proceso del servidor, nunca
 // se inventan. Lista fija de los métodos relevantes para México, con el
 // link real al Dashboard.
-function metodosPagoInfo() {
-  const secretKey = process.env.STRIPE_SECRET_KEY || '';
-  let modo = null;
-  if (secretKey.startsWith('sk_test_')) modo = 'prueba';
-  else if (secretKey.startsWith('sk_live_')) modo = 'produccion';
+async function metodosPagoInfo() {
+  // "modo" ya NO se adivina por el prefijo de STRIPE_SECRET_KEY (ese var
+  // siempre es el de prueba) — viene del switch real de
+  // stripeModo.js (ajustes_globales), la única fuente de verdad desde
+  // que existe el modo producción.
+  const { modo, secretKey } = await obtenerCredencialesActivas();
   return {
     nota: 'Stripe ya no permite controlar los métodos de pago habilitados por API al crear un Checkout Session — se activan/desactivan directo en el Dashboard de Stripe.',
     dashboardUrl: 'https://dashboard.stripe.com/settings/payment_methods',
     metodosRelevantesMexico: ['card', 'oxxo', 'spei', 'link'],
-    modo,
+    modo: secretKey ? modo : null,
     webhookConfigurado: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
   };
 }
 
 async function listarCodigosDescuento() {
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   // El cupón ahora vive anidado bajo promotion.coupon (confirmado al
   // probar en local, 2026-10-26) — expand con la ruta anidada real.
   const promociones = await stripe.promotionCodes.list({ limit: 50, expand: ['data.promotion.coupon'] });
@@ -131,7 +133,7 @@ async function crearCodigoDescuento({ codigo, tipo, valor, duracion, vigenciaHas
     err.codigo = 'validacion';
     throw err;
   }
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
 
   const cuponParams = { duration: 'once' };
   if (tipo === 'porcentaje') cuponParams.percent_off = Number(valor);
@@ -156,12 +158,12 @@ async function crearCodigoDescuento({ codigo, tipo, valor, duracion, vigenciaHas
 }
 
 async function desactivarCodigoDescuento(promotionCodeId) {
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   await stripe.promotionCodes.update(promotionCodeId, { active: false });
 }
 
 async function activarCodigoDescuento(promotionCodeId) {
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   try {
     await stripe.promotionCodes.update(promotionCodeId, { active: true });
   } catch (err) {
@@ -183,7 +185,7 @@ async function activarCodigoDescuento(promotionCodeId) {
 // que "archivar → eliminar" sea un flujo de 2 pasos explícito, nunca un
 // borrado directo de un código todavía en uso.
 async function eliminarCodigoDescuento(promotionCodeId) {
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   const promo = await stripe.promotionCodes.retrieve(promotionCodeId, { expand: ['promotion.coupon'] });
   if (promo.active) {
     const err = new Error('Archiva el código antes de eliminarlo — un código activo no se puede borrar directamente.');

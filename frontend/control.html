@@ -987,6 +987,33 @@
             </div>
 
             <div id="stripe-panel-metodos">
+              <div class="admin-config-card" id="stripe-modo-card" style="margin-bottom:22px;max-width:640px;">
+                <div class="admin-toolbar-title" style="margin-bottom:10px;">
+                  <h2 style="font-size:15px;margin:0;">Modo de cobro</h2>
+                  <span class="smtp-estado-badge" id="stripe-modo-badge"></span>
+                </div>
+                <p class="field-hint" style="margin:0 0 14px;">Decide qué llave de Stripe usa el onboarding público de clarvo.mx. Las llaves viven en el servidor (.env) — aquí solo se elige cuál está activa.</p>
+                <div class="planes-feat-card-top" style="align-items:center;">
+                  <label class="control-switch" for="stripe-modo-switch">
+                    <input type="checkbox" id="stripe-modo-switch" />
+                    <span class="control-switch-track" aria-hidden="true"></span>
+                    <span class="control-switch-label">Activar cobros reales (producción)</span>
+                  </label>
+                  <span class="planes-badge-origen" id="stripe-modo-llave-chip"></span>
+                </div>
+                <p class="field-error" id="stripe-modo-aviso-live" style="background:var(--color-warn-soft);color:var(--color-warn);border-radius:var(--radius-md);padding:10px 12px;margin-top:10px;" hidden>Configura STRIPE_SECRET_KEY_LIVE y STRIPE_PUBLISHABLE_KEY_LIVE en el servidor antes de activar producción.</p>
+
+                <div id="stripe-modo-confirmar" class="control-form-grid" style="margin-top:14px;padding:14px;border:1px solid var(--color-warn);border-radius:var(--radius-md);background:var(--color-warn-soft);" hidden>
+                  <p class="control-form-grid-full" style="margin:0 0 4px;font-weight:700;color:var(--color-warn);">Vas a activar cobros reales</p>
+                  <p class="control-form-grid-full field-hint" style="margin:0 0 10px;">A partir de ahora, cada compra que se haga desde el onboarding le cobra dinero real al cliente. Escribe <b>ACTIVAR</b> para confirmar.</p>
+                  <input type="text" id="stripe-modo-confirmar-input" class="control-form-grid-full" placeholder="ACTIVAR" autocomplete="off" style="max-width:220px;" />
+                  <div class="control-form-grid-full" style="display:flex;gap:10px;margin-top:10px;">
+                    <button type="button" class="btn btn-primary" id="stripe-modo-confirmar-btn" disabled>Confirmar cambio</button>
+                    <button type="button" class="btn btn-secondary" id="stripe-modo-confirmar-cancelar">Cancelar</button>
+                  </div>
+                </div>
+              </div>
+
               <div class="admin-toolbar-title" style="margin-bottom:14px;">
                 <h2 style="font-size:15px;margin:0;">Cuenta Stripe</h2>
                 <span class="smtp-estado-badge" id="stripe-metodos-badge-modo" hidden></span>

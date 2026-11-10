@@ -29663,3 +29663,257 @@ en esta máquina): alta real desde `https://clarvo.mx`, Checkout real de
 Stripe, webhook activó el tenant solo (`smoke-test-1794104364283`) sin
 intervención manual, borrado limpio (baja + eliminación definitiva) — 0
 errores.
+
+## Punto 488 - Video promocional real para el Hero de clarvo-Site, generado 100% con IA, desplegado a producción (9 nov 2026, CERRADO)
+
+Pedido del usuario: el botón "Ver video (próximamente)" del Hero de
+`clarvo-Site` (deshabilitado desde su creación, placeholder honesto)
+necesitaba un video real — guión con técnicas de neuroventas (hook,
+dolor, reencuadre de "gasto" a "inversión", precio-por-día, identidad
+autoempleado→empresario, CTA), protagonizado por una dueña de papelería
+("Lupita"), hiperrealista, apuntando a emprendedores sin experiencia en
+sistemas. Toda la decisión técnica (herramientas, pipeline) delegada al
+asistente.
+
+**Pipeline técnico, de cero**: `/prompt-master` para la mecánica de
+prompts → guión de 7 escenas (~69s de VO) → `gpt-image-2` (OpenAI; el
+script viejo del sitio usaba `gpt-image-1`, **ya retirado** — confirmado
+real al fallar la primera llamada, migrado) para la imagen base de
+Lupita + 7 variaciones por escena vía `/v1/images/edits` con la imagen
+base como referencia (consistencia de personaje) → **Higgsfield API**
+(`api.higgsfield.ai`, cuenta nueva, pay-as-you-go) para animar cada
+imagen con Kling vía `kling-video/v2.5-turbo/pro/image-to-video` (NO
+existe "Kling 3.0" como tal en el catálogo real de la API, solo en
+marketing) → `edge-tts` (Microsoft, gratis, sin API key) para la voz en
+off, `es-MX-DaliaNeural` → `ffmpeg` (WinGet) para todo el ensamble
+(trim/freeze-pad por escena, color grade, subtítulos, bumpers,
+concatenación final).
+
+**Flujo real de subida de archivos a Higgsfield** (no documentado de forma
+obvia): dos pasos — `POST /files/generate-upload-url` (devuelve
+`upload_url` presignado S3 + `public_url` final) y luego `PUT` directo a
+esa URL — nunca un multipart simple a un endpoint propio.
+
+**3 rondas de corrección por feedback real del usuario, cada una con causa
+raíz distinta**:
+1. **Pantallas de celular/tablet con logo/UI reales superpuestos (primer
+   intento)**: se compuso el logo real de Clarvo y un dashboard real
+   (recortado de `clarvo-Site/public/images/dashboard/devices.png`, con
+   warp de perspectiva vía OpenCV, `cv2.getPerspectiveTransform`) sobre
+   las imágenes ANTES de animarlas en Kling — Kling las volvió a
+   distorsionar al generar el video (deformación de texto/logo, esperable
+   en modelos de video generativo: no tienen forma de "fijar" contenido
+   compuesto). Fix: nunca volver a mandar contenido ya compuesto a
+   través de un modelo de video generativo — en vez de eso, el overlay
+   (logo estático con `shortest=1`, o el dashboard con warp de
+   perspectiva **interpolado cuadro por cuadro en Python** —
+   `cv2.getPerspectiveTransform` con las 4 esquinas medidas a mano en 2
+   frames del clip limpio y el resto interpolado linealmente, codificado
+   como secuencia `qtrle` con alpha) se aplica DESPUÉS de animar, sobre
+   el clip ya limpio.
+2. **El usuario rechazó por completo ese enfoque ("prohibido superponer
+   imágenes, todo debe ser generado")**: las escenas de celular/tablet se
+   reemplazaron por motion graphics 100% generados a mano en Python/PIL
+   (sin ningún frame de video real de por medio) — logo flotando con
+   partículas/glow/barrido especular para la analogía del precio, y un
+   tablero financiero inventado desde cero (tarjetas KPI con números que
+   cuentan en tiempo real, barras que crecen, donut con barrido de
+   ángulo real) para el beat de "Clarvo te va guiando". Mismo criterio
+   de "nunca pegar una captura real" aplicado también al bumper de cierre
+   (logo con rebote `ease-out-back`, barrido de brillo, botón CTA con
+   pop-in + respiración continua — mismo render frame-por-frame).
+3. **El usuario dio marcha atrás en la escena del precio/refresco**: pidió
+   volver a filmación hiperrealista real (no motion graphic) pero
+   "calidad cinematográfica", **sin** el celular con pantalla falsa en
+   cuadro. Se regeneró el clip en Kling con dirección de cámara más
+   cinematográfica (push-in lento, luz dramática en gotas de
+   condensación/monedas) y se recortó (`crop` de ffmpeg) para excluir el
+   celular del encuadre por completo — el branding se resolvió con un
+   logo pequeño tipo "bug" de comercial de TV en la esquina (overlay
+   simple, nunca sobre una pantalla falsa). Además: una mano fantasma
+   real (artefacto de Kling, 3 manos visibles) en la escena de "cerrar la
+   cortina" no se pudo corregir con 2 intentos de prompt — decisión
+   final del usuario: **eliminar la escena por completo**, dejando que la
+   escena hermana cubra sola toda la línea de audio (con freeze-pad al
+   final, mismo mecanismo ya usado para clips más cortos que su VO).
+
+**Gotchas técnicos nuevos encontrados**:
+- `ffmpeg overlay` con una imagen en `-loop 1` **requiere `shortest=1`
+  explícito** — sin eso, con un input looped (infinito) de por medio, un
+  filtro `overlay`/`drawtext` encadenado puede no terminar nunca o tardar
+  órdenes de magnitud más de lo esperado (confirmado real: un render que
+  debía tardar ~1 min se fue a más de 1 hora y generó un archivo de
+  >1GB para un clip de 69s, dos veces, antes de aislar la causa con una
+  prueba A/B por filtro). Sin esta bandera, ffmpeg no sabe cuándo cortar
+  la salida contra el input finito.
+- El filtro `perspective` de ffmpeg **no soporta variables dinámicas
+  (`t`, `n`) en sus expresiones** pese a tener la opción `eval=frame` —
+  intentar animar las 4 esquinas en el tiempo con ese filtro directamente
+  falla con "Undefined constant". La solución real fue renderizar cada
+  frame del warp por separado en Python (`cv2.getPerspectiveTransform`
+  por frame, interpolación lineal manual de las esquinas) y pasar esa
+  secuencia a ffmpeg como un video más, no como una expresión del filtro.
+- `python3` invocado desde Git Bash en esta máquina es el Python nativo de
+  Windows — **no entiende rutas estilo `/c/Users/...`**, solo
+  `C:\Users\...`; pasar una ruta posix a `open()` dentro de un script
+  Python lanzado así falla con `FileNotFoundError` aunque el archivo
+  exista (confirmado real, 2 veces en la misma sesión).
+- **Bug propio en un script de animación** (`outro_animado.py`): reasignar
+  una variable Image (`img = img.filter(...)`) después de crear su
+  `ImageDraw.Draw(img)` deja el `Draw` apuntando al objeto viejo
+  huérfano — cualquier dibujo posterior (el texto del botón CTA, en este
+  caso) nunca aparece en la imagen final. Nunca reasignar la imagen
+  después de abrir su `ImageDraw`.
+- `git archive HEAD` desde Windows sigue exportando con CRLF incluso para
+  shell scripts (gotcha ya documentado en `CLAUDE.md` para otro caso) —
+  rompió el shebang de `actualizar.sh` en el VPS
+  (`/usr/bin/env: 'bash\r': No such file or directory`); fix de un
+  comando (`sed -i 's/\r$//'`) antes de ejecutar.
+- **Nginx del host en el VPS**: el regex de slug de tenant
+  (`^/(?<tenant_slug>[a-z0-9-]{1,48})/.+$`) le gana a cualquier prefijo
+  nuevo sin su propio `location ^~` explícito — mismo patrón ya conocido
+  para `/images/`, `/hdri/`, `/masterclass/`, ahora replicado para
+  `/videos/` (sin la regla, `/videos/hero-demo.mp4` devolvía 404 real en
+  producción pese a que el contenedor de `clarvo-Site` lo servía bien en
+  loopback). Confirmar siempre contra el loopback del contenedor primero
+  (`curl 127.0.0.1:<puerto>/...`) para descartar nginx del host como
+  sospechoso antes que la app.
+
+**Despliegue real a producción**: commit + push a `sitioOficial`
+(GitHub, `addv-sites/clarvo-tempSite`) → `git archive` + `scp` al VPS
+(mismo patrón que `portalFac`, `clarvo-Site` vive en `/opt/clarvo-site`,
+**no** en `/root/clarvo/clarvo-site/` como decía un comentario viejo en
+`deploy.sh`, ya desactualizado) → `./actualizar.sh` (rebuild + recreate
+del contenedor `clarvo-site-web`) → fix de nginx del host (arriba) →
+verificado con clics reales en `https://clarvo.mx` (botón abre el
+`<dialog>` nativo, video reproduce, cierre funciona). Video final: 73s,
+1920×1080, H.264 `+faststart`, ~17.6MB
+(`clarvo-Site/public/videos/hero-demo.mp4` + poster en el mismo
+directorio). Versión "master" sin comprimir para redes sociales (38MB,
+mismo contenido, antes del paso de optimización web) en el scratchpad de
+la sesión — ruta efímera, no versionada en el repo.
+
+## Punto 489 - Switch prueba/producción de Stripe en /control + aviso de mantenimiento en el onboarding de clarvo.mx (10 nov 2026, CERRADO en local)
+
+Pedido del usuario: ayuda para tener lista la infraestructura de la
+llave productiva (live) de Stripe sin tener que pedir el cambio por
+chat cada vez — un switch en `/control` decide qué par de llaves usa el
+onboarding público, y mientras el sitio siga en modo prueba, un aviso
+de mantenimiento se interpone antes del wizard de compra real.
+Propuesta visual con 5 opciones por pieza (Artifact), elegidas **A3**
+(switch con fricción de escribir "ACTIVAR" solo al pasar a producción)
++ **B4** (aviso humanizado con 2 tarjetas de elección). 3 decisiones de
+producto confirmadas antes de implementar: copy humanizada (no
+literal "mantenimiento"), fail-open si la consulta del modo falla
+(nunca bloquea una venta real por una falla de red ajena al cobro), y
+la fricción de "ACTIVAR" solo en el sentido prueba→producción (volver a
+prueba es un clic directo, nunca cobra dinero real).
+
+**Backend (`control/`)**:
+- `control/utils/stripeModo.js` (nuevo): flag de plataforma en
+  `ajustes_globales` (clave `stripe_modo_cobro`, mismo patrón
+  clave/valor que MSI/Accesos, punto 370) — default `'prueba'` si no
+  hay fila. `STRIPE_SECRET_KEY`/`STRIPE_PUBLISHABLE_KEY` (ya existentes,
+  sin tocar) siguen siendo las de prueba; `STRIPE_SECRET_KEY_LIVE`/
+  `STRIPE_PUBLISHABLE_KEY_LIVE` (nuevas, opcionales) son las de
+  producción. `cambiarModo('produccion')` rechaza con
+  `codigo:'live_no_configurado'` si cualquiera de las 2 live falta —
+  nunca cae de regreso a la de prueba en silencio.
+- `obtenerStripe()` en `stripePagos.js`/`stripeConfig.js` pasó de
+  síncrono (leía `process.env.STRIPE_SECRET_KEY` directo) a **async**
+  (lee `stripeModo.obtenerCredencialesActivas()`) — ya eran funciones
+  "lazy" (instancian el cliente Stripe en cada llamada, nunca un
+  singleton al cargar el módulo), así que el único costo fue agregar
+  `await` en los 18 call sites reales de todo `control/`
+  (`cancelacionSuscripcion.js` x4, `facturacionClarvo.js` x2,
+  `reactivacionTenant.js`, `tenantUpscaleCompra.js` x3, `upgradePlan.js`,
+  `stripeWebhookHealth.js`, más los internos de los 2 archivos dueños) —
+  confirmado con `node --check` que ninguno quedó fuera de una función
+  `async` (habría sido `SyntaxError` inmediato).
+- `stripeWebhookHealth.js`: el secreto del webhook ahora se guarda **por
+  modo** (`stripe_webhook_secret_actual_prueba`/`_produccion`, antes una
+  sola clave) — Stripe trata prueba y live como universos separados,
+  cada uno con su propio webhook endpoint/secreto, y puede llegar un
+  evento de cualquiera de los dos sin importar cuál esté activo en el
+  switch en ese momento. `secretosCandidatos()` ahora prueba las 2
+  claves de BD (más el fallback de `process.env`), nunca solo una.
+- `GET/PUT /api/control/ajustes/stripe-modo` (admin, mismo
+  `requireAdminAuth`+`requireAdminArea()` que `imagen-max-mb`) — el
+  `PUT` dispara `verificarYRepararWebhook()` de inmediato tras cambiar
+  de modo (fire-and-forget, solo loguea si falla), sin esperar la
+  corrida horaria del self-healing (punto en curso del incidente de
+  producción, ver gotcha de `stripeWebhookHealth.js` en `CLAUDE.md`).
+- `GET /api/public/onboarding/modo-cobro` (sin auth, solo `{modo}` —
+  nunca la llave ni sus últimos 4 dígitos, eso es admin-only) consumida
+  por `clarvo-Site` antes de abrir el wizard.
+- **Gotcha real encontrado durante la implementación**:
+  `stripeConfig.js:metodosPagoInfo()` (la card "Cuenta Stripe" ya
+  existente) adivinaba el modo mirando el PREFIJO de
+  `process.env.STRIPE_SECRET_KEY` (`sk_test_`/`sk_live_`) — ese var
+  SIEMPRE es la llave de prueba ahora, así que con el switch en
+  producción habría seguido mostrando "Modo: prueba" para siempre, un
+  segundo indicador contradiciendo al nuevo switch. Corregido para leer
+  `stripeModo.obtenerCredencialesActivas()` igual que todo lo demás —
+  **nunca dejar 2 fuentes de verdad para el mismo concepto en pantalla**.
+
+**Frontend `/control`** (`frontend/control.html`/`control.js`): card
+"Modo de cobro" dentro de "Upscale y Stripe" → "Configurar Stripe" →
+"Métodos de pago", arriba de la card "Cuenta Stripe" ya existente (que
+ahora muestra el modo real, no el adivinado). Reutiliza el componente
+`.control-switch`/`.control-switch-track` ya existente en el proyecto
+(mismo patrón que los toggles de Planes) — no se inventó un componente
+nuevo. Panel de confirmación inline (no el modal genérico
+`confirmarAccion()`, que no soporta texto escrito) con input +
+botón deshabilitado hasta escribir exactamente "ACTIVAR".
+
+**`clarvo-Site`** (repo hermano, `D:\srv\clarvo-Site`, fuera de
+`portalFac`): `onboardingApi.ts` gana `modoCobro()`;
+`OnboardingModal.tsx` consulta el modo UNA sola vez por carga de página
+(caché a nivel de módulo) antes de abrir el wizard real — si es
+`'prueba'`, muestra `PasoGateMantenimiento` (B4: título humanizado +
+2 tarjetas "Entendido"→`/masterclass` / "Continuar"→abre el wizard real
+con el plan/ciclo que el visitante ya había elegido, vía
+`detallePendienteRef`). Si la consulta falla (red, `/control` caído),
+cae a `"produccion"` — fail-open a propósito, nunca bloquea una venta
+real por un problema técnico ajeno al cobro.
+
+**`docker-compose.yml`/`VULTR/docker-stack.yml`**: ambos necesitaron el
+paso de las 2 variables nuevas al contenedor `control`
+(`STRIPE_SECRET_KEY_LIVE`/`STRIPE_PUBLISHABLE_KEY_LIVE`, opcionales,
+`${VAR:-}`) — **encontrado real durante la prueba funcional**: sin esto,
+aunque `.env` tuviera los valores, Docker nunca los pasa al proceso
+dentro del contenedor. `.env.example` documentado en su sección de
+Stripe existente (gitignored, no viaja al repo).
+
+**Prueba funcional real, contra Docker/MySQL reales (no solo mocks)**:
+1. `curl` real contra `/api/public/onboarding/modo-cobro` y
+   `/api/control/ajustes/stripe-modo` (GET/PUT, con y sin credenciales) —
+   incluyendo un ciclo completo prueba→producción→prueba con llaves
+   LIVE de prueba temporales agregadas a `.env` (`sk_live_prueba_...`),
+   confirmando que el self-healing del webhook se dispara de verdad
+   contra la API real de Stripe (log real: "Invalid API Key provided",
+   sin tronar nada) — `.env` restaurado exacto al terminar (`diff`
+   confirmado limpio).
+2. Clics reales en `/control` (chrome-devtools MCP): switch visible,
+   pill de estado correcta, fricción de "ACTIVAR" (botón deshabilitado
+   hasta escribir la palabra exacta), aviso de "faltan llaves live" al
+   confirmar sin configurarlas. **Segundo bug real encontrado así**:
+   "Cancelar" no limpiaba ese aviso naranja (quedaba pegado tras
+   cerrar el panel) — corregido en `cerrarConfirmarStripeModo()`.
+3. Clics reales en clarvo.mx local (Astro dev server, puerto 4321):
+   clic en "Comenzar con Solicita" → aviso de mantenimiento real con el
+   copy humanizado → "Continuar" → wizard real, paso 1 de 5, con el
+   plan correcto ("Elegiste CLARVO Solicita", no el default). Requirió
+   ajustar `ONBOARDING_CORS_ORIGIN` temporalmente a `localhost:4321`
+   (el valor real apunta a `localhost:8090`, puerto distinto al dev
+   server de Astro) — mismo patrón de prueba-y-revertir, `.env`
+   restaurado exacto al terminar.
+
+**Pendiente, fuera de alcance de esta sesión**: el usuario todavía no
+tiene las llaves `sk_live_`/`pk_live_` reales de Stripe (debe activarlas
+él mismo en su Dashboard) — hasta que las agregue a `.env` y recree
+`control`, el switch seguirá rechazando el paso a producción con el
+error `live_no_configurado`, por diseño. Despliegue a producción
+(Vultr) de este punto: no hecho en esta sesión, pendiente de
+autorización explícita del usuario para desplegar (ver
+`feedback_nunca_deploy_sin_permiso.md`).

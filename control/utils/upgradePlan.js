@@ -161,7 +161,7 @@ async function confirmarSubirPlan(slug, nuevoPlanId, { actor } = {}, db = obtene
   }
 
   const { obtenerStripe, montoCentavos } = require('./stripePagos');
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   const itemPlan = await buscarItemDePlan(stripe, tenant, db);
   const productId = await obtenerOCrearProductoPlanStripe(stripe, db);
   const intervaloStripe = ciclo === 'anual' ? 'year' : 'month';

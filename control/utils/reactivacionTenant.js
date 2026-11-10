@@ -106,7 +106,7 @@ async function crearCheckoutSessionReactivacion(tenantId, { db = obtenerPool() }
     throw new ErrorReactivacion('Este plan todavía no tiene un precio configurado. Contacta a soporte.', 'validacion');
   }
 
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   const intervaloStripe = ciclo === 'anual' ? 'year' : 'month';
   const intervaloNombre = ciclo === 'anual' ? 'año' : 'mes';
 

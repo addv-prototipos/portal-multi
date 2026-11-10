@@ -538,6 +538,11 @@ services:
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # Llaves de producción (opcionales) — el switch de /control
+      # ("Modo de cobro") rechaza activar producción si faltan, nunca
+      # cae de regreso a las de prueba.
+      STRIPE_SECRET_KEY_LIVE: ${STRIPE_SECRET_KEY_LIVE:-}
+      STRIPE_PUBLISHABLE_KEY_LIVE: ${STRIPE_PUBLISHABLE_KEY_LIVE:-}
       PUBLIC_APP_BASE_URL: ${PUBLIC_APP_BASE_URL:-https://clarvo.mx}
       # Hallazgo m-01 (sonar_1.1.html, Fase D, punto 410): DOCS_ENABLED
       # se invirtió a opt-in -- encendido aquí para desarrollo local;

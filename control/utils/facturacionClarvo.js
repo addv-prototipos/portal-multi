@@ -101,7 +101,7 @@ async function listarFacturasTenant(slug, { limite = 12, db = obtenerPool() } = 
   const [filas] = await db.query('SELECT stripe_customer_id FROM tenants WHERE slug = ?', [slug]);
   const stripeCustomerId = filas[0]?.stripe_customer_id || null;
   if (!stripeCustomerId) return [];
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   const lista = await stripe.invoices.list({ customer: stripeCustomerId, limit: limite });
   // Punto 469: estado real de "Solicitar factura" por cobro — un solo
   // SELECT para todas las solicitudes de este tenant, nunca una query
@@ -174,7 +174,7 @@ async function montoRealInvoiceTenant(slug, invoiceId, db = obtenerPool()) {
   const [filas] = await db.query('SELECT stripe_customer_id FROM tenants WHERE slug = ?', [slug]);
   const stripeCustomerId = filas[0]?.stripe_customer_id || null;
   if (!stripeCustomerId) return null;
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   let invoice;
   try {
     invoice = await stripe.invoices.retrieve(invoiceId);

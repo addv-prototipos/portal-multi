@@ -85,6 +85,7 @@ const {
 } = require('./utils/onboardingBorrador');
 const { crearCheckoutSession, procesarEventoWebhook } = require('./utils/stripePagos');
 const { resolverPlanPorClave } = require('./utils/onboardingConversion');
+const stripeModo = require('./utils/stripeModo');
 const { ErrorUpscale, listarUpscale, crearUpscale, editarUpscale, archivarUpscale, reactivarUpscale } = require('./utils/upscale');
 const { getConfigMsi, setConfigMsi, metodosPagoInfo, listarCodigosDescuento, crearCodigoDescuento, desactivarCodigoDescuento, activarCodigoDescuento, eliminarCodigoDescuento, reemplazarCodigoDescuento } = require('./utils/stripeConfig');
 const { getConfigRecordatorios, setConfigRecordatorios, listarEnSeguimiento, procesarRecordatoriosPendientes } = require('./utils/recordatorios');
@@ -557,6 +558,21 @@ app.get(
       if (err instanceof ErrorOnboarding) return res.status(mapearErrorOnboarding(err)).json({ error: err.message });
       throw err;
     }
+  })
+);
+
+// Modo de cobro de Stripe (punto en curso, switch prueba/producción en
+// /control) — consultada por OnboardingModal.tsx ANTES de abrir el
+// wizard, para mostrar el aviso de mantenimiento mientras el sitio
+// sigue en modo prueba. A propósito expone solo {modo}, nunca llaves ni
+// últimos 4 dígitos (eso es admin-only, ver /api/control/ajustes/stripe-modo) —
+// mismo criterio anti-enumeración del resto de rutas públicas.
+app.get(
+  '/api/public/onboarding/modo-cobro',
+  onboardingPublicLimiter,
+  asyncHandler(async (req, res) => {
+    const { modo } = await stripeModo.obtenerCredencialesActivas();
+    res.json({ modo });
   })
 );
 
@@ -1282,6 +1298,48 @@ app.put(
       res.json({ ok: true, import_max_filas });
     } catch (err) {
       res.status(400).json({ error: err.message });
+    }
+  })
+);
+
+// Modo de cobro de Stripe (punto en curso) — prueba (default seguro) o
+// producción (cobros reales), un solo flag de plataforma. Nunca expone
+// la llave completa, solo los últimos 4 caracteres (confirmar "cuál
+// llave está activa" sin poder reconstruir el secreto). La fricción de
+// "escribe ACTIVAR" para pasar a producción vive solo en el frontend
+// (frontend/control.js) — el candado real ya es requireAdminAuth, mismo
+// criterio que la cancelación de suscripción (punto 449).
+app.get(
+  '/api/control/ajustes/stripe-modo',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    res.json(await stripeModo.estado());
+  })
+);
+
+app.put(
+  '/api/control/ajustes/stripe-modo',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      await stripeModo.cambiarModo((req.body || {}).modo);
+      // Registra/verifica de inmediato el webhook del modo nuevo, sin
+      // esperar la corrida horaria de stripeWebhookHealth.js — para que
+      // el primer cobro real en producción nunca se quede esperando un
+      // webhook que todavía no existe (mismo incidente real que motivó
+      // ese módulo, punto en curso).
+      const { verificarYRepararWebhook } = require('./utils/stripeWebhookHealth');
+      verificarYRepararWebhook().catch((err) => {
+        console.error('No se pudo verificar el webhook tras cambiar el modo de Stripe:', err.message);
+      });
+      res.json({ ok: true, ...(await stripeModo.estado()) });
+    } catch (err) {
+      const status = err.codigo === 'live_no_configurado' || err.codigo === 'modo_invalido' ? 400 : 500;
+      res.status(status).json({ error: err.message, codigo: err.codigo || null });
     }
   })
 );
@@ -2252,7 +2310,7 @@ app.get(
     ]);
     const ingresoCupones = cupones.reduce((acc, c) => acc + (Number(c.ingreso) || 0), 0);
     res.json({
-      ...metodosPagoInfo(),
+      ...(await metodosPagoInfo()),
       resumenMonetizacion: {
         ingresoCupones: Math.round(ingresoCupones * 100) / 100,
         borradoresEnSeguimiento: enSeguimiento.length,

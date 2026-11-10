@@ -82,7 +82,7 @@ async function aplicarDescuentoRetencion(slug, { actor } = {}, db = obtenerPool(
     throw new ErrorCancelacion('Esta empresa ya usó su descuento de retención — no se puede aplicar otra vez.', 'validacion');
   }
 
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   const cupon = await stripe.coupons.create({
     duration: 'once',
     percent_off: PORCENTAJE_DESCUENTO_RETENCION,
@@ -109,7 +109,7 @@ async function pausarSuscripcion(slug, { actor } = {}, db = obtenerPool()) {
   const tenant = await cargarTenantPorSlug(slug, db);
   exigirTenantConSuscripcion(tenant);
 
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   const resumeAt = Math.floor(Date.now() / 1000) + DIAS_PAUSA * 24 * 60 * 60;
   await stripe.subscriptions.update(tenant.stripe_subscription_id, {
     pause_collection: { behavior: 'void', resumes_at: resumeAt },
@@ -147,7 +147,7 @@ async function confirmarCancelacion(slug, { actor } = {}, db = obtenerPool()) {
   const tenant = await cargarTenantPorSlug(slug, db);
   exigirTenantConSuscripcion(tenant);
 
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   const suscripcion = await stripe.subscriptions.update(tenant.stripe_subscription_id, {
     cancel_at_period_end: true,
   });
@@ -178,7 +178,7 @@ async function reactivarSuscripcion(slug, { actor } = {}, db = obtenerPool()) {
     throw new ErrorCancelacion('Tu suscripción ya está activa — no hay nada que reactivar.', 'validacion');
   }
 
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   const suscripcion = await stripe.subscriptions.update(tenant.stripe_subscription_id, {
     cancel_at_period_end: false,
   });

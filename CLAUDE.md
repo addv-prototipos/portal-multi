@@ -2051,6 +2051,41 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   sin tocar el host, replicar este mismo patrón (BD como fuente de
   verdad + fallback en el punto de uso), nunca intentar escribir al
   filesystem del host desde dentro de un servicio de Swarm.
+- **Switch prueba/producción de Stripe (punto 489, 2026-11-10):
+  `STRIPE_WEBHOOK_SECRET` por modo, no uno solo** — desde que existe el
+  switch (`control/utils/stripeModo.js`, flag en `ajustes_globales` clave
+  `stripe_modo_cobro`), el secreto del webhook que guarda
+  `stripeWebhookHealth.js` vive en 2 claves separadas
+  (`stripe_webhook_secret_actual_prueba`/`_produccion`), no en la única
+  clave plana de antes — Stripe trata prueba y live como universos
+  completamente separados (cada uno con su propio endpoint/secreto de
+  webhook), y puede llegar un evento de CUALQUIERA de los dos modos en
+  cualquier momento, sin importar cuál esté activo en el switch ahora
+  mismo (ej. un tenant con suscripción live sigue renovando aunque el
+  switch público ya regresara a modo prueba). `secretosCandidatos()`
+  prueba ambas claves de BD + el fallback de `process.env`, nunca solo
+  una. Las llaves reales: `STRIPE_SECRET_KEY`/`STRIPE_PUBLISHABLE_KEY`
+  (ya existentes, prueba, sin tocar) + `STRIPE_SECRET_KEY_LIVE`/
+  `STRIPE_PUBLISHABLE_KEY_LIVE` (nuevas, opcionales, producción) —
+  `obtenerStripe()` (`stripePagos.js`/`stripeConfig.js`) pasó de síncrono
+  a async para leer `stripeModo.obtenerCredencialesActivas()`; si se
+  agrega un call site nuevo a cualquiera de esas 2 funciones, no olvidar
+  el `await` (`node --check` lo atrapa solo si el caller también es
+  async — confirmar que lo sea). Un cambio de modo real en `docker-compose.yml`/
+  `VULTR/docker-stack.yml` necesita las 2 vars `_LIVE` también en el
+  bloque `environment:` del servicio `control` — tenerlas en `.env` no
+  basta, Docker no las pasa al contenedor si el compose no las declara
+  (encontrado real probando el ciclo completo contra Docker real).
+  **Nunca dejar 2 fuentes de verdad del mismo concepto**: la card
+  "Cuenta Stripe" ya existente (`stripeConfig.js:metodosPagoInfo()`)
+  adivinaba el modo por el PREFIJO de `STRIPE_SECRET_KEY` — con el
+  switch real, ese var siempre es la llave de PRUEBA, así que la card
+  vieja se habría quedado mostrando "Modo: prueba" para siempre sin
+  importar lo que diga el switch nuevo; se corrigió para leer del mismo
+  `stripeModo.js`. Antes de agregar un indicador de estado nuevo que
+  "se parezca" a uno ya existente en otra pantalla, revisar si ya hay
+  uno — y si sí, apuntar ambos a la MISMA fuente, nunca duplicar la
+  lógica de detección.
 - **Segundo hallazgo del mismo incidente, independiente del webhook: el
   usuario `app` de MySQL en Vultr nunca tuvo el GRANT sobre `tenant_%`**
   que `backend/scripts/lib/controlDb.js:asegurarControlYPrivilegios()` ya

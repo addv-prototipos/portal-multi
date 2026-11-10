@@ -4180,7 +4180,7 @@
       });
       document.getElementById('upscale-panel-funciones').hidden = btn.dataset.upscaleTab !== 'funciones';
       document.getElementById('upscale-panel-stripe').hidden = btn.dataset.upscaleTab !== 'stripe';
-      if (btn.dataset.upscaleTab === 'stripe') cargarStripeMetodos();
+      if (btn.dataset.upscaleTab === 'stripe') { cargarStripeModo(); cargarStripeMetodos(); }
     });
   });
 
@@ -4197,6 +4197,96 @@
       if (btn.dataset.stripeTab === 'msi') cargarStripeMsi();
       if (btn.dataset.stripeTab === 'descuentos') cargarStripeDescuentos();
     });
+  });
+
+  // ---------- Modo de cobro de Stripe (switch prueba/producción) ----------
+  // Fricción de "escribe ACTIVAR" solo al pasar a producción — volver a
+  // prueba nunca cobra dinero real, así que es un clic directo. El
+  // candado real es requireAdminAuth del lado del servidor; esto es solo
+  // para que el operador no active cobros reales por error de un clic
+  // (mismo criterio que la cancelación de suscripción, punto 449).
+  const elsStripeModo = {
+    badge: document.getElementById('stripe-modo-badge'),
+    switch: document.getElementById('stripe-modo-switch'),
+    llaveChip: document.getElementById('stripe-modo-llave-chip'),
+    avisoLive: document.getElementById('stripe-modo-aviso-live'),
+    confirmar: document.getElementById('stripe-modo-confirmar'),
+    confirmarInput: document.getElementById('stripe-modo-confirmar-input'),
+    confirmarBtn: document.getElementById('stripe-modo-confirmar-btn'),
+    confirmarCancelar: document.getElementById('stripe-modo-confirmar-cancelar'),
+  };
+
+  function renderStripeModo(data) {
+    const esProduccion = data.modo === 'produccion';
+    elsStripeModo.switch.checked = esProduccion;
+    elsStripeModo.badge.textContent = esProduccion ? 'Producción (cobros reales)' : 'Prueba (sin cobros reales)';
+    elsStripeModo.badge.classList.toggle('is-ok', esProduccion);
+    elsStripeModo.badge.classList.toggle('is-pendiente', !esProduccion);
+    elsStripeModo.llaveChip.textContent = data.llaveActivaUltimos4 ? `Llave activa: •••• ${data.llaveActivaUltimos4}` : 'Sin llave configurada';
+  }
+
+  function cerrarConfirmarStripeModo() {
+    elsStripeModo.confirmar.hidden = true;
+    elsStripeModo.confirmarInput.value = '';
+    elsStripeModo.confirmarBtn.disabled = true;
+    elsStripeModo.avisoLive.hidden = true;
+  }
+
+  async function cargarStripeModo() {
+    const authHeader = getAuthHeader();
+    const res = await fetch(`${API_BASE}/ajustes/stripe-modo`, { headers: { Authorization: authHeader } });
+    if (!res.ok) return;
+    renderStripeModo(await res.json());
+  }
+
+  async function aplicarModoStripe(modo) {
+    const authHeader = getAuthHeader();
+    const res = await fetch(`${API_BASE}/ajustes/stripe-modo`, {
+      method: 'PUT',
+      headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modo }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (data.codigo === 'live_no_configurado') {
+        elsStripeModo.avisoLive.hidden = false;
+      } else {
+        showToast(data.error || 'No se pudo cambiar el modo de cobro.', true);
+      }
+      renderStripeModo(await (await fetch(`${API_BASE}/ajustes/stripe-modo`, { headers: { Authorization: authHeader } })).json());
+      return false;
+    }
+    elsStripeModo.avisoLive.hidden = true;
+    renderStripeModo(data);
+    showToast(modo === 'produccion' ? 'Modo producción activado — los cobros ahora son reales.' : 'De regreso a modo prueba.');
+    return true;
+  }
+
+  elsStripeModo.switch.addEventListener('change', () => {
+    if (elsStripeModo.switch.checked) {
+      // Revierte el check visual de inmediato — solo se aplica de verdad
+      // tras escribir ACTIVAR y confirmar, nunca con el solo clic.
+      elsStripeModo.switch.checked = false;
+      elsStripeModo.avisoLive.hidden = true;
+      elsStripeModo.confirmarInput.value = '';
+      elsStripeModo.confirmarBtn.disabled = true;
+      elsStripeModo.confirmar.hidden = false;
+      elsStripeModo.confirmarInput.focus();
+    } else {
+      aplicarModoStripe('prueba');
+    }
+  });
+
+  elsStripeModo.confirmarInput.addEventListener('input', () => {
+    elsStripeModo.confirmarBtn.disabled = elsStripeModo.confirmarInput.value.trim() !== 'ACTIVAR';
+  });
+
+  elsStripeModo.confirmarCancelar.addEventListener('click', cerrarConfirmarStripeModo);
+
+  elsStripeModo.confirmarBtn.addEventListener('click', async () => {
+    if (elsStripeModo.confirmarInput.value.trim() !== 'ACTIVAR') return;
+    const ok = await aplicarModoStripe('produccion');
+    if (ok) cerrarConfirmarStripeModo();
   });
 
   let stripeDashboardUrlActual = '';

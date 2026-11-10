@@ -35,9 +35,21 @@ const { obtenerStripe, APP_BASE_URL } = require('./stripePagos');
 const { getValorTexto, setValorTexto } = require('./ajustesGlobales');
 
 const URL_WEBHOOK = `${APP_BASE_URL}/api/control/webhooks/stripe`;
-const CLAVE_SECRETO_ACTUAL = 'stripe_webhook_secret_actual';
 const CLAVE_ULTIMA_VERIFICACION = 'stripe_webhook_ultima_verificacion';
 const CLAVE_ULTIMO_RESULTADO = 'stripe_webhook_ultimo_resultado';
+
+// El secreto se guarda POR MODO (punto en curso, switch prueba/producción
+// en /control) — Stripe trata modo prueba y modo live como universos
+// separados, cada uno con su propio webhook endpoint y su propio
+// secreto; puede llegar un evento de cualquiera de los dos en cualquier
+// momento, sin importar cuál modo tenga activo el switch en ese
+// instante. Guardar un solo valor plano habría perdido el secreto del
+// modo que no está activo ahora mismo.
+function claveSecretoPara(modo) {
+  return modo === 'live' || modo === 'produccion'
+    ? 'stripe_webhook_secret_actual_produccion'
+    : 'stripe_webhook_secret_actual_prueba';
+}
 
 // Los 7 tipos que control/utils/stripePagos.js:procesarEventoWebhook()
 // de verdad maneja (ver su switch) — nunca "todos los eventos", mismo
@@ -66,8 +78,13 @@ function eventosFaltantes(enabledEvents) {
 async function secretosCandidatos() {
   const candidatos = [];
   if (process.env.STRIPE_WEBHOOK_SECRET) candidatos.push(process.env.STRIPE_WEBHOOK_SECRET);
-  const deBd = await getValorTexto(CLAVE_SECRETO_ACTUAL);
-  if (deBd && !candidatos.includes(deBd)) candidatos.push(deBd);
+  const [dePrueba, deProduccion] = await Promise.all([
+    getValorTexto(claveSecretoPara('prueba')),
+    getValorTexto(claveSecretoPara('produccion')),
+  ]);
+  for (const v of [dePrueba, deProduccion]) {
+    if (v && !candidatos.includes(v)) candidatos.push(v);
+  }
   return candidatos;
 }
 
@@ -77,7 +94,7 @@ async function secretosCandidatos() {
 // endpoints de OTRA URL (ej. uno viejo apuntando a yt.addv.com.mx se
 // reporta como "ajeno", nunca se borra solo, por si todavía se usa).
 async function verificarYRepararWebhook({ autoReparar = true } = {}) {
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   const resultado = {
     url: URL_WEBHOOK,
     modo: null,
@@ -108,12 +125,12 @@ async function verificarYRepararWebhook({ autoReparar = true } = {}) {
         enabled_events: EVENTOS_REQUERIDOS,
         description: 'Clarvo — autogenerado por stripeWebhookHealth.js',
       });
-      await setValorTexto(CLAVE_SECRETO_ACTUAL, creado.secret);
+      resultado.modo = creado.livemode ? 'live' : 'prueba';
+      await setValorTexto(claveSecretoPara(resultado.modo), creado.secret);
       process.env.STRIPE_WEBHOOK_SECRET = creado.secret;
       resultado.accion = 'creado';
       resultado.endpointId = creado.id;
       resultado.secretoNuevo = creado.secret;
-      resultado.modo = creado.livemode ? 'live' : 'prueba';
       resultado.ok = true;
     } else {
       resultado.endpointId = propio.id;
@@ -164,7 +181,7 @@ async function estadoGuardado() {
 module.exports = {
   URL_WEBHOOK,
   EVENTOS_REQUERIDOS,
-  CLAVE_SECRETO_ACTUAL,
+  claveSecretoPara,
   secretosCandidatos,
   verificarYRepararWebhook,
   estadoGuardado,

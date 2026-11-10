@@ -1586,3 +1586,32 @@ de onboarding real 100% verde. Diferido por instrucción explícita del
 usuario: el lector de código de barras no suma al re-escanear el mismo
 artículo en escritorio/tablet (sí en mobile) — se monitoreará en vivo
 juntos más adelante, no se investigó unilateral.
+
+C136 9-nov 🎯 P488: video promocional real del Hero de `clarvo-Site`,
+generado de punta a punta con IA (`/prompt-master` + `gpt-image-2` para
+las 8 imágenes del guión + Higgsfield API/Kling para animarlas +
+`edge-tts` para la voz + `ffmpeg` para el ensamble) — guión de 7 escenas
+con neuroventas, protagonista "Lupita" (dueña de papelería), 69s.
+3 rondas de corrección reales por feedback del usuario, cada una con
+causa raíz distinta: (1) logo/dashboard real compuestos ANTES de animar
+se distorsionaban al pasar por Kling — fix, componer DESPUÉS sobre el
+clip ya animado (overlay estático con `shortest=1`, o warp de
+perspectiva interpolado cuadro-por-cuadro en Python/OpenCV para la
+tablet); (2) el usuario prohibió por completo superponer imágenes —
+celular y tablet se reemplazaron por motion graphics 100% generados en
+PIL (logo flotando con partículas, tablero financiero inventado con
+números que cuentan en tiempo real); (3) marcha atrás parcial: la escena
+del refresco volvió a ser filmación real de Kling (más cinematográfica)
+pero con el celular recortado fuera de cuadro, branding solo como bug
+pequeño en la esquina — y la escena de "cerrar la cortina" se eliminó
+por completo tras 2 intentos fallidos de corregir una mano fantasma
+(artefacto real de Kling). Gotchas nuevos documentados en
+`PROJECT_STATE.md` punto 488 (el más caro: `ffmpeg overlay` con imagen
+en loop sin `shortest=1` puede no terminar nunca — un render se fue de
+~1 min a más de 1 hora y >1GB, dos veces, antes de aislar la causa).
+Desplegado real a `clarvo.mx` (`git archive`+`scp`+`actualizar.sh`,
+mismo patrón que `portalFac`) — en el camino se encontró y corrigió un
+bug de nginx del host (`/videos/` caía en el regex de tenant-slug y se
+enrutaba al backend equivocado, mismo patrón ya conocido para
+`/images/`/`/hdri/`/`/masterclass/`). Verificado con clics reales en
+producción: botón abre el modal, video reproduce, cierra bien.

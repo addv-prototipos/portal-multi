@@ -9,7 +9,7 @@ jest.mock('../../utils/stripePagos', () => ({
 }));
 
 jest.mock('../../utils/ajustesGlobales', () => ({
-  getValorTexto: jest.fn(),
+  getValorTexto: jest.fn().mockResolvedValue(null),
   setValorTexto: jest.fn().mockResolvedValue(undefined),
 }));
 
@@ -18,6 +18,7 @@ const { getValorTexto, setValorTexto } = require('../../utils/ajustesGlobales');
 const {
   URL_WEBHOOK,
   EVENTOS_REQUERIDOS,
+  claveSecretoPara,
   secretosCandidatos,
   verificarYRepararWebhook,
 } = require('../../utils/stripeWebhookHealth');
@@ -32,7 +33,7 @@ function mockStripe({ list = [], createReturn = null, updateReturn = null } = {}
       update,
     },
   };
-  obtenerStripe.mockReturnValue(stripeMock);
+  obtenerStripe.mockResolvedValue(stripeMock);
   return { stripeMock, create, update };
 }
 
@@ -74,7 +75,7 @@ describe('verificarYRepararWebhook — endpoint faltante', () => {
     expect(resultado.accion).toBe('creado');
     expect(resultado.endpointId).toBe('we_nuevo');
     expect(resultado.secretoNuevo).toBe('whsec_nuevo123');
-    expect(setValorTexto).toHaveBeenCalledWith('stripe_webhook_secret_actual', 'whsec_nuevo123');
+    expect(setValorTexto).toHaveBeenCalledWith('stripe_webhook_secret_actual_prueba', 'whsec_nuevo123');
     expect(process.env.STRIPE_WEBHOOK_SECRET).toBe('whsec_nuevo123');
   });
 
@@ -155,22 +156,33 @@ describe('verificarYRepararWebhook — endpoint ya existente', () => {
   });
 });
 
-describe('secretosCandidatos — fallback .env -> ajustes_globales', () => {
+describe('secretosCandidatos — fallback .env -> ajustes_globales, por modo', () => {
   const envOriginal = process.env.STRIPE_WEBHOOK_SECRET;
   afterEach(() => { process.env.STRIPE_WEBHOOK_SECRET = envOriginal; jest.clearAllMocks(); });
 
-  test('con .env configurado y BD con el MISMO valor -> solo un candidato', async () => {
+  test('con .env configurado y BD (modo prueba) con el MISMO valor -> solo un candidato', async () => {
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_env';
-    getValorTexto.mockResolvedValue('whsec_env');
+    getValorTexto.mockImplementation((clave) => Promise.resolve(clave === claveSecretoPara('prueba') ? 'whsec_env' : null));
     const candidatos = await secretosCandidatos();
     expect(candidatos).toEqual(['whsec_env']);
   });
 
-  test('con .env desactualizado y BD con uno distinto (self-heal creó uno nuevo) -> intenta .env primero, BD como fallback', async () => {
+  test('con .env desactualizado y BD (modo prueba) con uno distinto (self-heal creó uno nuevo) -> intenta .env primero, BD como fallback', async () => {
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_viejo';
-    getValorTexto.mockResolvedValue('whsec_nuevo');
+    getValorTexto.mockImplementation((clave) => Promise.resolve(clave === claveSecretoPara('prueba') ? 'whsec_nuevo' : null));
     const candidatos = await secretosCandidatos();
     expect(candidatos).toEqual(['whsec_viejo', 'whsec_nuevo']);
+  });
+
+  test('con secretos guardados para AMBOS modos -> los dos cuentan como candidatos, aunque el switch solo tenga uno activo', async () => {
+    delete process.env.STRIPE_WEBHOOK_SECRET;
+    getValorTexto.mockImplementation((clave) => {
+      if (clave === claveSecretoPara('prueba')) return Promise.resolve('whsec_prueba');
+      if (clave === claveSecretoPara('produccion')) return Promise.resolve('whsec_live');
+      return Promise.resolve(null);
+    });
+    const candidatos = await secretosCandidatos();
+    expect(candidatos).toEqual(['whsec_prueba', 'whsec_live']);
   });
 
   test('sin .env y sin BD -> lista vacía (el caller debe responder 503, nunca intentar verificar nada)', async () => {

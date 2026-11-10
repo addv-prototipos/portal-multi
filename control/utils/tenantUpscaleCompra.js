@@ -243,7 +243,7 @@ async function cobrarUpscaleRecurrenteViaSubscription(tipo, tenant, funcionalida
     );
   }
   const { obtenerStripe, montoCentavos } = require('./stripePagos');
-  const stripe = obtenerStripe();
+  const stripe = await obtenerStripe();
   const intervaloStripe = resumen.ciclo === 'anual' ? 'year' : 'month';
 
   const existente = await buscarUpscaleActivoConItem(tenant.id, funcionalidad.id, db);
@@ -307,7 +307,7 @@ async function confirmarCompraUpscale(slug, tipo = 'disco', cantidad = 1, { succ
       throw new ErrorUpscaleCompra('successUrl y cancelUrl son obligatorios para una compra de cobro único.', 'validacion');
     }
     const { obtenerStripe, montoCentavos } = require('./stripePagos');
-    const stripe = obtenerStripe();
+    const stripe = await obtenerStripe();
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [
@@ -512,7 +512,7 @@ async function confirmarCompraExtra(slug, funcionalidadId, { successUrl, cancelU
       throw new ErrorUpscaleCompra('successUrl y cancelUrl son obligatorios para una compra de cobro único.', 'validacion');
     }
     const { obtenerStripe, montoCentavos } = require('./stripePagos');
-    const stripe = obtenerStripe();
+    const stripe = await obtenerStripe();
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [

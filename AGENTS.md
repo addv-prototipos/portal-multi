@@ -886,6 +886,37 @@ solo la frase en español de la UI.
     `VULTR/smoke-test-onboarding.js --borrar` (alta real desde clarvo.mx,
     Checkout real, confirma activacion sola, borra). Mapa de logs del
     stack: `VULTR/MAPA-LOGS.md`.
+- **Punto 489 (2026-11-10) - switch prueba/produccion de Stripe en
+  /control + aviso de mantenimiento en el onboarding de clarvo.mx** -
+  `control/utils/stripeModo.js` (flag en `ajustes_globales`, clave
+  `stripe_modo_cobro`) decide cual par de llaves usa el onboarding:
+  `STRIPE_SECRET_KEY`/`STRIPE_PUBLISHABLE_KEY` (prueba, sin tocar) o
+  `STRIPE_SECRET_KEY_LIVE`/`STRIPE_PUBLISHABLE_KEY_LIVE` (produccion,
+  nuevas, opcionales - sin ambas, el switch rechaza activar produccion).
+  `obtenerStripe()` paso de sincrono a async en `stripePagos.js`/
+  `stripeConfig.js` (18 call sites en todo `control/` ganaron `await`).
+  `stripeWebhookHealth.js:secretosCandidatos()` ahora prueba el secreto
+  de AMBOS modos (`stripe_webhook_secret_actual_prueba`/`_produccion`),
+  no uno solo - Stripe puede mandar un evento de cualquiera de los 2
+  modos sin importar cual este activo en el switch.
+  `GET/PUT /api/control/ajustes/stripe-modo` (admin) + `GET
+  /api/public/onboarding/modo-cobro` (publico, solo `{modo}`). UI en
+  `/control` -> "Upscale y Stripe" -> "Configurar Stripe": card "Modo de
+  cobro" con el switch, friccion de escribir "ACTIVAR" solo al pasar a
+  produccion (volver a prueba es directo, nunca cobra real).
+  `clarvo-Site/src/components/onboarding/OnboardingModal.tsx`: si el
+  modo es prueba, muestra un aviso humanizado (2 tarjetas,
+  "Entendido"->`/masterclass`, "Continuar"->wizard real) en vez de abrir
+  el wizard; fail-open si la consulta de modo falla (nunca bloquea una
+  venta real por una falla de red). `docker-compose.yml`/
+  `VULTR/docker-stack.yml` necesitan las 2 vars `_LIVE` en el bloque
+  `environment:` del servicio `control` - tenerlas solo en `.env` no
+  basta. Probado real contra Docker/MySQL reales (ciclo completo de
+  modo con llave live de prueba, self-healing del webhook disparado
+  real contra Stripe, clics reales en `/control` y en clarvo.mx local).
+  Pendiente: el usuario aun no tiene las llaves live reales de Stripe;
+  deploy a produccion no hecho en esta sesion, requiere autorizacion
+  explicita aparte.
   - `control_tenants.tenants` NO tiene columna generica `actualizado_en`
     (solo timestamps especificos: `plan_actualizado_en`,
     `disco_cache_actualizado_en`, etc.) — un `UPDATE tenants SET ...
