@@ -69,6 +69,11 @@ hostinger/
 # soporte/mantenimiento) — jamás debe llegar al repositorio.
 VULTR/
 
+# Runbook de configuración del webhook de Stripe (punto 489, 10 nov
+# 2026) — vive en raíz a propósito (pedido explícito del usuario, más a
+# la mano que VULTR/) pero mismo criterio de secretos: nunca a git.
+stripe-webhook.html
+
 # Editores / herramientas locales
 .idea/
 .claude/

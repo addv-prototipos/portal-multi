@@ -2086,6 +2086,28 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   "se parezca" a uno ya existente en otra pantalla, revisar si ya hay
   uno — y si sí, apuntar ambos a la MISMA fuente, nunca duplicar la
   lógica de detección.
+- **Mismo bug-shape, versión `clarvo-Site` (punto 489, mismo día — bug
+  real reportado por el usuario con captura del wizard mostrando precio
+  viejo)**: `OnboardingModal.tsx` tenía su PROPIA tabla de precios
+  hardcodeada (`PLAN_PRECIO_MENSUAL`/`PLAN_PRECIO_ANUAL`) y su propio
+  `PLAN_NOMBRE`, totalmente desincronizados del catálogo real de
+  `/control` → Planes — `PricingSection.astro` (la landing) ya leía el
+  catálogo real desde el punto 461, pero el wizard de compra nunca se
+  actualizó al mismo patrón. Consecuencia real: cambiar un precio en
+  `/control` se veía en la landing pero el visitante seguía viendo (y a
+  punto de pagar) el precio VIEJO en el wizard — el cobro real server-side
+  (`resolverPlanPorClave()`) sí usaba el precio correcto, así que el
+  visitante veía un número y Stripe le cobraba otro. Fix:
+  `onboardingApi.ts:planesPublicos()` (misma fuente que la landing,
+  `GET /api/public/planes`) + `resolverPreciosPlanes()` en
+  `OnboardingModal.tsx` (mismo patrón de caché de módulo que
+  `resolverModoCobro()`, pero con reintento si falla — un precio nunca
+  puede caer a un valor inventado, a diferencia del modo de cobro que sí
+  tiene un fallback seguro). Lección: cualquier dato que YA se muestra en
+  la landing desde el catálogo real (precio, nombre, lo que sea) debe
+  leerse de la MISMA fuente en cualquier otro componente que lo necesite
+  — nunca copiar el valor a una constante local "por ahora", ni siquiera
+  en un wizard que se siente como una pieza aislada.
 - **Segundo hallazgo del mismo incidente, independiente del webhook: el
   usuario `app` de MySQL en Vultr nunca tuvo el GRANT sobre `tenant_%`**
   que `backend/scripts/lib/controlDb.js:asegurarControlYPrivilegios()` ya

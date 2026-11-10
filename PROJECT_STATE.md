@@ -29793,7 +29793,7 @@ directorio). Versión "master" sin comprimir para redes sociales (38MB,
 mismo contenido, antes del paso de optimización web) en el scratchpad de
 la sesión — ruta efímera, no versionada en el repo.
 
-## Punto 489 - Switch prueba/producción de Stripe en /control + aviso de mantenimiento en el onboarding de clarvo.mx (10 nov 2026, CERRADO en local)
+## Punto 489 - Switch prueba/producción de Stripe en /control + aviso de mantenimiento en el onboarding de clarvo.mx (10 nov 2026, CERRADO — desplegado a producción, modo producción activo)
 
 Pedido del usuario: ayuda para tener lista la infraestructura de la
 llave productiva (live) de Stripe sin tener que pedir el cambio por
@@ -29909,11 +29909,82 @@ Stripe existente (gitignored, no viaja al repo).
    server de Astro) — mismo patrón de prueba-y-revertir, `.env`
    restaurado exacto al terminar.
 
-**Pendiente, fuera de alcance de esta sesión**: el usuario todavía no
-tiene las llaves `sk_live_`/`pk_live_` reales de Stripe (debe activarlas
-él mismo en su Dashboard) — hasta que las agregue a `.env` y recree
-`control`, el switch seguirá rechazando el paso a producción con el
-error `live_no_configurado`, por diseño. Despliegue a producción
-(Vultr) de este punto: no hecho en esta sesión, pendiente de
-autorización explícita del usuario para desplegar (ver
-`feedback_nunca_deploy_sin_permiso.md`).
+**Addendum — mismo día, desplegado y activado en producción real**: el
+usuario pegó sus llaves live reales en el chat y pidió explícitamente
+registrarlas + desplegar. Flujo real: backup de MySQL verificado por
+tamaño → modo mantenimiento ON → `git archive HEAD` + `docker-stack.yml`
+actualizado + rebuild/recreate de `control`/`frontend` → llaves live
+agregadas a `/opt/clarvo/.env` (nunca mostradas completas en el chat,
+solo últimos 4 caracteres) → `clarvo-Site` (commit+push a `sitioOficial`
++ mismo patrón de deploy) → verificado con clics reales en `clarvo.mx`
+(gate de mantenimiento real, wizard real tras "Continuar").
+
+**Incidente real encontrado y corregido en el mismo despliegue**: el
+primer smoke-test (`VULTR/smoke-test-onboarding.js --borrar`) falló —
+"el webhook no confirmó el pago en 2 minutos". Causa raíz: el secreto
+del webhook pasó de 1 clave plana (`stripe_webhook_secret_actual`) a 2
+por modo, pero un endpoint YA registrado en Stripe nunca vuelve a
+exponer su secreto al listarlo — el self-healing nunca migró solo el
+secreto viejo, que quedó huérfano bajo el nombre anterior. Fix:
+`secretosCandidatos()` también prueba esa clave legacy. Redeploy rápido
+solo de `control`, segundo smoke-test **verde** (tenant activado SOLO
+por el webhook en ~2 segundos, borrado al final). Detalle completo y
+lección para futuras migraciones de este tipo en
+`VULTR/prodDoc.html`/`VULTR/README-VULTR.md` (ambos actualizados,
+gitignored).
+
+**El usuario activó el modo producción él mismo** desde `/control`
+después del deploy (confirmado real: `stripe_modo_cobro=produccion`,
+`liveConfigurado:true`, webhook live auto-registrado por el
+self-healing, `endpointId` real confirmado) — Claude nunca mandó ese
+`PUT` contra el servidor de producción. **No se corrió el smoke-test en
+modo live** (el script usa la tarjeta de prueba de Stripe,
+4242-4242-4242-4242, que Stripe rechaza en modo live por diseño — correr
+el script tal cual solo daría un fallo esperado en el paso de pago, sin
+validar nada nuevo). Si se quiere una validación real de punta a punta
+en modo live, requiere una compra real con tarjeta real (reembolsable) —
+decisión del usuario, no de esta sesión. **Confirmado real vía
+`GET /api/control/health/stripe-webhook`**: el webhook de modo live ya
+existe, registrado y sano (`endpointId` real, `ok:true`) — el
+self-healing lo creó solo en cuanto el switch pasó a producción, sin
+ninguna intervención manual.
+
+**Addendum — bug real reportado por el usuario el mismo día, encontrado
+con una captura real del wizard mostrando el precio viejo**: cambiar el
+precio de un plan en `/control` → Planes se reflejaba en la landing de
+`clarvo.mx` (que ya leía el catálogo real) pero **nunca** en el wizard de
+compra (`OnboardingModal.tsx`) — tenía su PROPIA tabla de precios
+hardcodeada (`PLAN_PRECIO_MENSUAL`/`PLAN_PRECIO_ANUAL`), desincronizada
+del catálogo real desde siempre. Esto significaba que el visitante veía
+UN precio antes de pagar y Stripe le cobraba OTRO (el real, server-side
+ya estaba bien) — un problema real de confianza/transparencia, no solo
+cosmético. Fix: `onboardingApi.ts` gana `planesPublicos()` (misma fuente
+que ya usa `PricingSection.astro`, `GET /api/public/planes`);
+`OnboardingModal.tsx` la consulta junto con el modo de cobro al abrir
+(mismo patrón de caché a nivel de módulo, pero CON reintento si falla —
+nunca cae a un precio inventado, a diferencia del modo de cobro que sí
+tiene un fallback seguro). Las 2 tablas hardcodeadas se eliminaron por
+completo, igual que el nombre del plan (`PLAN_NOMBRE`), que tenía el
+mismo riesgo de desincronización. **Desplegado de inmediato a
+producción** (el catálogo real ya tenía un precio de prueba del usuario,
+$4/$8, mientras el sitio seguía en modo producción — cualquier visitante
+real habría visto $199/$1,990 y pagado $4/$8) — verificado con clics
+reales en `clarvo.mx` antes y después del deploy, catálogo local
+restaurado a su valor original tras la prueba. **Consecuencia
+importante**: cambiar un precio en `/control` ya NO requiere ningún
+paso adicional ni redeploy — queda consistente en todo el sitio de
+inmediato, resolviendo de raíz la preocupación del usuario sobre el
+cambio anual de precios.
+
+**Addendum — documentación**: se creó `stripe-webhook.html` en la raíz
+del repo (pedido explícito del usuario, nunca versionado — agregado a
+`.gitignore` junto con `VULTR/`, mismo criterio de secretos) explicando
+el mecanismo de self-healing del webhook, cómo verificar su estado real
+(`GET`/`POST /api/control/health/stripe-webhook[/reparar]`, existían en
+el código pero sin botón en la UI todavía) y cómo ver el secreto real en
+el Dashboard de Stripe si hace falta auditar — nunca hace falta copiarlo
+a mano al sistema. **No se intentó extraer el secreto completo vía SQL
+directo** (bloqueado por el clasificador de seguridad del propio agente,
+correctamente — es un dato sensible); la vía segura documentada es que
+el usuario lo revele él mismo desde su propia sesión de Stripe si lo
+necesita.
