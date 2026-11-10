@@ -29988,3 +29988,34 @@ directo** (bloqueado por el clasificador de seguridad del propio agente,
 correctamente — es un dato sensible); la vía segura documentada es que
 el usuario lo revele él mismo desde su propia sesión de Stripe si lo
 necesita.
+
+**Addendum — corrupción de encoding en Términos y Condiciones de
+producción, reportado por el usuario con captura real (10 nov 2026)**:
+el contenido guardado en `control_tenants.terminos_versiones` (id=1,
+versión "1.1", único registro real de producción) tenía 55 caracteres
+reemplazados por el carácter de reemplazo Unicode (U+FFFD, "�") —
+confirmado que es corrupción REAL en la base de datos (leído directo
+con `mysql --default-character-set=utf8mb4`, mismo resultado que el
+navegador, no un problema de visualización). **Descartado un problema de
+charset vigente**: tabla/base de datos ya en `utf8mb4_unicode_ci` tanto
+en local como en producción, idéntico en ambos — la corrupción parece
+haber sido un evento aislado al guardar esa fila (origen exacto no
+confirmado; no se pudo reproducir). El contenido de prueba en la BD
+local (versión "1.1" también, pero texto de prueba distinto, "para
+validar scroll real") **no es intercambiable** con el real de
+producción — se reconstruyó el texto real carácter por carácter a
+partir del contexto (los 55 caracteres dañados eran todos acentos/eñes/
+un guion largo, inferibles sin ambigüedad en español natural), **validado
+por el usuario antes de aplicar**. Reparado con un `UPDATE` parametrizado
+corriendo DENTRO del contenedor `clarvo_control` en producción (mysql2,
+nunca vía shell/SSH con el texto como argumento, para no arriesgar
+mangling de UTF-8 en el propio proceso de reparación) — mismo `id`,
+misma versión "1.1" (reparación in-place, nadie tiene que volver a
+aceptar los términos, decisión explícita del usuario: el contenido legal
+real nunca cambió, solo estaba mal guardado). Verificado con una segunda
+lectura real post-`UPDATE`: 0 caracteres de reemplazo restantes, 12
+cláusulas/tags intactas. **No se encontró ni se corrigió una causa raíz
+en el código** — si este patrón de corrupción vuelve a aparecer al
+publicar una nueva versión desde `/control`, investigar más a fondo (por
+ejemplo, capturar la petición HTTP real en el momento del guardado) en
+vez de asumir que fue un evento aislado otra vez.
