@@ -30019,3 +30019,51 @@ en el código** — si este patrón de corrupción vuelve a aparecer al
 publicar una nueva versión desde `/control`, investigar más a fondo (por
 ejemplo, capturar la petición HTTP real en el momento del guardado) en
 vez de asumir que fue un evento aislado otra vez.
+
+## Punto 490 - Dar de baja/Eliminar un tenant ahora cancela su suscripción real de Stripe — desplegado y validado en producción (10-11 nov 2026, CERRADO)
+
+Bug real reportado por el usuario al investigar por qué su cargo de
+validación ($8 MXN) no reflejaba en banca (ver más abajo el hallazgo de
+`invoice_too_small`, sin relación): ni "Dar de baja" ni "Eliminar" desde
+`/control` tocaban Stripe — la suscripción recurrente se quedaba activa
+para siempre. `control/utils/tenantLifecycle.js`:
+`cancelarSuscripcionBestEffort()` (nueva, nunca importada de
+`cancelacionSuscripcion.js` para evitar un require circular — ese archivo
+ya importa `suspenderTenant` de `tenantLifecycle.js`) — "Dar de baja"
+cancela AL CORTE (`cancel_at_period_end:true`), "Eliminar" cancela DE
+INMEDIATO (`subscriptions.cancel()`), ambos best-effort (un fallo de
+Stripe nunca revierte la transición ya aplicada en BD, se reporta en el
+campo nuevo `stripeCancelado` de la respuesta). `obtenerTenantPorSlug()`
+gana `stripe_subscription_id` en el SELECT. 8 tests nuevos (43/43 en
+`tenantLifecycle.test.js`, 602/602 en toda la suite).
+
+**Verificado real dos veces**: (1) contra una suscripción de prueba real
+creada ad-hoc en Stripe test mode (API directa, mismos 2 llamados que usa
+el código) — confirmó `cancel_at_period_end:true` y luego
+`canceled_at` real; (2) **en producción real**, sobre el tenant de
+validación "mi-tienda" (la suscripción de $8 MXN/año de la sesión
+anterior) — `POST /api/control/tenants/mi-tienda/baja` devolvió
+`stripeCancelado:"al_corte"`, `POST .../eliminar` devolvió
+`stripeCancelado:"inmediato"`, y una lectura directa a Stripe confirmó
+`status:"canceled"` en la suscripción real — el tenant de prueba ya no
+existe en `control_tenants.tenants`. Backup real verificado por tamaño
+antes de desplegar (convención de siempre, reforzada por ser un borrado
+irreversible real). Deploy acotado a `control/` (sin tocar
+`backend`/`frontend`, sin modo mantenimiento — mismo criterio que el
+hotfix del punto 489).
+
+**Hallazgo aparte, mismo día, explica por qué el cargo de validación de
+$8 MXN nunca llegó al banco**: Stripe tiene un mínimo de cobro por
+cargo (~$10 MXN) — un monto por debajo de ese mínimo nunca se cobra a la
+tarjeta; Stripe lo convierte en un `balance_transaction` tipo
+`invoice_too_small`, acredita ese monto al cliente y lo usa para "pagar"
+la misma factura — neto $0 de dinero real movido, nunca aparece como
+ingreso ni como cargo bancario. Confirmado real consultando la API de
+Stripe directo (customer `balance=800`, `balanceTx type:
+"invoice_too_small"`, `charges.list()` con 0 resultados). **No es un bug
+de Clarvo** — el precio de prueba ($4/$8) ya estaba por debajo del
+mínimo real de Stripe para MXN. El catálogo de producción ya estaba de
+vuelta en su precio real ($199/$1,999) para cuando se investigó, así que
+ningún cliente real quedó expuesto a este caso. Lección para cualquier
+prueba futura con dinero real: usar un monto ≥ $10 MXN, nunca un precio
+simbólico de centavos.
