@@ -20,10 +20,20 @@ jest.mock('../../utils/notificarBackend', () => ({
 jest.mock('../../utils/adminAuditoria', () => ({
   registrarAccesoAdmin: jest.fn().mockResolvedValue(undefined),
 }));
+jest.mock('../../utils/stripePagos', () => ({
+  obtenerStripe: jest.fn(),
+}));
 
 const { obtenerPool } = require('../../db');
 const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico, calcularUsoDiscoFisico } = require('../../utils/notificarBackend');
 const { registrarAccesoAdmin } = require('../../utils/adminAuditoria');
+const { obtenerStripe } = require('../../utils/stripePagos');
+
+function mockStripeSuscripciones() {
+  const subscriptions = { update: jest.fn().mockResolvedValue({}), cancel: jest.fn().mockResolvedValue({}) };
+  obtenerStripe.mockResolvedValue({ subscriptions });
+  return subscriptions;
+}
 const {
   ErrorTransicionTenant,
   listarTenants,
@@ -321,6 +331,49 @@ describe('utils/tenantLifecycle.js', () => {
       expect(sqlUpdate).toMatch(/SET estado = \?, baja_en = NOW\(\) WHERE slug = \? AND estado IN \(\?,\?\)/);
       expect(paramsUpdate).toEqual(['baja', 'cliente1', 'activo', 'suspendido']);
     });
+
+    test('tenant CON suscripción real de Stripe: cancela AL CORTE (nunca de inmediato) — bug real reportado por el usuario, Stripe seguía cobrando para siempre', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([{ affectedRows: 1 }])
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'baja', stripe_subscription_id: 'sub_abc123' }]])
+        .mockResolvedValueOnce([{}]);
+      const subscriptions = mockStripeSuscripciones();
+
+      const resultado = await darDeBajaTenant('cliente1', { actor: 'admin' });
+
+      expect(subscriptions.update).toHaveBeenCalledWith('sub_abc123', { cancel_at_period_end: true });
+      expect(subscriptions.cancel).not.toHaveBeenCalled();
+      expect(resultado.stripeCancelado).toBe('al_corte');
+    });
+
+    test('tenant SIN suscripción de Stripe: no intenta cancelar nada, stripeCancelado queda null', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([{ affectedRows: 1 }])
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'baja', stripe_subscription_id: null }]])
+        .mockResolvedValueOnce([{}]);
+      const subscriptions = mockStripeSuscripciones();
+
+      const resultado = await darDeBajaTenant('cliente1', { actor: 'admin' });
+
+      expect(subscriptions.update).not.toHaveBeenCalled();
+      expect(resultado.stripeCancelado).toBeNull();
+    });
+
+    test('Stripe falla al cancelar: la baja YA aplicada en BD nunca se revierte, solo se reporta el error', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([{ affectedRows: 1 }])
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'baja', stripe_subscription_id: 'sub_abc123' }]])
+        .mockResolvedValueOnce([{}]);
+      obtenerStripe.mockRejectedValue(new Error('Stripe no disponible'));
+
+      const resultado = await darDeBajaTenant('cliente1', { actor: 'admin' });
+
+      expect(resultado.estado).toBe('baja');
+      expect(resultado.stripeCancelado).toBe('error');
+    });
   });
 
   describe('eliminarTenantDefinitivo', () => {
@@ -375,6 +428,41 @@ describe('utils/tenantLifecycle.js', () => {
 
       expect(error).toBeInstanceOf(ErrorTransicionTenant);
       expect(error.codigo).toBe('error_fisico');
+    });
+
+    test('tenant CON suscripción real de Stripe: cancela DE INMEDIATO (nunca al corte) — ya no queda servicio que cobrar', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'baja', stripe_subscription_id: 'sub_abc123' }]]);
+      const subscriptions = mockStripeSuscripciones();
+
+      const resultado = await eliminarTenantDefinitivo('cliente1', { actor: 'admin' });
+
+      expect(subscriptions.cancel).toHaveBeenCalledWith('sub_abc123');
+      expect(subscriptions.update).not.toHaveBeenCalled();
+      expect(resultado.stripeCancelado).toBe('inmediato');
+      expect(eliminarTenantFisico).toHaveBeenCalledWith('cliente1');
+    });
+
+    test('tenant SIN suscripción de Stripe: no intenta cancelar nada, stripeCancelado queda null', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'baja', stripe_subscription_id: null }]]);
+      const subscriptions = mockStripeSuscripciones();
+
+      const resultado = await eliminarTenantDefinitivo('cliente1', { actor: 'admin' });
+
+      expect(subscriptions.cancel).not.toHaveBeenCalled();
+      expect(resultado.stripeCancelado).toBeNull();
+    });
+
+    test('Stripe falla al cancelar: el borrado físico sigue adelante igual, solo se reporta el error', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'baja', stripe_subscription_id: 'sub_abc123' }]]);
+      obtenerStripe.mockRejectedValue(new Error('Stripe no disponible'));
+
+      const resultado = await eliminarTenantDefinitivo('cliente1', { actor: 'admin' });
+
+      expect(eliminarTenantFisico).toHaveBeenCalledWith('cliente1');
+      expect(resultado.stripeCancelado).toBe('error');
     });
   });
 

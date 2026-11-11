@@ -15,6 +15,15 @@
 const { obtenerPool } = require('../db');
 const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico, calcularUsoDiscoFisico, ErrorCalculoDisco } = require('./notificarBackend');
 const { registrarAccesoAdmin } = require('./adminAuditoria');
+// Cancelación de la suscripción real de Stripe al dar de baja/eliminar
+// (punto en curso, bug real encontrado por el usuario: ninguna de las 2
+// transiciones tocaba Stripe — la suscripción seguía cobrando para
+// siempre aunque el tenant ya no existiera físicamente). Import directo
+// de stripePagos.js (nunca de cancelacionSuscripcion.js, que YA importa
+// `suspenderTenant` de ESTE mismo archivo — un require circular ahí
+// sería frágil, mismo criterio de "duplicar en vez de cruzar" que el
+// resto del proyecto).
+const { obtenerStripe } = require('./stripePagos');
 
 // Días que un tenant permanece en "baja" (Papelera) antes de que
 // purgarBajasVencidas() lo borre para siempre — decisión confirmada con
@@ -88,11 +97,31 @@ async function listarTenants({ estado, q } = {}, db = obtenerPool()) {
 
 async function obtenerTenantPorSlug(slug, db = obtenerPool()) {
   const [filas] = await db.query(
-    `SELECT id, slug, nombre_empresa, estado, contacto_email, creado_en, activado_en, suspendido_en, baja_en
+    `SELECT id, slug, nombre_empresa, estado, contacto_email, creado_en, activado_en, suspendido_en, baja_en, stripe_subscription_id
      FROM tenants WHERE slug = ?`,
     [slug]
   );
   return filas[0] || null;
+}
+
+// Best-effort: cancelar la suscripción real NUNCA debe tumbar la
+// transición de baja/eliminación que el operador ya pidió — un hipo de
+// la API de Stripe se reporta en el resultado para que quede visible en
+// /control, pero jamás revierte lo que ya se aplicó en la BD.
+async function cancelarSuscripcionBestEffort(stripeSubscriptionId, { inmediato }) {
+  if (!stripeSubscriptionId) return null;
+  try {
+    const stripe = await obtenerStripe();
+    if (inmediato) {
+      await stripe.subscriptions.cancel(stripeSubscriptionId);
+      return 'inmediato';
+    }
+    await stripe.subscriptions.update(stripeSubscriptionId, { cancel_at_period_end: true });
+    return 'al_corte';
+  } catch (err) {
+    console.error(`No se pudo cancelar la suscripción de Stripe (${stripeSubscriptionId}):`, err.message);
+    return 'error';
+  }
 }
 
 // Aplica una transición de estado con guarda atómica en el propio UPDATE
@@ -216,7 +245,7 @@ async function darDeBajaTenant(slug, { actor, motivo = null } = {}, db = obtener
   // No-destructivo por diseño: solo cambia "estado" — NUNCA borra la base
   // de datos tenant_<slug> ni su prefijo en MinIO. Mismo espíritu que
   // cutover-tenant-piloto.js, que tampoco toca nunca los datos origen.
-  return aplicarTransicion(db, {
+  const tenant = await aplicarTransicion(db, {
     slug,
     estadosOrigen: ['activo', 'suspendido'],
     estadoDestino: 'baja',
@@ -225,6 +254,13 @@ async function darDeBajaTenant(slug, { actor, motivo = null } = {}, db = obtener
     actor,
     camposExtra: motivo ? { baja_motivo: motivo } : {},
   });
+
+  // Cancela la suscripción real AL CORTE (nunca de inmediato) — "baja"
+  // sigue siendo reversible y el tenant ya pagó el periodo en curso;
+  // decisión explícita del usuario (punto en curso, bug real: Stripe
+  // seguía cobrando para siempre aunque el tenant se diera de baja).
+  tenant.stripeCancelado = await cancelarSuscripcionBestEffort(tenant.stripe_subscription_id, { inmediato: false });
+  return tenant;
 }
 
 // Elimina un tenant PARA SIEMPRE (punto 345, "papelera") — DROP DATABASE
@@ -256,6 +292,13 @@ async function eliminarTenantDefinitivo(slug, { actor } = {}, db = obtenerPool()
       'estado_invalido'
     );
   }
+
+  // Cancela la suscripción real DE INMEDIATO — ya no queda ningún
+  // servicio que seguir cobrando, la base de datos física se borra en
+  // este mismo paso; decisión explícita del usuario (punto en curso).
+  // Se intenta ANTES del borrado físico (si Stripe tarda/falla, mejor
+  // saberlo con el tenant todavía identificable que después).
+  tenant.stripeCancelado = await cancelarSuscripcionBestEffort(tenant.stripe_subscription_id, { inmediato: true });
 
   try {
     await eliminarTenantFisico(slug);
