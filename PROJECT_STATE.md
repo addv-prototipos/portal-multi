@@ -30067,3 +30067,72 @@ vuelta en su precio real ($199/$1,999) para cuando se investigó, así que
 ningún cliente real quedó expuesto a este caso. Lección para cualquier
 prueba futura con dinero real: usar un monto ≥ $10 MXN, nunca un precio
 simbólico de centavos.
+
+## Punto 491 - Auditoría de correos automáticos sin marca Clarvo, 5 plantillas corregidas (11 nov 2026, CERRADO en local, pendiente de desplegar a producción)
+
+Pedido del usuario: revisar TODOS los correos automáticos del sistema
+(backend + control) e identificar cuáles no llevan el cascarón de marca
+CLARVO (`construirCorreoBase()`, el mismo que ya usa "invitación de
+usuario") — ninguno debe salir en texto plano sin logo/colores, ni en el
+onboarding ni para tenants sin plan de personalización/marca propia.
+
+**Métricas de la auditoría** — 17 flujos de correo automático reales en
+todo el repo (backend `enviarCorreo()` + control `enviarCorreoBase()`,
+sin contar los 2 endpoints de "Enviar prueba"/"Vista previa" de
+Configuraciones, que no son correos reales a clientes):
+- **10 ya tenían plantilla** (branded, sin tocar): invitación de usuario,
+  recuperación de contraseña, aviso al contador, factura lista al
+  cliente, recordatorio de pago CxC, solicitud de aclaración, ticket de
+  venta (diseño propio de recibo), reporte automático, "factura lista"
+  de Facturación de Clarvo, "se cobró tu suscripción".
+- **7 sin plantilla, en 5 archivos — todas corregidas en esta sesión**:
+  1. `backend/server.js` (`POST /internal/crear-admin-inicial/:slug`) —
+     "Tu cuenta de Clarvo ya está lista", el correo de bienvenida del
+     onboarding (el mismo del screenshot que reportó el usuario, salía
+     en texto plano sin logo).
+  2. `control/utils/recordatorios.js` — 3 plantillas (ángulos
+     pérdida/social/compromiso) de recordatorio de pago pendiente
+     durante el onboarding.
+  3. `control/utils/reactivacionTenant.js` — aviso de trial vencido con
+     15 días para reactivar antes del borrado permanente.
+  4. `control/utils/cancelacionSuscripcion.js` — propuesta de retención
+     al cancelar suscripción.
+  5. `control/utils/discoCapacidadAlerta.js` — alerta interna de
+     capacidad de disco (operador/super admin, no cliente — incluida de
+     todas formas por consistencia de marca en TODO correo saliente).
+
+**Patrón aplicado**: mismo que ya usan los 10 correos branded — convertir
+el `cuerpo` de texto plano en la forma estructurada
+(`eyebrow`/`titulo`/`parrafos`/`cta`) que ya acepta
+`POST /internal/enviar-correo-base` (backend) desde el punto "en curso"
+de `correoMarca.js` — el backend arma el HTML con
+`construirCorreoBase()` (logo CLARVO real vía CID, franja degradada
+navy→cian, tarjeta punteada, botón) del lado del servidor, nunca el
+llamador. Ninguno de los 5 archivos corregidos tiene contexto de tenant
+(onboarding/trial/cancelación son pre-activación o cross-tenant), así
+que cae al logo/colores genéricos de CLARVO — correcto, mismo criterio
+ya documentado para `facturacionGestion.js`/`webhooksSuscripcion.js`
+(`SIN colorPrimario/colorAccent`, caen a su default).
+
+**Pruebas**: `node --check` en los 5 archivos + `backend/server.js`.
+Suite completa: `control` 602/602 verde; `backend` 1381/1382 verde (el
+1 rojo restante, `multitenant.test.js:190`, es preexistente — confirmado
+reproduciéndolo contra el commit anterior a esta sesión con
+`git stash`, no relacionado a este cambio). 1 test de
+`reactivacionTenant.test.js` tuvo que actualizarse (asertaba la forma
+vieja `cuerpo: string`, ahora asertar `titulo`/`cta.href`).
+
+**Validación funcional real**: stack reconstruido (`docker compose build
+backend control` + `up -d --force-recreate`), los 5 correos corregidos
+se mandaron de verdad desde dentro del contenedor backend
+(`POST /internal/enviar-correo-base` con `X-Internal-Secret` real) a
+`anjeprolprado@gmail.com`, usando el SMTP default configurado en
+`/control` (Accesos → SMTP) — los 5 respondieron `200 {"ok":true}`.
+Pendiente que el usuario confirme visualmente en su bandeja que los 5
+llegaron con el cascarón de marca real (logo, franja degradada, botón),
+no solo que el envío no reventó.
+
+**Pendiente de desplegar**: cambio solo en `backend/`+`control/` (sin
+`frontend`, sin esquema nuevo) — sincronizar `VULTR/` y desplegar cuando
+el usuario lo autorice explícitamente (regla persistente: nunca sin
+permiso nuevo, aunque ya se haya autorizado antes en la sesión).

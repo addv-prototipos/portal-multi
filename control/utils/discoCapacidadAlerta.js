@@ -28,14 +28,20 @@ async function evaluarYEnviarAlertaCapacidadDisco() {
     let alertaEnviada = false;
     if (alertaEmail) {
       try {
+        // Homologado al diseño del ticket de venta (auditoría de correos
+        // de salida, punto en curso): antes salía en texto plano sin logo
+        // ni marca — aviso interno al operador, pero mismo criterio de
+        // consistencia de marca que el resto de los correos del sitio.
         await enviarCorreoBase({
           destinatario: alertaEmail,
           asunto: `Clarvo — capacidad de disco al ${resumen.porcentaje}%`,
-          cuerpo:
-            `La capacidad de disco comprometida entre todos los tenants llegó al ${resumen.porcentaje}% ` +
-            `(${resumen.comprometidoMb.toLocaleString('es-MX')} MB de ${resumen.capacidadTotalMb.toLocaleString('es-MX')} MB configurados).\n\n` +
-            `Disponible para seguir asignando: ${resumen.disponibleMb.toLocaleString('es-MX')} MB.\n\n` +
-            `Revisa /control → Seguridad y sistema → Super Admins → Capacidad de disco.`,
+          eyebrow: 'Alerta operativa',
+          titulo: `Capacidad de disco al ${resumen.porcentaje}%`,
+          parrafos: [
+            `La capacidad de disco comprometida entre todos los tenants llegó al ${resumen.porcentaje}% (${resumen.comprometidoMb.toLocaleString('es-MX')} MB de ${resumen.capacidadTotalMb.toLocaleString('es-MX')} MB configurados).`,
+            `Disponible para seguir asignando: ${resumen.disponibleMb.toLocaleString('es-MX')} MB.`,
+            'Revisa /control → Seguridad y sistema → Super Admins → Capacidad de disco.',
+          ],
         });
         alertaEnviada = true;
       } catch (err) {

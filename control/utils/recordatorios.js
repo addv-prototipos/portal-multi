@@ -67,25 +67,45 @@ async function listarEnSeguimiento(db = obtenerPool()) {
   return filas;
 }
 
+// Homologado al diseño del ticket de venta (auditoría de correos de
+// salida, punto en curso): los 3 ángulos salían en texto plano sin logo
+// ni marca — justo el tramo de onboarding donde más importa la primera
+// impresión. Sin tenant todavía (el borrador aún no se convirtió), se usa
+// el logo genérico de CLARVO vía construirCorreoBase() en el backend.
 function asuntoYCuerpo(angulo, { nombreEmpresa, metodoPago, destinoCorreo }) {
   const metodoTxt = metodoPago === 'oxxo' ? 'tu ficha OXXO' : metodoPago === 'spei' ? 'tu SPEI' : 'tu pago';
   const empresa = nombreEmpresa || 'tu negocio';
   if (angulo === 'perdida') {
     return {
       asunto: 'Tu URL en Clarvo está a punto de liberarse',
-      cuerpo: `Hola,\n\nConfiguramos "${empresa}" en Clarvo, pero ${metodoTxt} sigue sin confirmarse. Tu URL se reserva solo unos días más — después queda disponible para alguien más.\n\nCompleta tu pago para no perder tu progreso.\n\n— Clarvo`,
+      eyebrow: 'Recordatorio',
+      titulo: 'Tu URL en Clarvo está a punto de liberarse',
+      parrafos: [
+        `Configuramos "${empresa}" en Clarvo, pero ${metodoTxt} sigue sin confirmarse. Tu URL se reserva solo unos días más — después queda disponible para alguien más.`,
+        'Completa tu pago para no perder tu progreso.',
+      ],
     };
   }
   if (angulo === 'social') {
     return {
       asunto: 'Negocios como el tuyo ya operan en Clarvo',
-      cuerpo: `Hola,\n\n+500 negocios ya facturan y controlan sus ventas con Clarvo. "${empresa}" ya está lista — solo falta confirmar ${metodoTxt} para unirte.\n\nProcesado de forma segura por Stripe.\n\n— Clarvo`,
+      eyebrow: 'Recordatorio',
+      titulo: 'Negocios como el tuyo ya operan en Clarvo',
+      parrafos: [
+        `+500 negocios ya facturan y controlan sus ventas con Clarvo. "${empresa}" ya está lista — solo falta confirmar ${metodoTxt} para unirte.`,
+        'Procesado de forma segura por Stripe.',
+      ],
     };
   }
   // 'compromiso' (default)
   return {
     asunto: 'Tu cuenta Clarvo está a un paso de activarse',
-    cuerpo: `Hola,\n\n"${empresa}" ya está configurada por completo en Clarvo — empresa, administrador, todo listo. Solo falta confirmar ${metodoTxt}.\n\nTermina lo que empezaste.\n\n— Clarvo`,
+    eyebrow: 'Recordatorio',
+    titulo: 'Tu cuenta Clarvo está a un paso de activarse',
+    parrafos: [
+      `"${empresa}" ya está configurada por completo en Clarvo — empresa, administrador, todo listo. Solo falta confirmar ${metodoTxt}.`,
+      'Termina lo que empezaste.',
+    ],
   };
 }
 
@@ -117,11 +137,11 @@ async function procesarRecordatoriosPendientes(db = obtenerPool()) {
       const destinoCorreo = fila.admin_email || fila.contacto_email;
       if (!destinoCorreo) continue;
 
-      const { asunto, cuerpo } = asuntoYCuerpo(config.angulo, {
+      const { asunto, eyebrow, titulo, parrafos } = asuntoYCuerpo(config.angulo, {
         nombreEmpresa: borrador.nombre_empresa,
         metodoPago: borrador.metodo_pago,
       });
-      await enviarCorreoBase({ destinatario: destinoCorreo, asunto, cuerpo });
+      await enviarCorreoBase({ destinatario: destinoCorreo, asunto, eyebrow, titulo, parrafos });
 
       await db.query(
         `UPDATE onboarding_borradores SET ultimo_recordatorio_en = ?, intentos_recordatorio = intentos_recordatorio + 1, actualizado_en = ? WHERE token = ?`,

@@ -214,10 +214,17 @@ async function enviarPropuestaRetencion(slug, { actor } = {}, db = obtenerPool()
     throw new ErrorCancelacion('Esta empresa no tiene correo de contacto capturado.', 'validacion');
   }
 
+  // Homologado al diseño del ticket de venta (auditoría de correos de
+  // salida, punto en curso): antes salía en texto plano sin logo ni marca.
   await enviarCorreoBase({
     destinatario: tenant.contacto_email,
     asunto: 'Antes de que te vayas — tenemos una propuesta para ti',
-    cuerpo: `Hola,\n\nVimos que cancelaste tu suscripción a Clarvo. Nos encantaría que te quedaras — contáctanos respondiendo este correo y platicamos una propuesta hecha para "${tenant.nombre_empresa}".\n\n— Clarvo`,
+    eyebrow: 'Clarvo',
+    titulo: 'Antes de que te vayas...',
+    parrafos: [
+      'Vimos que cancelaste tu suscripción a Clarvo. Nos encantaría que te quedaras.',
+      `Contáctanos respondiendo este correo y platicamos una propuesta hecha para "${tenant.nombre_empresa}".`,
+    ],
   });
 
   await db.query(

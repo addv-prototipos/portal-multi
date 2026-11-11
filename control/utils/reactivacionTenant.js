@@ -215,15 +215,21 @@ async function archivarTrialsVencidosSinPago(db = obtenerPool()) {
       if (t.contacto_email) {
         const token = await obtenerOCrearTokenReactivacion(t.id, db);
         const link = `${APP_BASE_URL}/api/public/reactivacion/${token}`;
+        // Homologado al diseño del ticket de venta (auditoría de correos
+        // de salida, punto en curso): antes era texto plano sin logo ni
+        // marca — un correo con amenaza real de borrado permanente es
+        // justo donde más importa que se vea legítimo, no como phishing.
         await enviarCorreoBase({
           destinatario: t.contacto_email,
           asunto: 'Tu periodo de prueba terminó — tienes 15 días para reactivar tu cuenta',
-          cuerpo:
-            `Hola,\n\nTu periodo de prueba de Clarvo para "${t.nombre_empresa}" terminó sin que se agregara ` +
-            `un método de pago, así que pausamos tu cuenta.\n\nTus datos siguen intactos, nada se perdió. Si quieres ` +
-            `seguir usando Clarvo, agrega tu método de pago aquí dentro de los próximos ${DIAS_VIGENCIA_TOKEN} días:\n${link}\n\n` +
-            `Si no hacemos nada de tu parte en ese tiempo, tu cuenta y toda su información se eliminarán de forma ` +
-            `permanente — sin posibilidad de recuperarla después.\n\n— Clarvo`,
+          eyebrow: 'Tu cuenta Clarvo',
+          titulo: 'Tu periodo de prueba terminó',
+          parrafos: [
+            `Tu periodo de prueba de Clarvo para "${t.nombre_empresa}" terminó sin que se agregara un método de pago, así que pausamos tu cuenta.`,
+            'Tus datos siguen intactos, nada se perdió. Si quieres seguir usando Clarvo, agrega tu método de pago.',
+            `Si no hacemos nada de tu parte en los próximos ${DIAS_VIGENCIA_TOKEN} días, tu cuenta y toda su información se eliminarán de forma permanente — sin posibilidad de recuperarla después.`,
+          ],
+          cta: { href: link, texto: 'Reactivar mi cuenta' },
         }).catch((err) => console.error(`No se pudo enviar el correo de trial vencido a "${t.slug}":`, err.message));
       } else {
         console.error(`Trial vencido archivado para "${t.slug}" pero sin contacto_email — no se pudo avisar.`);

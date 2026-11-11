@@ -1204,16 +1204,31 @@ app.post('/internal/crear-admin-inicial/:slug', async (req, res) => {
     // mostrar/enviar un acceso a una superficie que su plan no incluye
     // sería engañoso (punto Stripe: "cobrar primero", correo de
     // activación tras confirmar el pago).
+    // Homologado al diseño del ticket de venta (auditoría de correos de
+    // salida, punto en curso): antes salía en texto plano sin logo ni
+    // marca — primera impresión real del cliente tras pagar. Sin tenant
+    // todavía en sesión (es el PRIMER correo que recibe), se usa el logo
+    // genérico de CLARVO — nunca Look & Feel propio, ese se resuelve
+    // hasta que el tenant tenga sesión admin real.
+    const enlacePanelBienvenida = `${urlBase}/${slug}/admin`;
+    const enlacePortalBienvenida = portalHabilitado ? `${urlBase}/${slug}/login` : null;
+    const correoBienvenida = construirCorreoBase({
+      marca: MARCA_DEFECTO,
+      eyebrow: 'Bienvenido',
+      titulo: 'Tu cuenta de Clarvo ya está lista',
+      filas: [{ etiqueta: 'Usuario', valor: escapeHtmlCorreo(nombreUsuario) }],
+      parrafos: [
+        'Tu cuenta de Clarvo ya está activa. Entra con la contraseña que elegiste al darte de alta.',
+        ...(enlacePortalBienvenida ? [`Portal para tus clientes: ${enlacePortalBienvenida}`] : []),
+      ],
+      cta: { href: enlacePanelBienvenida, texto: 'Entrar al Panel de administración' },
+    });
     enviarCorreo({
       destinatario: email,
       asunto: 'Tu cuenta de Clarvo ya está lista',
-      cuerpo:
-        'Hola,\n\nTu cuenta de Clarvo ya está activa.\n\n' +
-        `Panel de administración: ${urlBase}/${slug}/admin\n` +
-        (portalHabilitado ? `Portal para tus clientes: ${urlBase}/${slug}/login\n\n` : '\n') +
-        `Usuario: ${nombreUsuario}\n` +
-        'Entra con la contraseña que elegiste al darte de alta.\n\n' +
-        '— Clarvo',
+      cuerpo: correoBienvenida.texto,
+      html: correoBienvenida.html,
+      adjuntos: correoBienvenida.adjuntos,
     }).catch((err) => {
       // Fire-and-forget, mismo criterio que la invitación de
       // POST /api/admin/usuarios: la cuenta ya quedó creada aunque el

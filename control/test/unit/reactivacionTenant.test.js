@@ -293,7 +293,8 @@ describe('utils/reactivacionTenant.js', () => {
         expect.objectContaining({
           destinatario: 'contacto@uno.com',
           asunto: expect.stringContaining('15 días'),
-          cuerpo: expect.stringContaining('/api/public/reactivacion/'),
+          titulo: expect.any(String),
+          cta: expect.objectContaining({ href: expect.stringContaining('/api/public/reactivacion/') }),
         })
       );
       expect(resultado).toEqual({ archivados: 1, total: 1 });

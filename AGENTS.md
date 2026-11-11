@@ -133,6 +133,24 @@ solo la frase en español de la UI.
 
 ## Gotchas operativos recurrentes (leer antes de tocar Docker/nginx/CSP/tests)
 
+- **Todo correo automático nuevo DEBE usar el cascarón de marca
+  `construirCorreoBase()`, nunca `cuerpo` de texto plano** (punto 491,
+  2026-11-11): auditoría encontró 7 plantillas (5 archivos) mandando
+  correos reales en texto plano sin logo/colores — incluido el de
+  bienvenida del onboarding (`backend/server.js`,
+  `/internal/crear-admin-inicial/:slug`). Patrón correcto, ya usado por
+  los 10 correos branded existentes: desde `control/` (que nunca arma
+  HTML de correo por sí mismo) pasar `{eyebrow, titulo, parrafos, cta}` a
+  `enviarCorreoBase()` (`notificarBackend.js`) en vez de `{cuerpo:
+  'texto...'}` — el backend arma el HTML real con
+  `construirCorreoBase()` del lado del servidor
+  (`POST /internal/enviar-correo-base`). Sin tenant en contexto
+  (onboarding/trial/cancelación, pre-activación o cross-tenant), cae
+  sola al logo/colores genéricos de CLARVO — correcto, no hace falta
+  pasar `colorPrimario`/`colorAccent` ahí. Antes de agregar un
+  `enviarCorreo()`/`enviarCorreoBase()` nuevo en cualquier archivo,
+  `grep -n "cuerpo:" <archivo>` — si el valor es un string armado a mano
+  con `\n`, falta branding.
 - **`window.print()` real abre el diálogo nativo del SO, no un modal JS —
   bloquea la automatización de navegador por completo y no lo captura un
   handler de diálogos JS** (punto 487, 2026-11-07): al probar cualquier
