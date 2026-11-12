@@ -669,6 +669,11 @@ async function asegurarTablaOnboardingBorradores(db) {
     // los usa para decidir si ya toca otro o si hay que archivar.
     { nombre: 'ultimo_recordatorio_en', definicion: 'DATETIME NULL' },
     { nombre: 'intentos_recordatorio', definicion: 'INT NOT NULL DEFAULT 0' },
+    // Punto en curso (nombre real + evidencia de T&C): el onboarding
+    // nunca pedía el nombre de la persona — usuarios.nombre (backend)
+    // quedaba NULL para toda cuenta creada aquí. Un solo campo, mismo
+    // dato que ya usa "Mi Cuenta" (nunca nombre/apellidos separados).
+    { nombre: 'admin_nombre', definicion: 'VARCHAR(200) NULL' },
   ];
   for (const { nombre, definicion } of COLUMNAS_BORRADOR_PAGO) {
     if (!nombresBorradores.includes(nombre)) {
@@ -902,6 +907,25 @@ async function asegurarTablasTerminos(db) {
       KEY idx_terminos_aceptaciones_version (version_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  // Punto en curso (nombre real + evidencia de T&C): `usuario` es solo el
+  // login/RFC (puede ser un SINFISCAL-xxxx generado) — nunca prueba quién
+  // aceptó de verdad. Estas 2 columnas guardan una FOTO del nombre/correo
+  // reales de `usuarios` tomada en el instante exacto del clic en
+  // Aceptar — nunca se resuelven por JOIN contra el valor ACTUAL, porque
+  // si el cliente cambia su nombre después en Mi Cuenta, el historial
+  // legal debe seguir mostrando lo que era cierto EN ESE MOMENTO.
+  const [columnasAceptaciones] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminos_aceptaciones'`
+  );
+  const nombresAceptaciones = columnasAceptaciones.map((c) => c.COLUMN_NAME);
+  if (!nombresAceptaciones.includes('nombre_completo')) {
+    await db.query('ALTER TABLE terminos_aceptaciones ADD COLUMN nombre_completo VARCHAR(200) NULL');
+  }
+  if (!nombresAceptaciones.includes('email')) {
+    await db.query('ALTER TABLE terminos_aceptaciones ADD COLUMN email VARCHAR(200) NULL');
+  }
 }
 
 // Punto 467 — vista "Financiero" de /control: gasto operativo de la

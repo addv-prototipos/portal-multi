@@ -480,6 +480,7 @@ describe('POST /internal/crear-admin-inicial/:slug', () => {
     email: 'nuevo@cliente1.mx',
     passwordHash: 'aabbcc:112233',
     nombreUsuario: 'ADMIN1',
+    nombre: 'María Fernanda Torres López',
   };
 
   beforeAll(() => {
@@ -515,6 +516,16 @@ describe('POST /internal/crear-admin-inicial/:slug', () => {
     expect(obtenerPoolTenant).not.toHaveBeenCalled();
   });
 
+  test('sin nombre completo (o muy corto) responde 400', async () => {
+    const res = await request(app)
+      .post('/internal/crear-admin-inicial/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({ ...bodyValido, nombre: 'AB' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/nombre completo/i);
+    expect(obtenerPoolTenant).not.toHaveBeenCalled();
+  });
+
   test('tenant ya tiene un administrador: no duplica, responde yaExistia:true', async () => {
     const poolTenant = mockPoolTenant();
     poolTenant.query.mockResolvedValueOnce([[{ id: 1 }]]); // SELECT ... LIMIT 1
@@ -542,8 +553,15 @@ describe('POST /internal/crear-admin-inicial/:slug', () => {
     expect(res.status).toBe(201);
     const [sqlInsert, paramsInsert] = poolTenant.query.mock.calls[1];
     expect(sqlInsert).toMatch(/es_cuenta_raiz/);
-    expect(sqlInsert).toMatch(/VALUES \(\?, '', \?, \?, 0, 'administrador', 1, \?, \?\)/);
-    expect(paramsInsert).toEqual(['ADMIN1', 'nuevo@cliente1.mx', 'aabbcc:112233', expect.any(Date), expect.any(Date)]);
+    expect(sqlInsert).toMatch(/VALUES \(\?, '', \?, \?, 0, 'administrador', 1, \?, \?, \?\)/);
+    expect(paramsInsert).toEqual([
+      'ADMIN1',
+      'nuevo@cliente1.mx',
+      'aabbcc:112233',
+      'María Fernanda Torres López',
+      expect.any(Date),
+      expect.any(Date),
+    ]);
   });
 });
 

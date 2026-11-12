@@ -58,7 +58,7 @@ async function activarTenantFisico(slug) {
 // control/ nunca envía ni ve la contraseña en texto plano. Mismo motivo
 // de delegación que activarTenantFisico(): control_app no tiene acceso a
 // ninguna base `tenant_*`.
-async function crearAdminInicialFisico(slug, { email, passwordHash, nombreUsuario, portalHabilitado }) {
+async function crearAdminInicialFisico(slug, { email, passwordHash, nombreUsuario, nombre, portalHabilitado }) {
   const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
   const secreto = process.env.INTERNAL_CACHE_SECRET;
 
@@ -67,7 +67,7 @@ async function crearAdminInicialFisico(slug, { email, passwordHash, nombreUsuari
     res = await fetch(`${url}/internal/crear-admin-inicial/${encodeURIComponent(slug)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Internal-Secret': secreto || '' },
-      body: JSON.stringify({ email, passwordHash, nombreUsuario, portalHabilitado: portalHabilitado !== false }),
+      body: JSON.stringify({ email, passwordHash, nombreUsuario, nombre, portalHabilitado: portalHabilitado !== false }),
     });
   } catch (err) {
     throw new ErrorActivacionFisica('No se pudo conectar con el backend para crear el usuario administrador.');

@@ -1156,6 +1156,13 @@ app.post('/internal/crear-admin-inicial/:slug', async (req, res) => {
   const email = sanitizeText(body.email, 200).toLowerCase();
   const passwordHash = typeof body.passwordHash === 'string' ? body.passwordHash : '';
   const nombreUsuario = sanitizeText(body.nombreUsuario, 50).toUpperCase();
+  // Punto en curso (nombre real + evidencia de T&C): nunca se pedía el
+  // nombre de la persona al crear la cuenta raíz — usuarios.nombre
+  // quedaba NULL para siempre. El wizard de clarvo-Site ya lo exige
+  // (3+ caracteres) antes de dejar continuar — se vuelve a exigir aquí
+  // por el mismo motivo que el resto de este endpoint (nunca confiar
+  // solo en la validación del cliente).
+  const nombre = sanitizeTextoLibre(body.nombre, 200);
   const portalHabilitado = body.portalHabilitado !== false;
 
   if (!email || !isValidEmail(email)) {
@@ -1166,6 +1173,9 @@ app.post('/internal/crear-admin-inicial/:slug', async (req, res) => {
   }
   if (!nombreUsuario || !/^[A-Z0-9._-]+$/.test(nombreUsuario)) {
     return res.status(400).json({ error: 'Nombre de usuario inválido.' });
+  }
+  if (nombre.length < 3) {
+    return res.status(400).json({ error: 'El nombre completo del administrador es obligatorio.' });
   }
 
   const dbName = nombreDbTenant(slug);
@@ -1194,9 +1204,9 @@ app.post('/internal/crear-admin-inicial/:slug', async (req, res) => {
     // se quedaba sin nadie viendo "Datos de pago" en Mi Cuenta hasta que
     // alguien lo marcara a mano desde /admin → Usuarios.
     await poolTenant.query(
-      `INSERT INTO usuarios (rfc, telefono, email, password_hash, debe_cambiar_password, perfil, es_cuenta_raiz, creado_en, actualizado_en)
-       VALUES (?, '', ?, ?, 0, 'administrador', 1, ?, ?)`,
-      [nombreUsuario, email, passwordHash, ahora, ahora]
+      `INSERT INTO usuarios (rfc, telefono, email, password_hash, debe_cambiar_password, perfil, es_cuenta_raiz, nombre, creado_en, actualizado_en)
+       VALUES (?, '', ?, ?, 0, 'administrador', 1, ?, ?, ?)`,
+      [nombreUsuario, email, passwordHash, nombre, ahora, ahora]
     );
 
     const urlBase = (process.env.PUBLIC_APP_BASE_URL || 'https://clarvo.mx').replace(/\/$/, '');
@@ -5661,7 +5671,21 @@ app.get(
       usuario: req.adminUser,
     });
     if (!ok) return res.json({ pendiente: false, version: null });
-    res.json(data);
+    if (!data.pendiente) return res.json(data);
+    // Punto en curso (nombre real + evidencia de T&C): si la cuenta raíz
+    // no tiene nombre capturado (onboarding viejo, o cuenta anterior a
+    // esta mejora), el gate se lo pide ANTES de dejar aceptar — cierra el
+    // hueco retroactivo sin ninguna campaña aparte. `nombreEmpresa` es
+    // solo para el texto del checkbox ("...en nombre de <empresa>"),
+    // nunca se guarda en ningún lado por esta vía.
+    const [filasUsuario] = await pool.query('SELECT nombre FROM usuarios WHERE rfc = ? LIMIT 1', [req.adminUser]);
+    const nombreActual = (filasUsuario[0] && filasUsuario[0].nombre) || null;
+    res.json({
+      ...data,
+      nombreFaltante: !nombreActual,
+      nombreActual,
+      nombreEmpresa: req.tenant ? req.tenant.nombre_empresa : MARCA_DEFECTO,
+    });
   })
 );
 
@@ -5680,11 +5704,30 @@ app.post(
     if (!estado.ok || !estado.data.pendiente || !estado.data.version) {
       return res.status(409).json({ error: 'No hay una versión pendiente de aceptar.' });
     }
+
+    // Evidencia real de quién acepta: si la cuenta no tiene nombre
+    // capturado, lo exige aquí mismo (y lo deja guardado en su cuenta
+    // para siempre, igual que si lo hubiera llenado en Mi Cuenta) —
+    // nunca se registra una aceptación sin nombre real detrás.
+    const [filasUsuario] = await pool.query('SELECT nombre, email FROM usuarios WHERE rfc = ? LIMIT 1', [req.adminUser]);
+    const filaUsuario = filasUsuario[0] || {};
+    let nombreCompleto = filaUsuario.nombre || null;
+    if (!nombreCompleto) {
+      const nombreNuevo = sanitizeTextoLibre(req.body && req.body.nombreCompleto, 200);
+      if (nombreNuevo.length < 3) {
+        return res.status(400).json({ error: 'Tu nombre completo es obligatorio para aceptar.', codigo: 'nombre_faltante' });
+      }
+      await pool.query('UPDATE usuarios SET nombre = ?, actualizado_en = ? WHERE rfc = ?', [nombreNuevo, new Date(), req.adminUser]);
+      nombreCompleto = nombreNuevo;
+    }
+
     const aceptar = await llamarControlInterno('/internal/terminos/aceptar', {
       slug,
       usuario: req.adminUser,
       versionId: estado.data.version.id,
       ip: req.ip,
+      nombreCompleto,
+      email: filaUsuario.email || null,
     });
     if (!aceptar.ok) return res.status(aceptar.status).json({ error: aceptar.data.error || 'No se pudo registrar tu aceptación.' });
     res.json({ ok: true });

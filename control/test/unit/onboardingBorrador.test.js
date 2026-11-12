@@ -146,6 +146,26 @@ describe('utils/onboardingBorrador.js (Segmento A)', () => {
       });
     });
 
+    test('nombre completo del admin muy corto: ErrorOnboarding validacion', async () => {
+      const db = mockDb();
+      db.query.mockResolvedValueOnce([[{ id: 1 }]]);
+      await expect(actualizarBorrador('tok123', { adminNombre: 'Al' }, db)).rejects.toMatchObject({
+        codigo: 'validacion',
+      });
+    });
+
+    test('nombre completo del admin válido: hace UPDATE con admin_nombre', async () => {
+      const db = mockDb();
+      db.query.mockResolvedValueOnce([[{ id: 1 }]]);
+      db.query.mockResolvedValueOnce([{}]);
+      db.query.mockResolvedValueOnce([[filaBorrador({ admin_nombre: 'María Fernanda Torres López' })]]);
+
+      const borrador = await actualizarBorrador('tok123', { adminNombre: 'María Fernanda Torres López' }, db);
+
+      expect(db.query.mock.calls[1][0]).toMatch(/admin_nombre = \?/);
+      expect(borrador.adminNombre).toBe('María Fernanda Torres López');
+    });
+
     test('correo de contacto inválido: ErrorOnboarding validacion', async () => {
       const db = mockDb();
       db.query.mockResolvedValueOnce([[{ id: 1 }]]);

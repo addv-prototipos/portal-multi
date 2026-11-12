@@ -60,6 +60,7 @@ function mapearFila(fila) {
     contactoEmail: fila.contacto_email,
     nombreComercial: fila.nombre_comercial,
     zonaHoraria: fila.zona_horaria,
+    adminNombre: fila.admin_nombre,
     adminEmail: fila.admin_email,
     tieneContrasena: !!fila.admin_password_hash,
     pasoActual: fila.paso_actual,
@@ -194,6 +195,14 @@ async function actualizarBorrador(token, cambios = {}, db = obtenerPool()) {
     if (!zonaHoraria) throw new ErrorOnboarding('La zona horaria es obligatoria.', 'validacion');
     sets.push('zona_horaria = ?');
     valores.push(zonaHoraria);
+  }
+
+  if (cambios.adminNombre !== undefined) {
+    const adminNombre = typeof cambios.adminNombre === 'string' ? cambios.adminNombre.trim() : '';
+    if (adminNombre.length < 3) throw new ErrorOnboarding('El nombre completo es obligatorio.', 'validacion');
+    if (adminNombre.length > 200) throw new ErrorOnboarding('El nombre completo no puede superar 200 caracteres.', 'validacion');
+    sets.push('admin_nombre = ?');
+    valores.push(adminNombre);
   }
 
   if (cambios.adminEmail !== undefined) {

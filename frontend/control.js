@@ -245,6 +245,9 @@
     btnTerminosHistorialBuscar: document.getElementById('btn-terminos-historial-buscar'),
     terminosHistorialTableBody: document.getElementById('terminos-historial-table-body'),
     terminosHistorialEmpty: document.getElementById('terminos-historial-empty'),
+    terminosHistorialGlobalTableBody: document.getElementById('terminos-historial-global-table-body'),
+    terminosHistorialGlobalEmpty: document.getElementById('terminos-historial-global-empty'),
+    btnTerminosHistorialGlobalMas: document.getElementById('btn-terminos-historial-global-mas'),
     vistaEmpresas: document.getElementById('vista-control-empresas'),
     vistaPlanes: document.getElementById('vista-control-planes'),
     vistaPapelera: document.getElementById('vista-control-papelera'),
@@ -4640,6 +4643,7 @@
       if (res.status === 401) { clearSession(); showLogin(); return; }
       const data = await res.json();
       renderTerminos(data.items || []);
+      cargarTerminosHistorialGlobal(false);
     } catch {
       els.terminosError.textContent = 'No se pudo cargar el historial de versiones.';
     }
@@ -4719,6 +4723,8 @@
         els.terminosHistorialEmpty.hidden = items.length > 0;
         els.terminosHistorialTableBody.innerHTML = items.map((h) => `<tr>
           <td>${escapeHtml(h.usuario)}</td>
+          <td>${h.nombre_completo ? escapeHtml(h.nombre_completo) : '—'}</td>
+          <td>${h.email ? escapeHtml(h.email) : '—'}</td>
           <td>v${escapeHtml(h.version)}</td>
           <td>${formatearFechaHoraMx(h.aceptado_en)}</td>
           <td>${h.ip ? escapeHtml(h.ip) : '—'}</td>
@@ -4727,6 +4733,50 @@
         showToast('No se pudo cargar el historial de ese cliente.', true);
       }
     });
+  }
+
+  // Historial GLOBAL (todas las empresas) — punto en curso (nombre real +
+  // evidencia de T&C): se carga solo al abrir la vista, sin que haga
+  // falta escribir ningún slug — es la foto completa de "quién aceptó
+  // qué, cuándo" lista para exhibir como evidencia. Paginado simple con
+  // "Cargar más" (nunca recarga lo ya mostrado, solo acumula).
+  let terminosHistorialGlobalOffset = 0;
+  const TERMINOS_HISTORIAL_GLOBAL_LIMITE = 50;
+
+  async function cargarTerminosHistorialGlobal(acumular) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    if (!acumular) terminosHistorialGlobalOffset = 0;
+    try {
+      const res = await fetch(
+        `${API_BASE}/terminos/historial-global?limit=${TERMINOS_HISTORIAL_GLOBAL_LIMITE}&offset=${terminosHistorialGlobalOffset}`,
+        { headers: { Authorization: authHeader } }
+      );
+      if (res.status === 401) { clearSession(); showLogin(); return; }
+      const data = await res.json();
+      const items = data.items || [];
+      const filas = items.map((h) => `<tr>
+        <td>${escapeHtml(h.nombre_empresa)}</td>
+        <td>${h.nombre_completo ? escapeHtml(h.nombre_completo) : '—'}</td>
+        <td>${h.email ? escapeHtml(h.email) : '—'}</td>
+        <td>${h.ip ? escapeHtml(h.ip) : '—'}</td>
+        <td>${formatearFechaHoraMx(h.aceptado_en)}</td>
+        <td>v${escapeHtml(h.version)}</td>
+      </tr>`).join('');
+      els.terminosHistorialGlobalTableBody.innerHTML = acumular
+        ? els.terminosHistorialGlobalTableBody.innerHTML + filas
+        : filas;
+      terminosHistorialGlobalOffset += items.length;
+      const totalMostrado = terminosHistorialGlobalOffset;
+      els.terminosHistorialGlobalEmpty.hidden = totalMostrado > 0;
+      els.btnTerminosHistorialGlobalMas.hidden = totalMostrado >= (data.total || 0);
+    } catch {
+      showToast('No se pudo cargar el historial de aceptaciones.', true);
+    }
+  }
+
+  if (els.btnTerminosHistorialGlobalMas) {
+    els.btnTerminosHistorialGlobalMas.addEventListener('click', () => cargarTerminosHistorialGlobal(true));
   }
 
   // ---------- Sección E (propuesta E1): reporte de cancelaciones ----------

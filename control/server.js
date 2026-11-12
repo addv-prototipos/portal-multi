@@ -124,6 +124,7 @@ const {
   registrarAceptacion: registrarAceptacionTerminos,
   obtenerEstadoParaTenant,
   listarHistorialTenant,
+  listarHistorialGlobal,
 } = require('./utils/terminosCondiciones');
 const {
   ErrorGastoOperativo,
@@ -2245,11 +2246,27 @@ app.post('/internal/terminos/estado', asyncHandler(async (req, res) => {
 
 app.post('/internal/terminos/aceptar', asyncHandler(async (req, res) => {
   if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
-  const { slug, usuario, versionId, ip } = req.body || {};
+  const { slug, usuario, versionId, ip, nombreCompleto, email } = req.body || {};
   if (!usuario || !versionId) return res.status(400).json({ error: 'usuario y versionId son obligatorios.' });
-  await registrarAceptacionTerminos({ tenantSlug: slug || null, usuario, versionId, ip });
+  await registrarAceptacionTerminos({ tenantSlug: slug || null, usuario, versionId, ip, nombreCompleto, email });
   res.json({ ok: true });
 }));
+
+// Historial GLOBAL (todas las empresas) — vista nueva "Historial de
+// aceptaciones", mismo guardia exacto que los otros 2 endpoints de T&C
+// de arriba (publicar versión / historial por tenant).
+app.get(
+  '/api/control/terminos/historial-global',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const limit = Number(req.query.limit) || 50;
+    const offset = Number(req.query.offset) || 0;
+    const { filas, total } = await listarHistorialGlobal({ limit, offset });
+    res.json({ items: filas, total, limit, offset });
+  })
+);
 
 // SMTP default de la plataforma: backend/ (tenants y sitio base sin
 // configuración propia) llama aquí vía llamarControlInterno() para

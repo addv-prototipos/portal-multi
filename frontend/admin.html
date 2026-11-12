@@ -5470,9 +5470,20 @@
       <div class="terminos-gate-scroll" id="terminos-gate-scroll"></div>
       <div class="terminos-gate-foot">
         <p class="field-error" id="terminos-gate-error" role="alert"></p>
+        <div class="field-error aviso-cuota" id="terminos-gate-nombre-aviso" hidden>
+          <span class="aviso-cuota-icono" id="terminos-gate-nombre-aviso-icono"></span>
+          <span class="aviso-cuota-texto">
+            <span class="aviso-cuota-titulo">Nos falta tu nombre completo</span>
+            <span class="aviso-cuota-cuerpo">Para dejar constancia de quién acepta, escríbelo antes de continuar.</span>
+          </span>
+        </div>
+        <div class="field" id="terminos-gate-nombre-field" hidden>
+          <label for="terminos-gate-nombre-input">Tu nombre completo</label>
+          <input type="text" id="terminos-gate-nombre-input" autocomplete="name" maxlength="200" />
+        </div>
         <label class="terminos-gate-accept-row">
           <input type="checkbox" id="terminos-gate-chk" disabled />
-          He llegado al final y acepto estos Términos y Condiciones en nombre de mi empresa.
+          <span id="terminos-gate-cita">He llegado al final y acepto estos Términos y Condiciones en nombre de mi empresa.</span>
         </label>
         <div class="btn-row">
           <button type="button" class="btn btn-primary" id="terminos-gate-btn" disabled>Entrar a mi administración</button>

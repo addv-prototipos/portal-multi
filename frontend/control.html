@@ -1402,6 +1402,19 @@
             </div>
           </div>
 
+          <h2 class="tema-grupo-titulo" style="margin:28px 0 10px;font-size:15px;">Historial de aceptaciones (todas las empresas)</h2>
+          <p class="field-hint" style="margin:-6px 0 12px;">Evidencia real de quién aceptó qué versión — nombre y correo son la foto tomada en el momento del clic, no el dato actual de la cuenta.</p>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>Empresa</th><th>Nombre completo</th><th>Correo</th><th>IP</th><th>Fecha</th><th>Versión</th></tr></thead>
+              <tbody id="terminos-historial-global-table-body"></tbody>
+            </table>
+          </div>
+          <p class="admin-empty-state" id="terminos-historial-global-empty" hidden>Todavía no hay ninguna aceptación registrada.</p>
+          <div class="btn-row" style="margin-top:10px;">
+            <button type="button" class="btn btn-secondary" id="btn-terminos-historial-global-mas" hidden>Cargar más</button>
+          </div>
+
           <h2 class="tema-grupo-titulo" style="margin:28px 0 10px;font-size:15px;">Historial de aceptación por cliente</h2>
           <div class="control-form-grid" style="max-width:480px;align-items:end;">
             <div class="field">
@@ -1414,7 +1427,7 @@
           </div>
           <div class="admin-table-wrap">
             <table class="admin-table">
-              <thead><tr><th>Usuario</th><th>Versión</th><th>Fecha</th><th>IP</th></tr></thead>
+              <thead><tr><th>Usuario</th><th>Nombre completo</th><th>Correo</th><th>Versión</th><th>Fecha</th><th>IP</th></tr></thead>
               <tbody id="terminos-historial-table-body"></tbody>
             </table>
           </div>

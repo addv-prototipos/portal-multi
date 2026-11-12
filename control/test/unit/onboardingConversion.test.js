@@ -58,6 +58,7 @@ function filaBorradorCompleta(extra = {}) {
     zona_horaria: 'America/Mexico_City',
     admin_email: 'admin@tacos.com',
     admin_password_hash: 'abcd1234:ef567890',
+    admin_nombre: 'María Fernanda Torres López',
     paso_actual: 'completado',
     estado: 'activo',
     ...extra,
@@ -109,7 +110,12 @@ describe('utils/onboardingConversion.js (Segmento B)', () => {
     );
     expect(crearAdminInicialFisico).toHaveBeenCalledWith(
       'tacos-el-buen-sabor',
-      expect.objectContaining({ email: 'admin@tacos.com', passwordHash: 'abcd1234:ef567890', nombreUsuario: 'ADMIN' })
+      expect.objectContaining({
+        email: 'admin@tacos.com',
+        passwordHash: 'abcd1234:ef567890',
+        nombreUsuario: 'ADMIN',
+        nombre: 'María Fernanda Torres López',
+      })
     );
     expect(resultado).toEqual({
       slug: 'tacos-el-buen-sabor',

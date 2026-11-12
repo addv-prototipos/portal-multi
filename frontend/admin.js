@@ -1322,6 +1322,11 @@
     terminosGateChk: document.getElementById('terminos-gate-chk'),
     terminosGateBtn: document.getElementById('terminos-gate-btn'),
     terminosGateError: document.getElementById('terminos-gate-error'),
+    terminosGateNombreAviso: document.getElementById('terminos-gate-nombre-aviso'),
+    terminosGateNombreAvisoIcono: document.getElementById('terminos-gate-nombre-aviso-icono'),
+    terminosGateNombreField: document.getElementById('terminos-gate-nombre-field'),
+    terminosGateNombreInput: document.getElementById('terminos-gate-nombre-input'),
+    terminosGateCita: document.getElementById('terminos-gate-cita'),
     configFiscalFaltanteOverlay: document.getElementById('config-fiscal-faltante-overlay'),
     btnConfigFiscalFaltanteCerrar: document.getElementById('btn-config-fiscal-faltante-cerrar'),
     globalConfigError: document.getElementById('global-config-error'),
@@ -4431,6 +4436,12 @@
   // más abajo); aquí se agrega un nivel encima con el mismo criterio para
   // que ninguno pueda aparecer MIENTRAS este gate esté abierto.
   let terminosGateAbierta = false;
+  // Punto en curso (nombre real + evidencia de T&C): si la cuenta raíz
+  // no tiene nombre capturado, el gate lo exige antes de dejar marcar el
+  // checkbox — ambas condiciones (scroll completo Y nombre válido, si se
+  // pide) se revisan juntas en actualizarEstadoChkTerminos().
+  let terminosGateNombreVisible = false;
+  let terminosGateScrollCompleto = false;
   // La llamada a /api/admin/terminos/pendiente es async (red real) — sin
   // esta bandera, el tour/aviso fiscal/aviso de suscripción (todos
   // síncronos o casi) ganaban la carrera y se mostraban ANTES de que el
@@ -4468,6 +4479,15 @@
       els.terminosGateChk.disabled = true;
       els.terminosGateBtn.disabled = true;
       els.terminosGateError.textContent = '';
+      terminosGateScrollCompleto = false;
+      terminosGateNombreVisible = !!data.nombreFaltante;
+      if (els.terminosGateNombreAviso) els.terminosGateNombreAviso.hidden = !terminosGateNombreVisible;
+      if (els.terminosGateNombreField) els.terminosGateNombreField.hidden = !terminosGateNombreVisible;
+      if (els.terminosGateNombreAvisoIcono && !els.terminosGateNombreAvisoIcono.innerHTML) {
+        els.terminosGateNombreAvisoIcono.innerHTML = ICONO_ALERTA_CUOTA;
+      }
+      if (els.terminosGateNombreInput) els.terminosGateNombreInput.value = '';
+      actualizarCitaTerminos();
       terminosGateAbierta = true;
       els.terminosGateOverlay.hidden = false;
     } catch (_) {
@@ -4497,6 +4517,35 @@
     }
   }
 
+  // Punto en curso (nombre real + evidencia de T&C): el checkbox solo se
+  // habilita cuando AMBAS condiciones se cumplen — scroll completo Y
+  // (nombre no requerido O nombre válido ya escrito). Si el nombre deja
+  // de ser válido después de haberse habilitado (el usuario lo borra),
+  // se vuelve a deshabilitar y se desmarca — nunca queda una aceptación
+  // "a medias" habilitada por un estado viejo.
+  function actualizarEstadoChkTerminos() {
+    const nombreOk =
+      !terminosGateNombreVisible ||
+      (els.terminosGateNombreInput && els.terminosGateNombreInput.value.trim().length >= 3);
+    const habilitar = terminosGateScrollCompleto && nombreOk;
+    els.terminosGateChk.disabled = !habilitar;
+    if (!habilitar) {
+      els.terminosGateChk.checked = false;
+      els.terminosGateBtn.disabled = true;
+    }
+  }
+
+  // Cita el nombre real en vivo mientras se escribe — en cuanto hay algo
+  // escrito, el checkbox deja de ser un texto genérico ("en nombre de mi
+  // empresa") y pasa a nombrar a la persona real ("Yo, <nombre>, ...").
+  function actualizarCitaTerminos() {
+    if (!els.terminosGateCita) return;
+    const nombre = terminosGateNombreVisible && els.terminosGateNombreInput ? els.terminosGateNombreInput.value.trim() : '';
+    els.terminosGateCita.textContent = nombre
+      ? `Yo, ${nombre}, he llegado al final y acepto estos Términos y Condiciones en nombre de mi empresa.`
+      : 'He llegado al final y acepto estos Términos y Condiciones en nombre de mi empresa.';
+  }
+
   if (els.terminosGateScroll) {
     els.terminosGateScroll.addEventListener('scroll', () => {
       const el = els.terminosGateScroll;
@@ -4504,7 +4553,17 @@
       const pct = max <= 0 ? 100 : Math.min(100, Math.round((el.scrollTop / max) * 100));
       els.terminosGateFill.style.width = `${pct}%`;
       els.terminosGatePct.textContent = `${pct}% leído`;
-      if (pct >= 99) els.terminosGateChk.disabled = false;
+      if (pct >= 99) {
+        terminosGateScrollCompleto = true;
+        actualizarEstadoChkTerminos();
+      }
+    });
+  }
+
+  if (els.terminosGateNombreInput) {
+    els.terminosGateNombreInput.addEventListener('input', () => {
+      actualizarCitaTerminos();
+      actualizarEstadoChkTerminos();
     });
   }
 
@@ -4525,7 +4584,15 @@
         return;
       }
       try {
-        const res = await fetch(`${API_BASE}/admin/terminos/aceptar`, { method: 'POST', headers: { Authorization: authHeader } });
+        const bodyAceptar = {};
+        if (terminosGateNombreVisible && els.terminosGateNombreInput) {
+          bodyAceptar.nombreCompleto = els.terminosGateNombreInput.value.trim();
+        }
+        const res = await fetch(`${API_BASE}/admin/terminos/aceptar`, {
+          method: 'POST',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyAceptar),
+        });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           els.terminosGateError.textContent = data.error || 'No se pudo registrar tu aceptación — intenta de nuevo.';

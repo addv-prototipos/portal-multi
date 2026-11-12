@@ -50,10 +50,24 @@ async function publicarVersion({ version, contenido, resumenCambios, publicadoPo
   return resultado.insertId;
 }
 
-async function registrarAceptacion({ tenantSlug, usuario, versionId, ip }) {
+// `nombreCompleto`/`email`: foto del nombre/correo reales de `usuarios`
+// en el instante del clic — el backend los resuelve y los manda aquí,
+// nunca se leen por JOIN contra el valor actual (ver nota en
+// ensureSchema.js:asegurarTablasTerminos). Pueden venir null (cuenta sin
+// nombre capturado) — nunca bloquea el registro de la aceptación en sí.
+async function registrarAceptacion({ tenantSlug, usuario, versionId, ip, nombreCompleto, email }) {
   await obtenerPool().query(
-    'INSERT INTO terminos_aceptaciones (tenant_slug, usuario, version_id, aceptado_en, ip) VALUES (?, ?, ?, ?, ?)',
-    [tenantSlug || SLUG_SITIO_BASE, String(usuario || '').trim(), versionId, new Date(), ip || null]
+    `INSERT INTO terminos_aceptaciones (tenant_slug, usuario, version_id, aceptado_en, ip, nombre_completo, email)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      tenantSlug || SLUG_SITIO_BASE,
+      String(usuario || '').trim(),
+      versionId,
+      new Date(),
+      ip || null,
+      nombreCompleto ? String(nombreCompleto).trim().slice(0, 200) : null,
+      email ? String(email).trim().slice(0, 200) : null,
+    ]
   );
 }
 
@@ -84,7 +98,7 @@ async function obtenerEstadoParaTenant({ tenantSlug, usuario }) {
 async function listarHistorialTenant(tenantSlug) {
   const slug = tenantSlug || SLUG_SITIO_BASE;
   const [filas] = await obtenerPool().query(
-    `SELECT a.usuario, a.aceptado_en, a.ip, v.version, v.resumen_cambios
+    `SELECT a.usuario, a.nombre_completo, a.email, a.aceptado_en, a.ip, v.version, v.resumen_cambios
      FROM terminos_aceptaciones a
      JOIN terminos_versiones v ON v.id = a.version_id
      WHERE a.tenant_slug = ?
@@ -92,6 +106,31 @@ async function listarHistorialTenant(tenantSlug) {
     [slug]
   );
   return filas;
+}
+
+// Historial GLOBAL (todas las empresas) para la vista nueva de /control —
+// "Historial de aceptaciones" dentro de la misma sección donde ya se
+// publican versiones. JOIN contra `tenants` (misma BD, control_tenants)
+// solo para mostrar el nombre de la empresa — nunca se resuelve el
+// nombre/correo del ACEPTANTE por JOIN, esos siempre vienen de la foto
+// guardada en el momento (nombre_completo/email de esta misma tabla).
+// `tenant_slug = '__base__'` (sitio base, sin tenant) no tiene fila en
+// `tenants` — LEFT JOIN + COALESCE para que esa fila siga apareciendo.
+async function listarHistorialGlobal({ limit = 50, offset = 0 } = {}) {
+  const limiteSeguro = Math.min(Math.max(Number(limit) || 50, 1), 200);
+  const offsetSeguro = Math.max(Number(offset) || 0, 0);
+  const [filas] = await obtenerPool().query(
+    `SELECT a.tenant_slug, COALESCE(t.nombre_empresa, 'Sitio base ADDV') AS nombre_empresa,
+            a.usuario, a.nombre_completo, a.email, a.aceptado_en, a.ip, v.version
+     FROM terminos_aceptaciones a
+     JOIN terminos_versiones v ON v.id = a.version_id
+     LEFT JOIN tenants t ON t.slug = a.tenant_slug
+     ORDER BY a.aceptado_en DESC
+     LIMIT ? OFFSET ?`,
+    [limiteSeguro, offsetSeguro]
+  );
+  const [[{ total }]] = await obtenerPool().query('SELECT COUNT(*) AS total FROM terminos_aceptaciones');
+  return { filas, total };
 }
 
 module.exports = {
@@ -103,4 +142,5 @@ module.exports = {
   registrarAceptacion,
   obtenerEstadoParaTenant,
   listarHistorialTenant,
+  listarHistorialGlobal,
 };

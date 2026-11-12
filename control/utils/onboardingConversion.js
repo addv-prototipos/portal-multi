@@ -175,6 +175,7 @@ async function convertirBorrador(
       email: borrador.admin_email,
       passwordHash: borrador.admin_password_hash,
       nombreUsuario: derivarNombreUsuario(borrador.admin_email),
+      nombre: borrador.admin_nombre,
       portalHabilitado: !planResuelto || !!planResuelto.portal_clientes_habilitado,
     });
   } catch (err) {
