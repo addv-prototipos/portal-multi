@@ -1043,6 +1043,40 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   script con `DB_HOST=127.0.0.1 DB_PORT=3307`, y borrar el override +
   recrear `mysql-control` al terminar — nunca dejar ese puerto expuesto
   de forma permanente sin que el usuario lo pida explícito.
+- **Correr un script de `backend/scripts/` contra producción real (Swarm):
+  una red overlay NO es "attachable" por `docker run`** (punto 495,
+  2026-11-12) — `docker run --network clarvo_fiscal-net ...` revienta con
+  `PermissionDenied: network ... not manually attachable`. La única vía
+  real es un **servicio Swarm efímero**: `docker service create --network
+  clarvo_fiscal-net --restart-condition=none --mount
+  type=bind,src=/opt/clarvo/backend/scripts,dst=/usr/src/app/scripts,readonly
+  clrv-backend:latest node scripts/<script>.js --confirmar` (el mount
+  SOLO de `scripts/` basta — el resto del código/`node_modules` ya vive en
+  la imagen; `scripts/` se excluye vía `.dockerignore` a propósito). Leer
+  con `docker service logs <nombre>`, limpiar con `docker service rm
+  <nombre>` SIEMPRE al terminar (éxito o error) — nunca dejar el servicio
+  efímero huérfano en `docker service ls`. La variable del password de
+  MySQL en `/opt/clarvo/.env` es **`MYSQL_PASSWORD`**, nunca `DB_PASSWORD`
+  (ese es el nombre que sí espera el código — `docker-stack.yml` hace el
+  mapeo) — pasarle el nombre equivocado como env var del contenedor
+  efímero da `Access denied ... (using password: NO)`, no un error de
+  variable inexistente. Cualquier script de siembra/mantenimiento que
+  escriba en la BD de UN tenant debe validar `DB_NAME` con prefijo
+  `tenant_` antes de borrar nada (ver
+  `sembrar-mas-computo.js:borrarDatosTransaccionales()`) — nunca confiar
+  en que el env var de afuera esté bien apuntado.
+- **Un plan del catálogo de `/control` puede diverger del default que
+  `ensureSchema.js` siembra la primera vez** (punto 495) — ese INSERT solo
+  corre si la tabla `planes` está vacía; un operador pudo editarlo después
+  desde la UI de `/control` → Planes. Antes de asumir qué incluye un plan
+  real (ej. para armar datos de demo o explicarle algo al usuario),
+  consultar `SELECT * FROM control_tenants.planes WHERE id=<n>` en
+  producción — nunca el `INSERT` default de `ensureSchema.js` como fuente
+  de verdad. Caso real: CLARVO Crece en producción tiene
+  `sucursales_habilitado=0` (el default dice 1) y
+  `reportes_eliminados_habilitado`/`reportes_estado_tickets_habilitado=1`
+  (el default dice 0) — exactamente al revés de lo que el código fuente
+  sugiere.
 - **Bloqueo por suscripción (punto 417): `adminPerfil === 'super'` NO es
   lo mismo que "el super admin real"** — `api_credencial`/`api_clave`
   (acceso tenant-scoped) también reciben `adminPerfil = 'super'`, pero
