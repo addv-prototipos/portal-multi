@@ -30218,3 +30218,82 @@ nunca lanzar con un `subscription_id`/token inexistente — forzar una
 excepción real habría requerido un payload malformado sin ningún
 beneficio adicional sobre lo que ya cubren los 9 tests unitarios de esa
 función). Logs limpios, servicio 1/1 sano, sitio en 200 tras el deploy.
+
+## Punto 493 - Nombre real del titular + evidencia legal de aceptación de Términos y Condiciones, desplegado y validado en producción real (12 nov 2026, CERRADO)
+
+Defecto real reportado por el usuario: la cuenta raíz podía aceptar
+Términos y Condiciones sin que el sistema supiera quién era de verdad —
+`terminos_aceptaciones` solo guardaba el login/RFC (puede ser un
+`SINFISCAL-xxxx` generado) y el onboarding nunca pedía el nombre de la
+persona (`usuarios.nombre` quedaba NULL siempre). Pedido textual del
+usuario: "si no puedo demostrar que aceptó los términos, no me sirve
+tenerlos".
+
+**4 segmentos, confirmados por el usuario tras propuesta visual
+(Artifact) con antes/después de los 3 puntos de UI tocados:**
+
+- **A — Onboarding** (`clarvo-Site/OnboardingModal.tsx` +
+  `control/utils/onboardingBorrador.js`/`onboardingConversion.js` +
+  `backend/server.js`): un solo campo "Nombre completo" (mismo dato que
+  ya usa Mi Cuenta, nunca nombre/apellidos separados — decisión explícita
+  del usuario entre las opciones ofrecidas) en el paso 4/5 del wizard,
+  propagado hasta `usuarios.nombre` al crear la cuenta raíz.
+- **B — Snapshot legal**: `terminos_aceptaciones` gana
+  `nombre_completo`+`email`, foto del nombre/correo reales tomada en el
+  instante exacto del clic en Aceptar — nunca resuelta por JOIN contra el
+  valor ACTUAL (si el cliente cambia su nombre después en Mi Cuenta, el
+  historial legal sigue mostrando lo que era cierto entonces).
+- **C — Gate retroactivo** (`frontend/admin.js`/`admin.html`): si la
+  cuenta raíz no tiene nombre capturado (onboarding viejo, o cuenta
+  anterior a este punto), el propio gate de T&C lo pide ahí mismo antes
+  de dejar aceptar, y cita el nombre real en vivo en el checkbox ("Yo,
+  &lt;nombre&gt;, he llegado al final y acepto..."). Decisión explícita
+  del usuario (vs. "solo aplica hacia adelante").
+- **D — Historial de aceptaciones** (`frontend/control.js`/`control.html`,
+  `GET /api/control/terminos/historial-global`): vista nueva cross-tenant
+  en `/control` → Términos y Condiciones, evidencia exhibible (empresa,
+  nombre, correo, IP, fecha, versión) — decisión explícita del usuario
+  ("Sí, agrégalo ahora").
+
+**Back-compat crítico, corregido ANTES de desplegar (encontrado en
+revisión propia, no por el usuario)**: la primera versión de
+`backend/server.js:/internal/crear-admin-inicial/:slug` rechazaba con
+400 si faltaba el nombre — esto habría roto la conversión de cualquier
+borrador OXXO/SPEI creado ANTES de este deploy (ficha vigente hasta 3
+días) en cuanto el webhook de Stripe la disparara: el pago ya cobrado se
+habría quedado sin tenant aprovisionado. Corregido a aceptar sin
+rechazar (guarda NULL, igual que siempre) — el gate retroactivo (Segmento
+C) es quien cierra ese hueco después, nunca el endpoint de
+aprovisionamiento.
+
+**Pruebas**: 3 archivos de test nuevos (`backend/test/integration/
+terminos.test.js`, `control/test/integration/terminosHistorialGlobal.test.js`,
+`control/test/unit/terminosCondiciones.test.js`) + ajustes a los
+existentes. Suite completa `control` 621/621, `backend` 1389/1390 (1 rojo
+preexistente, no relacionado).
+
+**Validado en producción real, no solo en Jest ni en Docker local**:
+1. Clic real en `/panes/admin` (tenant real, cuenta `PAN` sin nombre
+   capturado) contra el stack local reconstruido — el gate pidió el
+   nombre, lo citó en vivo, lo guardó en `usuarios.nombre` y en el
+   snapshot (`terminos_aceptaciones`, versión 4). Confirmado en BD real
+   (acentos correctos, UTF-8, el mojibake visto en la terminal `mysql`
+   era solo un artefacto de charset del cliente CLI, no corrupción real).
+2. Historial global confirmado real en `/control` → Términos y
+   Condiciones con la fila de `PAN` completa.
+3. Deploy a Vultr: backup real de MySQL (primary+control) antes de tocar
+   esquema, modo mantenimiento activo durante el rebuild de
+   backend+control+frontend, columnas nuevas (`admin_nombre`,
+   `nombre_completo`, `email`) confirmadas migradas en producción real
+   vía `SHOW COLUMNS`, checksums md5 verificados idénticos en los 8
+   archivos tocados, logs limpios, los 3 servicios 1/1 sanos.
+4. `clarvo-Site` desplegado por separado (`/opt/clarvo-site`, `docker
+   compose` normal, no Swarm — `./actualizar.sh`, el script estándar del
+   repo, reportó `/health` OK por sí solo) y **confirmado real en
+   `clarvo.mx` en vivo**: wizard real (modo producción de Stripe activo,
+   precios reales) avanzado hasta el paso 4/5, campo "Nombre completo"
+   presente — cerrado sin pagar (sin tocar Stripe), borrador de
+   verificación limpiado de la BD real al terminar.
+
+Commits: `2bf5008` (feature), `c5e00c6` (corrección de back-compat) en
+`portalFac`; `8eaf194` en `clarvo-Site` (rama `sitioOficial`).
