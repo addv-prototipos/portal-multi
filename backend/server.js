@@ -1159,9 +1159,14 @@ app.post('/internal/crear-admin-inicial/:slug', async (req, res) => {
   // Punto en curso (nombre real + evidencia de T&C): nunca se pedía el
   // nombre de la persona al crear la cuenta raíz — usuarios.nombre
   // quedaba NULL para siempre. El wizard de clarvo-Site ya lo exige
-  // (3+ caracteres) antes de dejar continuar — se vuelve a exigir aquí
-  // por el mismo motivo que el resto de este endpoint (nunca confiar
-  // solo en la validación del cliente).
+  // (3+ caracteres) antes de dejar continuar, PERO esto nunca se
+  // rechaza con 400 aquí: un borrador OXXO/SPEI creado ANTES de este
+  // despliegue (ficha vigente hasta 3 días) no tiene admin_nombre, y su
+  // conversión real llega después, disparada por el webhook de Stripe
+  // — rechazarla rompería un pago real ya cobrado. Si no llega nombre
+  // válido, usuarios.nombre se queda NULL (igual que siempre) y el gate
+  // de Términos y Condiciones lo pide después (cierre retroactivo, ver
+  // ese mecanismo) — nunca bloquea el aprovisionamiento.
   const nombre = sanitizeTextoLibre(body.nombre, 200);
   const portalHabilitado = body.portalHabilitado !== false;
 
@@ -1173,9 +1178,6 @@ app.post('/internal/crear-admin-inicial/:slug', async (req, res) => {
   }
   if (!nombreUsuario || !/^[A-Z0-9._-]+$/.test(nombreUsuario)) {
     return res.status(400).json({ error: 'Nombre de usuario inválido.' });
-  }
-  if (nombre.length < 3) {
-    return res.status(400).json({ error: 'El nombre completo del administrador es obligatorio.' });
   }
 
   const dbName = nombreDbTenant(slug);
@@ -1206,7 +1208,7 @@ app.post('/internal/crear-admin-inicial/:slug', async (req, res) => {
     await poolTenant.query(
       `INSERT INTO usuarios (rfc, telefono, email, password_hash, debe_cambiar_password, perfil, es_cuenta_raiz, nombre, creado_en, actualizado_en)
        VALUES (?, '', ?, ?, 0, 'administrador', 1, ?, ?, ?)`,
-      [nombreUsuario, email, passwordHash, nombre, ahora, ahora]
+      [nombreUsuario, email, passwordHash, nombre || null, ahora, ahora]
     );
 
     const urlBase = (process.env.PUBLIC_APP_BASE_URL || 'https://clarvo.mx').replace(/\/$/, '');

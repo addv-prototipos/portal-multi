@@ -516,14 +516,24 @@ describe('POST /internal/crear-admin-inicial/:slug', () => {
     expect(obtenerPoolTenant).not.toHaveBeenCalled();
   });
 
-  test('sin nombre completo (o muy corto) responde 400', async () => {
+  test('sin nombre completo (borrador OXXO/SPEI creado antes del campo): nunca rechaza, guarda NULL', async () => {
+    // Back-compat real: un borrador con ficha OXXO vigente hasta 3 días,
+    // creado ANTES de que el wizard pidiera el nombre, no debe romper su
+    // conversión cuando el webhook de Stripe la dispare después — el
+    // gate de T&C lo pide retroactivo más tarde, nunca aquí con un 400.
+    const poolTenant = mockPoolTenant();
+    poolTenant.query.mockResolvedValueOnce([[]]); // SELECT ... LIMIT 1: sin fila
+    poolTenant.query.mockResolvedValueOnce([{ insertId: 1 }]); // INSERT
+
+    const { nombre, ...sinNombre } = bodyValido;
     const res = await request(app)
       .post('/internal/crear-admin-inicial/cliente1')
       .set('X-Internal-Secret', 'secreto-de-prueba')
-      .send({ ...bodyValido, nombre: 'AB' });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/nombre completo/i);
-    expect(obtenerPoolTenant).not.toHaveBeenCalled();
+      .send(sinNombre);
+
+    expect(res.status).toBe(201);
+    const [, paramsInsert] = poolTenant.query.mock.calls[1];
+    expect(paramsInsert[3]).toBeNull(); // nombre guardado como NULL, nunca ''
   });
 
   test('tenant ya tiene un administrador: no duplica, responde yaExistia:true', async () => {
