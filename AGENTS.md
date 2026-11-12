@@ -991,6 +991,40 @@ solo la frase en español de la UI.
     guardado, con la respuesta real del servidor. Cualquier flag asi debe
     refrescarse en todo call site que reciba datos frescos que puedan
     cambiarlo.
+- **Cloudflare Turnstile reemplazado por Google reCAPTCHA v2 Checkbox**
+  (punto 494, 2026-11-12): `control/utils/turnstile.js` →
+  `control/utils/recaptcha.js`, var `TURNSTILE_SECRET_KEY` →
+  `RECAPTCHA_SECRET_KEY`, frontend `clarvo-Site`
+  `TurnstileWidget.tsx` → `RecaptchaWidget.tsx`. Si se encuentra código o
+  docs que mencionen Turnstile fuera de un comentario histórico, es
+  rastro de antes de este punto.
+- **NUNCA subir un `.env` de `VULTR/` a producción sin diffearlo primero
+  contra el que YA está corriendo en el servidor** (punto 496, incidente
+  real, 2026-11-12): un `scp` de la copia local (que puede divergir si
+  una sesión anterior agregó algo DIRECTO en el servidor sin
+  sincronizarlo de vuelta) borró en silencio `STRIPE_SECRET_KEY_LIVE`/
+  `STRIPE_PUBLISHABLE_KEY_LIVE`, rompiendo cobros reales en producción
+  hasta que el usuario lo notó. Patrón obligatorio:
+  `ssh ... "cat /opt/clarvo/.env" > /tmp/servidor.env.tmp` →
+  `diff <(sort /tmp/servidor.env.tmp) <(sort VULTR/.env)` → borrar el
+  temporal → solo entonces subir. Si el servidor tiene una variable que
+  el local no, copiarla al local ANTES de subir.
+- **Correr un script de `backend/scripts/` contra producción (Swarm): una
+  red overlay no es "attachable" por `docker run`** (punto 495,
+  2026-11-12) — usar un servicio Swarm efímero (`docker service create
+  --network clarvo_fiscal-net --restart-condition=none --mount
+  type=bind,src=/opt/clarvo/backend/scripts,dst=/usr/src/app/scripts,readonly
+  clrv-backend:latest node scripts/<script>.js --confirmar`), leer con
+  `docker service logs <nombre>`, limpiar con `docker service rm
+  <nombre>` SIEMPRE al terminar. La variable del password de MySQL en
+  `/opt/clarvo/.env` es `MYSQL_PASSWORD`, nunca `DB_PASSWORD` (ese es el
+  nombre que espera el código, mapeado en `docker-stack.yml`).
+- **El catálogo real de planes (`control_tenants.planes`) puede diverger
+  del default que siembra `ensureSchema.js`** (punto 495) — ese `INSERT`
+  solo corre si la tabla está vacía; un operador pudo editarlo después
+  desde `/control` → Planes. Antes de asumir qué incluye un plan real,
+  `SELECT * FROM control_tenants.planes WHERE id=<n>` en producción —
+  nunca el default del seed como fuente de verdad.
 
 ## Stack
 

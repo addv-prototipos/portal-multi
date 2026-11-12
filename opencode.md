@@ -253,6 +253,20 @@ Los de mayor impacto:
     cambiar de modo.
 20. **`usuarios.email` es único solo para `perfil='cliente'`.** Toda query
     de cliente por email lleva `AND perfil='cliente'`.
+21. **Diffear siempre un `.env` local contra el del servidor antes de
+    `scp`.** Puede haber variables agregadas directo en el servidor que
+    el local nunca tuvo (ver 6.3) — subirlo a ciegas las borra.
+22. **Correr un script de `backend/scripts/` contra producción (Swarm):
+    una red overlay no es "attachable" por `docker run`.** Usar un
+    servicio Swarm efímero (`docker service create --restart-condition=none`
+    + mount de `scripts/` + `docker service rm` al terminar). La variable
+    del password de MySQL en `/opt/clarvo/.env` es `MYSQL_PASSWORD`, no
+    `DB_PASSWORD`.
+23. **El catálogo real de planes (`control_tenants.planes`) puede diverger
+    del default que siembra `ensureSchema.js`** (solo corre si la tabla
+    está vacía; un operador pudo editarlo después desde `/control`).
+    Antes de asumir qué incluye un plan, `SELECT * FROM planes` en
+    producción — nunca el código fuente del seed.
 
 ---
 
@@ -328,6 +342,21 @@ El SSH de Git Bash tiene un bug de firma con
 
    Reiniciar `frontend` una segunda vez si se recreó `backend` (IP cacheada).
    Si cambió `docker-stack.yml` o `.env`:
+
+   **Antes de `scp` el `.env` local, diffearlo contra el real del servidor**
+   (incidente real, punto 496, 2026-11-12: un `.env` local desactualizado
+   borró en silencio `STRIPE_SECRET_KEY_LIVE`/`STRIPE_PUBLISHABLE_KEY_LIVE`
+   que solo existían en el servidor, rompiendo cobros reales en producción
+   hasta que el usuario lo notó):
+
+   ```bash
+   ssh root@64.177.56.96 "cat /opt/clarvo/.env" > /tmp/servidor.env.tmp
+   diff <(sort /tmp/servidor.env.tmp) <(sort VULTR/.env)
+   rm /tmp/servidor.env.tmp
+   ```
+
+   Si el servidor tiene una variable que el local no, copiarla al local
+   ANTES de subir — nunca dejar que el deploy la borre.
 
    ```bash
    cd /opt/clarvo && set -a && source .env && set +a && docker stack deploy -c docker-stack.yml clarvo
