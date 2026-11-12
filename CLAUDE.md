@@ -655,6 +655,28 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   slug, o un script de migración masiva) que `docker compose up` por sí
   solo NO cubre — no asumir que un rebuild/restart normal ya propagó un
   cambio de esquema a los tenants existentes.
+- **NUNCA subir un `.env` de `VULTR/` a producción sin diffearlo primero
+  contra el que YA está corriendo en el servidor** (punto 496, incidente
+  real, 2026-11-12): el `.env` local gitignored puede divergir del
+  servidor si una sesión anterior agregó una variable DIRECTO ahí (vía
+  `ssh`/edición manual) sin sincronizarla de vuelta — pasó real con
+  `STRIPE_SECRET_KEY_LIVE`/`STRIPE_PUBLISHABLE_KEY_LIVE` (agregadas al
+  servidor en el punto 489, nunca al archivo local). Un `scp` de la copia
+  local vieja + `docker stack deploy` **pisó y borró silenciosamente**
+  esas 2 líneas — con `stripe_modo_cobro='produccion'` ya activo, Stripe
+  quedó "no configurado" en cobros reales de producción hasta que el
+  usuario lo notó por accidente en la UI. Nada en el runbook de ese
+  deploy lo hubiera atrapado: solo se verificaban checksums de
+  `backend/control/frontend` (código), nunca un diff del `.env`.
+  **Patrón obligatorio antes de cualquier `scp ... /opt/clarvo/.env`**:
+  `ssh ... "cat /opt/clarvo/.env" > /tmp/servidor.env.tmp` →
+  `diff <(sort /tmp/servidor.env.tmp) <(sort VULTR/.env)` (nunca imprimir
+  los valores completos en el diff si no hace falta — truncar o solo
+  mirar qué CLAVES difieren) → borrar el temporal → solo entonces subir.
+  Si el servidor tiene una variable que el local no, copiarla al local
+  ANTES de subir (nunca dejar que el deploy la borre). Mismo criterio de
+  "el código real manda sobre lo que un archivo dice" que ya aplica en
+  este proyecto para catálogos/esquemas — aquí aplica a `.env` también.
 - **Desincronización MySQL/`.env`**: MySQL solo aplica las credenciales
   de `.env` en la PRIMERA inicialización del volumen — editar `.env`
   después desincroniza contra el password real ya grabado. Runbook en

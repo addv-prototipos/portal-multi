@@ -1667,3 +1667,16 @@ diverge del default de `ensureSchema.js` (Crece real: sin Sucursales, CON
 Eliminados/Estado de tickets — al revés del seed) — se consultó la BD
 real antes de armar el plan, no se asumió. Verificado real: login 200
 con las credenciales reales del admin.
+
+C139 12-nov ⚠ P496: INCIDENTE propio — el `scp` del `.env` durante el
+deploy de reCAPTCHA (P494) pisó y borró `STRIPE_SECRET_KEY_LIVE`/
+`STRIPE_PUBLISHABLE_KEY_LIVE` del servidor (vivían solo ahí desde el
+punto 489, nunca sincronizadas al `.env` local gitignored) — con
+`stripe_modo_cobro='produccion'` ya activo, Stripe quedó "no configurado"
+en vivo hasta que el usuario lo reportó viendo `/control` → "Upscale y
+Stripe". Recuperadas desde el respaldo en `prodDoc.html`, diffeadas línea
+por línea contra el `.env` real del servidor antes de resubir (nunca a
+ciegas), redeploy, verificado real (longitud de variable, endpoint 200,
+modo intacto, stack sano). Regla nueva: SIEMPRE diffear un `.env` local
+contra el real del servidor antes de subirlo — nunca asumir que la copia
+local es completa.

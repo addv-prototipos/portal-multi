@@ -30454,3 +30454,46 @@ usuarios, 2048MB, Facturación/Portal clientes/Ventas/Gastos/CxC/Resumen
 financiero/Reportes completos/Ticket de impresión/Auditoría/Marca
 habilitados; Sucursales y Promociones NO, por catálogo real). Suscripción
 en prueba, 365 días, expira 2027-11-12.
+
+## Punto 496 - INCIDENTE REAL: el deploy de reCAPTCHA (punto 494) rompió Stripe modo producción en vivo, corregido el mismo día (12 nov 2026, CERRADO)
+
+**Causa raíz, 100% propia de esta sesión**: al desplegar reCAPTCHA (punto
+494) se subió `VULTR/.env` LOCAL al servidor
+(`scp VULTR/.env root@...:/opt/clarvo/.env`) para agregar
+`RECAPTCHA_SECRET_KEY` — pero esa copia local nunca tuvo
+`STRIPE_SECRET_KEY_LIVE`/`STRIPE_PUBLISHABLE_KEY_LIVE` (esas 2 llaves se
+habían agregado DIRECTO en el `.env` del servidor el 2026-11-10, punto
+489, y nunca se sincronizaron de vuelta al archivo local gitignored). El
+`scp` **pisó y borró** esas 2 líneas sin que nada lo avisara — el `docker
+stack deploy` que siguió recreó `clarvo_control` con esas 2 variables
+vacías. `ajustes_globales.stripe_modo_cobro` seguía en `'produccion'`
+(nadie lo cambió), así que `control/utils/stripeModo.js:credencialesPara('produccion')`
+devolvía `secretKey=''` — Stripe real quedó "no configurado" en
+producción en vivo, descubierto por el usuario al ver el error en
+`/control` → "Upscale y Stripe" → "Códigos de descuento".
+
+**Por qué no se detectó al momento del deploy de reCAPTCHA**: la
+verificación de ese deploy solo comparó md5 de `backend/control/frontend`
+(código) contra el commit — nunca se diffeó el `.env` subido contra el
+`.env` real ya corriendo en el servidor antes de sobreescribirlo. El
+runbook (`VULTR/README-VULTR.md`) nunca documentó este paso porque hasta
+ahora nadie había tocado `.env` y código en el mismo deploy.
+
+**Fix**: llaves recuperadas desde el respaldo en `VULTR/prodDoc.html`
+(que sí las tenía, documentadas ahí desde el punto 489) — restauradas en
+`VULTR/.env` local con comentario explicando el incidente, diff línea
+por línea contra el `.env` real del servidor ANTES de volver a subirlo
+(confirmado: solo agregaba las 2 líneas faltantes, nada más divergía),
+subido y `docker stack deploy` de nuevo. Verificado real: longitud de
+ambas variables en el contenedor (107 caracteres, no vacías),
+`GET /api/control/stripe/descuentos` 200 (antes 503 "no configurado"),
+`stripe_modo_cobro` seguía en `produccion`, stack completo sano
+(`docker service ls`), sitio 200.
+
+**Regla nueva, sin excepción**: antes de `scp` cualquier `.env` de este
+proyecto a un servidor real, **siempre** diffear primero contra el `.env`
+que ya está corriendo ahí (`ssh ... cat /opt/clarvo/.env` a un temporal,
+`diff -u`, borrar el temporal) — nunca asumir que la copia local
+gitignored es la fuente de verdad completa, porque puede haber divergido
+si alguna sesión anterior agregó algo directo en el servidor sin
+sincronizarlo de vuelta. Ver gotcha nuevo en `CLAUDE.md`.
