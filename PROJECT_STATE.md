@@ -30132,7 +30132,89 @@ Pendiente que el usuario confirme visualmente en su bandeja que los 5
 llegaron con el cascarón de marca real (logo, franja degradada, botón),
 no solo que el envío no reventó.
 
-**Pendiente de desplegar**: cambio solo en `backend/`+`control/` (sin
-`frontend`, sin esquema nuevo) — sincronizar `VULTR/` y desplegar cuando
-el usuario lo autorice explícitamente (regla persistente: nunca sin
-permiso nuevo, aunque ya se haya autorizado antes en la sesión).
+**Desplegado a producción real el mismo día (11 nov 2026)**: usuario
+autorizó commit+push+deploy explícitamente. Backup real de MySQL
+(primary+control, tamaños verificados) antes de tocar código, modo
+mantenimiento activo durante el rebuild (503 real en `/login`, Kerberos
+exento), `git archive HEAD` de `backend`+`control` con checksums md5
+verificados idénticos en los 5 archivos tocados tras extraer en el
+servidor, imágenes reconstruidas, `docker service update --force` en
+ambos servicios (convergieron 1/1), mantenimiento desactivado, sitio en
+200. Logs de los 2 contenedores limpios desde el arranque.
+
+**Smoke-test automatizado (`node VULTR/smoke-test-onboarding.js --borrar`)
+no pudo validar de punta a punta** — no por este deploy: Stripe está en
+**modo producción** desde el punto 489 (10 nov), y el script usa la
+tarjeta de prueba 4242, inválida en modo live. Se quedó en un Checkout
+real (`cs_live_...`, $199 MXN, nunca se llenó tarjeta, cero cobro) — 3
+borradores de onboarding abandonados por los 3 intentos, marcados
+`abandonado` en BD tras confirmar que no había nada más que limpiar
+(mismo estado que usa el job automático de recordatorios). Dado que el
+cambio de este punto no toca Stripe/onboarding/webhook, el riesgo de
+regresión ahí es nulo — confirmado además por los checksums y los logs
+limpios. Ver el punto 492 para la validación real que SÍ se corrió
+contra el webhook de Stripe en modo producción.
+
+## Punto 492 - Validación real del webhook de Stripe en modo producción + alerta de correo cuando llega roto (11 nov 2026, CERRADO, desplegado y validado en producción real)
+
+Pedido del usuario tras el punto 491: "¿qué sugieres para validar cuando
+está en modo producción los webhooks y que no queden colgados o rotos?"
+— `stripeWebhookHealth.js` (punto 465) ya detecta si el endpoint quedó
+DESREGISTRADO, pero no si está registrado y Stripe sí lo llama pero algo
+truena al procesar.
+
+**1) Validación real inmediata, sin tocar dinero ni usar el Dashboard de
+Stripe** (el smoke-test automatizado no sirve en modo live — usa la
+tarjeta de prueba 4242, inválida en live, ver punto 491): se firmaron a
+mano, DENTRO del contenedor `control` en producción, los 7 tipos de
+evento reales que maneja `stripePagos.js:procesarEventoWebhook()`
+(`checkout.session.completed`/`async_payment_succeeded`/
+`async_payment_failed`, `invoice.payment_succeeded`/`payment_failed`,
+`customer.subscription.updated`/`deleted`) con
+`stripe.webhooks.generateTestHeaderString()` usando el secreto REAL de
+producción (resuelto con `secretosCandidatos()`, el mismo mecanismo que
+usa el endpoint real — nunca se imprimió el secreto fuera del
+contenedor) y `subscription_id`/`borradorToken` inexistentes a propósito
+(cero riesgo de tocar un tenant real). Resultado: **los 7 respondieron
+`200 {"received":true}` de inmediato** (confirma que el diseño
+"responde 200 antes de procesar" ya hace estructuralmente imposible que
+un webhook se quede "colgado" del lado de Stripe) y una firma inválida a
+propósito respondió **`400`** como se espera. Script temporal, borrado
+del contenedor y del servidor al terminar — nunca quedó en el repo ni en
+el servidor.
+
+**2) Monitoreo nuevo, permanente: `control/utils/stripeWebhookMonitor.js`**
+— cubre el caso real "colgado o roto" que pidió el usuario (firma
+inválida contra TODOS los secretos candidatos, o
+`procesarEventoWebhook()` lanzando con firma YA válida — antes ambos
+casos solo quedaban en `console.error`, invisibles salvo revisar logs a
+mano). 2 funciones, ambas fire-and-forget (un fallo al enviar la alerta
+nunca tumba la respuesta al webhook) y con cooldown (1h para firma
+inválida — puede ser ruido/escaneo; 30min POR TIPO de evento para error
+de procesamiento — Stripe puede reintentar el mismo evento):
+`registrarFirmaInvalida()` y `registrarErrorProcesamiento({tipo, id,
+mensaje})`, enganchadas en los 2 puntos reales de
+`control/server.js:POST /api/control/webhooks/stripe`. Reusa el mismo
+correo de alertas operativas ya configurado para capacidad de disco
+(`ajustesGlobales.js:getDiscoAlertaEmail()`) — un solo operador, un solo
+buzón, no un campo nuevo por tipo de alerta. Ambas usan el mismo
+cascarón de marca (`enviarCorreoBase()`), mismo criterio del punto 491.
+
+**Pruebas**: 9 tests nuevos (`stripeWebhookMonitor.test.js`), suite
+completa de `control` 611/611 verde. `node --check` en los 2 archivos.
+
+**Validado real en producción, no solo en Jest**: tras desplegar (mismo
+ciclo backup→build→`service update --force`→checksums verificados), se
+volvió a firmar UN evento con firma incorrecta a propósito contra el
+endpoint real — respondió `400` correcto, el log de producción mostró
+"Firma de webhook de Stripe inválida", y la clave
+`stripe_webhook_firma_alertado_en` quedó escrita en
+`ajustes_globales` con el timestamp real — confirma que
+`enviarCorreoBase()` se disparó de verdad (correo real enviado a
+`antonio.prado@addv.mx`, el mismo configurado para alertas de disco).
+No se forzó un error real de procesamiento en producción a propósito
+(los 4 handlers de suscripción y los 3 de checkout están diseñados para
+nunca lanzar con un `subscription_id`/token inexistente — forzar una
+excepción real habría requerido un payload malformado sin ningún
+beneficio adicional sobre lo que ya cubren los 9 tests unitarios de esa
+función). Logs limpios, servicio 1/1 sano, sitio en 200 tras el deploy.
