@@ -615,6 +615,25 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   (fail-closed + llaves de prueba públicas solo en dev + verificar en el
   paso sensible, no en el primero) si se integra otro servicio similar en
   el futuro.
+- **Cloudflare Turnstile reemplazado por Google reCAPTCHA v2 Checkbox
+  (2026-11-12, decisión explícita del usuario)**: mismo candado, mismo
+  punto único de uso (`POST /api/public/onboarding/pagar/:token`), mismo
+  criterio fail-closed del punto anterior — solo cambió el proveedor.
+  `control/utils/turnstile.js` → `control/utils/recaptcha.js`
+  (`verificarRecaptcha`, endpoint `google.com/recaptcha/api/siteverify`),
+  var de entorno `TURNSTILE_SECRET_KEY` → `RECAPTCHA_SECRET_KEY`
+  (backend/`control`) y `PUBLIC_TURNSTILE_SITE_KEY` →
+  `PUBLIC_RECAPTCHA_SITE_KEY` (frontend/`clarvo-Site`, incluye el `ARG`
+  del `Dockerfile` de ese repo — fácil de pasar por alto, no solo el
+  `docker-compose.prod.yml`). Widget: `TurnstileWidget.tsx` →
+  `RecaptchaWidget.tsx` — mismo patrón de carga de script + callback de
+  token, salvo que `grecaptcha` solo expone `reset()`, no `remove()`
+  (Turnstile sí tenía `remove`), así que el cleanup del `useEffect` ya no
+  llama a nada al desmontar. Guía completa paso a paso para sacar las
+  llaves reales de Google: `DOCS/recaptcha.html`. Si una sesión futura
+  encuentra código o docs que mencionen Turnstile en este proyecto fuera
+  de un comentario histórico ("migrado de..."), es rastro de ANTES de
+  este punto — corregirlo, no asumir que sigue vigente.
 - **`ensureSchema()` corre en cada restart/deploy** — cualquier backfill o
   valor forzado debe ser CONDICIONAL (solo si el dato está en un estado
   viejo conocido), nunca incondicional, o revierte en silencio datos

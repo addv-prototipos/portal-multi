@@ -115,7 +115,7 @@ const {
 } = require('./utils/ajustesGlobales');
 const { listarReporteCupones } = require('./utils/reporteCupones');
 const { listarReporteCancelaciones } = require('./utils/reporteCancelaciones');
-const { verificarTurnstile } = require('./utils/turnstile');
+const { verificarRecaptcha } = require('./utils/recaptcha');
 const { hashPasswordAdmin, validarPasswordAdmin, derivarNombreUsuario } = require('./utils/credencialesAdmin');
 const { isValidEmail } = require('./utils/validateFiscal');
 const {
@@ -580,7 +580,7 @@ app.get(
 // Punto Stripe ("cobrar primero, activar después" — confirmado por el
 // usuario): ESTA ruta ya NO aprovisiona nada directamente — antes
 // (POST /api/public/onboarding/convertir/:token) cualquiera con el token
-// y un Turnstile válido podía activarse sin pagar. convertirBorrador()
+// y un reCAPTCHA válido podía activarse sin pagar. convertirBorrador()
 // ahora solo lo invoca control/utils/stripePagos.js, desde el webhook de
 // Stripe (o de forma síncrona ahí mismo si el pago ya se confirmó al
 // instante) — nunca un endpoint público directo. El frontend usa esta
@@ -590,7 +590,7 @@ app.post(
   '/api/public/onboarding/pagar/:token',
   onboardingPublicLimiter,
   asyncHandler(async (req, res) => {
-    const verificacion = await verificarTurnstile((req.body || {}).turnstileToken, req.ip);
+    const verificacion = await verificarRecaptcha((req.body || {}).recaptchaToken, req.ip);
     if (!verificacion.ok) {
       return res.status(400).json({ error: 'No pudimos verificar que eres humano. Intenta de nuevo.' });
     }
@@ -651,7 +651,7 @@ app.get(
 app.post('/api/control/webhooks/stripe', async (req, res) => {
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   if (!stripeKey) {
-    // Fail-closed, mismo criterio que turnstile.js: sin configurar, nunca
+    // Fail-closed, mismo criterio que recaptcha.js: sin configurar, nunca
     // procesa un evento sin poder verificar de verdad que viene de Stripe.
     return res.status(503).json({ error: 'Webhook de Stripe no configurado.' });
   }

@@ -548,16 +548,17 @@ services:
       # se invirtió a opt-in -- encendido aquí para desarrollo local;
       # prod/ nunca debe definir esta variable.
       DOCS_ENABLED: 'true'
-      # Hallazgo M-06 (sonar_1.1.html, Fase D, punto 410): secret key de
-      # Cloudflare Turnstile que verifica control/utils/turnstile.js antes
-      # de aprovisionar un tenant real desde el onboarding público. El
-      # default es el secret key PÚBLICO de prueba que documenta
-      # Cloudflare (siempre aprueba, pensado para dev/CI) -- nunca un
-      # secreto real. Sobreescribir con TURNSTILE_SECRET_KEY en el .env
-      # del host al tener cuenta real. prod/ NUNCA debe traer un default:
-      # sin esta variable, el candado falla CERRADO (rechaza el
-      # onboarding) a propósito.
-      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-1x0000000000000000000000000000000AA}
+      # Hallazgo M-06 (sonar_1.1.html, Fase D, punto 410; migrado de
+      # Cloudflare Turnstile a Google reCAPTCHA v2, 2026-11-12): secret key
+      # que verifica control/utils/recaptcha.js antes de aprovisionar un
+      # tenant real desde el onboarding público. El default es el secret
+      # key PÚBLICO de prueba que documenta Google (siempre aprueba,
+      # pensado para dev/CI, ver DOCS/recaptcha.html) -- nunca un secreto
+      # real. Sobreescribir con RECAPTCHA_SECRET_KEY en el .env del host al
+      # tener cuenta real. VULTR/ NUNCA debe traer un default: sin esta
+      # variable, el candado falla CERRADO (rechaza el onboarding) a
+      # propósito.
+      RECAPTCHA_SECRET_KEY: ${RECAPTCHA_SECRET_KEY:-6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe}
       # Kerberos (app de monitoreo independiente): control avisa a este
       # servicio para recargar KERBEROS_USERS en caliente tras cualquier
       # alta/edición/baja (mismo patrón que BACKEND_INTERNAL_URL de

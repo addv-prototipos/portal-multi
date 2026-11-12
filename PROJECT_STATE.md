@@ -30297,3 +30297,60 @@ preexistente, no relacionado).
 
 Commits: `2bf5008` (feature), `c5e00c6` (corrección de back-compat) en
 `portalFac`; `8eaf194` en `clarvo-Site` (rama `sitioOficial`).
+
+## Punto 494 - Reemplazo de Cloudflare Turnstile por Google reCAPTCHA v2 Checkbox (12 nov 2026, CERRADO en local, pendiente de desplegar a producción)
+
+Pedido del usuario: cambiar el candado anti-bot del onboarding público de
+Cloudflare Turnstile a Google reCAPTCHA. Decisión de versión confirmada
+por el usuario (vía `AskUserQuestion`, entre 3 alternativas presentadas —
+v2 Checkbox, v3 Invisible, Enterprise): **v2 Checkbox**, por paridad 1:1
+de UX con Turnstile (mismo patrón de interacción de un clic antes del
+único paso que mueve dinero real). Alcance confirmado explícito: los 5
+segmentos completos (doc + backend + frontend + configs de deploy locales
++ docs persistentes), excluyendo siempre el despliegue real a Vultr (regla
+ya vigente, requiere permiso aparte).
+
+1. **`DOCS/recaptcha.html`** (nuevo) — guía paso a paso para configurar
+   reCAPTCHA desde cero (consola de admin de Google, registro de sitio,
+   site key/secret key, llaves de prueba vs. reales), mismo estilo visual
+   navy/cian que `DOCS/confStripe.html`.
+2. **Backend (`portalFac`)**: `control/utils/turnstile.js` →
+   `control/utils/recaptcha.js` (`verificarRecaptcha`, endpoint
+   `google.com/recaptcha/api/siteverify`, mismo criterio fail-closed);
+   `control/server.js` (import + `POST /api/public/onboarding/pagar/:token`,
+   body `recaptchaToken` en vez de `turnstileToken`); tests migrados
+   (`turnstile.test.js` → `recaptcha.test.js`, 7 casos; los 4 casos del
+   candado M-06 en `control.test.js` renombrados) — suite completa de
+   `control` en verde, 97/97, sin regresiones; `docker-compose.yml` con
+   el nuevo default de llave de prueba pública de Google.
+3. **Frontend (`clarvo-Site`)**: `TurnstileWidget.tsx` →
+   `RecaptchaWidget.tsx` (script `google.com/recaptcha/api.js`,
+   `grecaptcha.render` — sin equivalente a `remove()`, solo `reset()`,
+   así que el cleanup del `useEffect` ya no llama a nada al desmontar);
+   `OnboardingModal.tsx` (wiring completo renombrado); `onboardingApi.ts`;
+   `publicEnv.ts` (`PUBLIC_RECAPTCHA_SITE_KEY`); `.env.example`,
+   `.env.prod.example`, `docker-compose.prod.yml` **y el `ARG`/`ENV` del
+   propio `Dockerfile`** (fácil de pasar por alto, no solo el compose);
+   `deploy.sh`/`README.md` (mención en texto); `privacidad.astro` (aviso
+   de privacidad real: fila de terceros "Cloudflare, Inc. (Turnstile)" →
+   "Google LLC (reCAPTCHA)"). `npm run build` real de Astro, limpio, sin
+   errores de tipos; bundle final verificado sin ningún rastro de
+   `turnstile`/`cloudflare`.
+4. **Configs de deploy (`VULTR/`, solo local, sin desplegar)**:
+   `docker-stack.yml`, `.env`, `clarvo-site.env` — mismo renombrado de
+   variables; `prodDoc.html` y `README-VULTR.md` (pendientes conocidos)
+   actualizados para no seguir apuntando a Cloudflare.
+5. **Docs persistentes**: este punto + gotcha nuevo en `CLAUDE.md` (justo
+   después del gotcha original del punto 410/M-06, sin reescribir la
+   historia) documentando la migración y el detalle de `remove()` vs.
+   `reset()`.
+
+**Actualización 12 nov 2026, mismo día**: el usuario entregó las llaves
+reales de Google reCAPTCHA (sitio registrado para `clarvo.mx`) — ya
+staged en `VULTR/.env` (`RECAPTCHA_SECRET_KEY`) y
+`VULTR/clarvo-site.env` (`PUBLIC_RECAPTCHA_SITE_KEY`), registradas en
+`VULTR/prodDoc.html` → Secretos. **Pendiente real, fuera de alcance a
+propósito**: subir ambas al servidor (requiere `docker stack deploy` del
+backend/control + rebuild de `clarvo-Site`, ya que su `PUBLIC_*` se
+hornea en build time) — ningún deploy se hizo, solo se guardó la
+configuración local lista para el próximo despliegue autorizado.

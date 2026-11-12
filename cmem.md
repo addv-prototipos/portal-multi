@@ -1615,3 +1615,20 @@ bug de nginx del host (`/videos/` caía en el regex de tenant-slug y se
 enrutaba al backend equivocado, mismo patrón ya conocido para
 `/images/`/`/hdri/`/`/masterclass/`). Verificado con clics reales en
 producción: botón abre el modal, video reproduce, cierra bien.
+
+C137 12-nov 🎯 P494: reemplazo completo de Cloudflare Turnstile por
+Google reCAPTCHA v2 Checkbox en el único candado anti-bot del onboarding
+público (`pagar/:token`) — pedido explícito del usuario, versión decidida
+vía `AskUserQuestion` entre 3 alternativas (v2/v3/Enterprise). 5 segmentos
+aprobados de un jalón: `DOCS/recaptcha.html` nuevo (guía paso a paso,
+estilo `confStripe.html`); backend `portalFac` (`recaptcha.js`,
+`server.js`, tests — suite `control` 97/97 verde); frontend `clarvo-Site`
+(`RecaptchaWidget.tsx`, wiring completo, `.env.example`s, Dockerfile ARG
+—fácil de pasar por alto—, `privacidad.astro`; `npm run build` real
+limpio); configs `VULTR/` locales (sin desplegar, regla ya vigente);
+docs (`CLAUDE.md` gotcha nuevo junto al del punto 410, sin reescribir
+historia). Mismo día, el usuario entregó la llave real de Google (sitio registrado
+para `clarvo.mx`) — ya staged en `VULTR/.env`/`VULTR/clarvo-site.env` y
+registrada en `prodDoc.html`. Pendiente, fuera de alcance a propósito:
+desplegar a Vultr (requiere permiso explícito aparte, y rebuild de
+`clarvo-Site` porque su `PUBLIC_*` se hornea en build time).

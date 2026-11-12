@@ -1,18 +1,17 @@
-// Hallazgo M-06 (sonar_1.1.html, Fase D, punto 410, decisión del usuario
-// 2026-10-21): el onboarding público (clarvo.mx) auto-aprovisionaba
-// tenants reales sin ningún anti-bot. Verifica el token de Cloudflare
-// Turnstile contra su endpoint oficial antes de permitir
-// POST /api/public/onboarding/convertir/:token (el único paso que de
-// verdad crea infraestructura).
+// Reemplaza a Cloudflare Turnstile (punto 410/M-06, sonar_1.1.html) por
+// Google reCAPTCHA v2 Checkbox — decisión explícita del usuario, 2026-11-12.
+// Verifica el token contra el endpoint oficial antes de permitir
+// POST /api/public/onboarding/pagar/:token (el único paso que de verdad
+// mueve dinero).
 //
-// Falla CERRADO a propósito: sin TURNSTILE_SECRET_KEY configurado, no se
+// Falla CERRADO a propósito: sin RECAPTCHA_SECRET_KEY configurado, no se
 // omite la verificación — se rechaza el onboarding. Desarrollo local usa
-// el secret key PÚBLICO de prueba que documenta Cloudflare (ver
-// docker-compose.yml), nunca un secreto real.
-const ENDPOINT_SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+// el secret key PÚBLICO de prueba que documenta Google (ver
+// docker-compose.yml y DOCS/recaptcha.html), nunca un secreto real.
+const ENDPOINT_SITEVERIFY = 'https://www.google.com/recaptcha/api/siteverify';
 
-async function verificarTurnstile(token, ip) {
-  const secreto = process.env.TURNSTILE_SECRET_KEY;
+async function verificarRecaptcha(token, ip) {
+  const secreto = process.env.RECAPTCHA_SECRET_KEY;
   if (!secreto) {
     return { ok: false, motivo: 'no_configurado' };
   }
@@ -42,4 +41,4 @@ async function verificarTurnstile(token, ip) {
   }
 }
 
-module.exports = { verificarTurnstile };
+module.exports = { verificarRecaptcha };
