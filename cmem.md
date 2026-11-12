@@ -1632,3 +1632,38 @@ para `clarvo.mx`) — ya staged en `VULTR/.env`/`VULTR/clarvo-site.env` y
 registrada en `prodDoc.html`. Pendiente, fuera de alcance a propósito:
 desplegar a Vultr (requiere permiso explícito aparte, y rebuild de
 `clarvo-Site` porque su `PUBLIC_*` se hornea en build time).
+
+**Mismo día, desplegado real con permiso explícito.** Bug propio
+encontrado y corregido en el camino: `security-headers.conf` (CSP) de
+`clarvo-Site` seguía bloqueado a Cloudflare — mi verificación anterior
+grepeó "turnstile" pero no "cloudflare" (el dominio del CSP no lleva esa
+palabra), así que el widget real nunca cargaba para NADIE, no solo el
+smoke-test. Corregido y redesplegado, CSP real confirmado con curl.
+Límite real encontrado (no bug): con la llave real, reCAPTCHA bloquea
+correctamente Playwright headless (0 iframes) — el smoke-test de punta a
+punta ya no puede completar la compra solo contra producción real; es la
+prueba de que el candado funciona. Verificado todo lo demás por código
+(checksums, CSP, contenedor, widget con site key real, backend con
+secret real, checkbox clickeable).
+
+C138 12-nov 🎯 P495: tenant real "Mas Cómputo" para demo de
+marketing/redes sociales — plan CLARVO Crece, suscripción de prueba 365
+días, alta vía `/control` sin Stripe (intake→plan→suscripción→activar,
+4 llamadas `curl` server-side leyendo `$ADMIN_USERS` del `.env`, nunca
+expuesto localmente). Siembra con `backend/scripts/sembrar-mas-computo.js`
+(nuevo, commiteado, copia adaptada de `sembrar-demo.js` — mismo mecanismo
+determinista probado): 25 productos (consumibles de cómputo) + 7
+servicios (reparación/asistencia a domicilio), 9 meses de historia,
+perfil de crecimiento moderado fijo (5%/mes, sin forzar piso/techo) —
+resultado real $37k→$126k con ruido natural (no monótono), 265 ventas,
+176 tickets, 172 gastos. Gotcha real encontrado al correr en producción:
+una red overlay de Swarm no es "attachable" por `docker run` — hace
+falta un servicio Swarm efímero (`docker service create
+--restart-condition=none` + mount de `scripts/` + `docker service rm` al
+terminar); y la variable del password en `/opt/clarvo/.env` es
+`MYSQL_PASSWORD`, no `DB_PASSWORD` (ese es el nombre que espera el
+código, mapeado en el stack). Catálogo de planes real de producción
+diverge del default de `ensureSchema.js` (Crece real: sin Sucursales, CON
+Eliminados/Estado de tickets — al revés del seed) — se consultó la BD
+real antes de armar el plan, no se asumió. Verificado real: login 200
+con las credenciales reales del admin.

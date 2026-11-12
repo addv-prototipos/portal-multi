@@ -30354,3 +30354,103 @@ propósito**: subir ambas al servidor (requiere `docker stack deploy` del
 backend/control + rebuild de `clarvo-Site`, ya que su `PUBLIC_*` se
 hornea en build time) — ningún deploy se hizo, solo se guardó la
 configuración local lista para el próximo despliegue autorizado.
+
+**Actualización 12 nov 2026, mismo día — DESPLEGADO Y VALIDADO en
+producción real**: commits `fd8f8de` (`portalFac`) y `5e0e532`+`cd4a701`
+(`clarvo-Site`). Runbook completo (backup real de `mysql-primary`/
+`mysql-control`, `git archive HEAD`, md5 idéntico local/remoto, rebuild
+de `backend`/`control`/`frontend`/`clarvo-Site`, modo mantenimiento
+activado/desactivado). **Bug real encontrado probando el flujo
+completo, corregido en el mismo deploy**: `clarvo-Site/security-headers.conf`
+(CSP) seguía permitiendo solo `challenges.cloudflare.com` — nunca se
+actualizó a Google al migrar, porque la verificación de esa sesión
+grepeó "turnstile" pero no "cloudflare" (el dominio del CSP no contiene
+esa palabra). Efecto real: el widget de reCAPTCHA no cargaba ningún
+iframe (0 frames) para NINGÚN usuario, no solo el smoke-test. Corregido
+(`script-src`/`connect-src`/`frame-src` ahora permiten
+`google.com/recaptcha`/`gstatic.com/recaptcha`), redesplegado, CSP real
+verificado con `curl`. **Límite real de verificación encontrado**: con
+la llave REAL de reCAPTCHA (no la de prueba), Playwright headless no
+logra ni cargar el iframe del widget — Google bloquea correctamente el
+browser automatizado (la prueba de que el candado funciona, no un bug).
+El smoke-test automatizado de punta a punta ya no puede completar la
+compra por sí solo contra producción real — `VULTR/smoke-test-onboarding.js`
+quedó con un flag `--headed` nuevo (requiere sesión de escritorio real)
+para este caso, y el campo "Nombre completo" del admin (agregado por el
+punto 493, en paralelo) se agregó al fill del script, que estaba
+desincronizado. Verificación final: checksums, CSP real, contenedor
+sano, widget carga con la site key real, backend tiene el secret real,
+checkbox es clickeable — sin una compra automatizada de punta a punta
+completa (limitación estructural de un anti-bot real, no deuda).
+
+## Punto 495 - Tenant demo "Mas Cómputo" para marketing/redes sociales, con 9 meses de historia realista (12 nov 2026, CERRADO, producción real)
+
+Pedido del usuario: tenant de producción real (nunca de prueba/temporal)
+para grabar contenido de redes sociales mostrando Clarvo en uso — tienda
+de consumibles de cómputo con servicio de reparación/asistencia a
+domicilio, plan CLARVO Crece, 25 productos + 7 servicios, ~9 meses de
+historia con escenario positivo real (no exagerado). Imágenes las sube
+el usuario mismo, fuera de alcance de esta sesión.
+
+**Alta del tenant** (vía `/control`, sin Stripe — mismo flujo "Nueva
+empresa" que ya existía): `POST /api/control/tenants` (slug
+`mas-computo`) → `PUT /api/control/tenants/mas-computo` (plan_id=6,
+CLARVO Crece — confirmado contra el catálogo REAL de producción, no
+contra los defaults de `ensureSchema.js`: ese catálogo ya fue editado a
+mano desde `/control` en algún punto anterior y diverge del default —
+`sucursales_habilitado=0` en el real, aunque el default seedeado dice 1;
+`reportes_eliminados_habilitado`/`reportes_estado_tickets_habilitado`
+=1 en el real, aunque el default dice 0 para Crece. Lección: para saber
+qué incluye un plan de verdad, consultar `SELECT * FROM planes` en
+producción, nunca asumir desde el seed de `ensureSchema.js`) →
+`PUT /api/control/tenants/mas-computo/suscripcion` (`enPrueba:true,
+diasPrueba:365`, pedido explícito del usuario) →
+`POST /api/control/tenants/mas-computo/activar` (con `adminEmail`/
+`adminPassword` reales → aprovisiona la BD física Y crea el admin en una
+sola llamada). Las 4 llamadas corridas vía `curl` DENTRO del servidor
+(SSH), leyendo `$ADMIN_USERS` del propio `.env` — nunca expuesto
+localmente, mismo patrón que `smoke-test-onboarding.js`.
+
+**Siembra de datos**: `backend/scripts/sembrar-mas-computo.js` (nuevo,
+commiteado — copia adaptada de `sembrar-demo.js`, mismo mecanismo
+determinista/probado, PRNG con semilla fija). Candado nuevo que
+`sembrar-demo.js` no tenía: `borrarDatosTransaccionales()` ahora exige
+`DB_NAME` con prefijo `tenant_` — nunca debe poder correr por accidente
+contra la base sin tenant ni otro tenant. 25 productos (periféricos,
+memorias, almacenamiento, cables, energía, consumibles de impresión) + 7
+servicios (diagnóstico, formateo, limpieza, cambio de pantalla,
+recuperación de datos, instalación de red, soporte a domicilio) — 2 de
+los 7 servicios por "Hora" (diagnóstico, soporte), el resto "Paquete".
+Perfil de crecimiento fijo (no parametrizado por env, a diferencia del
+original): pendiente 5%/mes, sin forzar piso/techo — resultado real:
+ventas mensuales de $37,664 (feb) a $126,211 (sep), con ruido natural
+(julio $111k, agosto baja a $83k, septiembre sube a $126k) — "positivo
+real, no exagerado" tal como lo pidió el usuario, nunca una curva
+monótona. 265 ventas, 176 tickets, 172 gastos, 221 líneas de
+inventario/servicio, cierres mensuales archivados (feb-ago), 9 "Cortes
+del día" de ejemplo, historial de "Eliminados" sembrado (2 ventas + 1
+lote de 2 tickets).
+
+**Mecánica de ejecución en producción** (nueva, documentada para
+reusarse): el backend NO tiene `scripts/` en su imagen
+(`.dockerignore`), y una red overlay de Swarm no es "attachable" por
+`docker run` normal (`PermissionDenied: network ... not manually
+attachable`) — la única vía real es un **servicio Swarm efímero**:
+`docker service create --network clarvo_fiscal-net --restart-condition=none
+--mount type=bind,src=/opt/clarvo/backend/scripts,dst=/usr/src/app/scripts,readonly
+clrv-backend:latest node scripts/<script>.js --confirmar`, leer con
+`docker service logs <nombre>` y limpiar con `docker service rm
+<nombre>` al terminar — nunca queda un servicio huérfano si se borra
+explícitamente. La variable del password de MySQL en `/opt/clarvo/.env`
+es `MYSQL_PASSWORD`, NO `DB_PASSWORD` (ese es el nombre que SÍ espera el
+código, mapeado en `docker-stack.yml`) — pasar el nombre equivocado da
+`Access denied ... (using password: NO)`, no un error de nombre de
+variable.
+
+**Verificado real**: `GET /mas-computo/admin` 200, login con las
+credenciales reales del admin (`antonio.prado@addv.mx`) 200 contra
+`GET /mas-computo/api/mi-cuenta`. Plan Crece confirmado activo (5
+usuarios, 2048MB, Facturación/Portal clientes/Ventas/Gastos/CxC/Resumen
+financiero/Reportes completos/Ticket de impresión/Auditoría/Marca
+habilitados; Sucursales y Promociones NO, por catálogo real). Suscripción
+en prueba, 365 días, expira 2027-11-12.
