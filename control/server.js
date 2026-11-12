@@ -680,6 +680,8 @@ app.post('/api/control/webhooks/stripe', async (req, res) => {
   }
   if (!event) {
     console.error('Firma de webhook de Stripe inválida (probados', candidatos.length, 'secreto(s)):', ultimoError && ultimoError.message);
+    const { registrarFirmaInvalida } = require('./utils/stripeWebhookMonitor');
+    registrarFirmaInvalida({ mensaje: ultimoError && ultimoError.message }).catch(() => {});
     return res.status(400).json({ error: 'Firma inválida.' });
   }
 
@@ -693,6 +695,8 @@ app.post('/api/control/webhooks/stripe', async (req, res) => {
     await procesarEventoWebhook(event);
   } catch (err) {
     console.error(`Error procesando evento de Stripe "${event.type}" (${event.id}):`, err);
+    const { registrarErrorProcesamiento } = require('./utils/stripeWebhookMonitor');
+    registrarErrorProcesamiento({ tipo: event.type, id: event.id, mensaje: err.message }).catch(() => {});
   }
 });
 
