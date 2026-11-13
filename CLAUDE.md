@@ -2411,6 +2411,23 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   Replicar este mismo patrón en cualquier script de siembra demo futuro
   que necesite poblar tarjetas de "riesgo"/"estado actual", no solo
   historial transaccional.
+- **`requireAdminAuth()` nunca debe mandar `WWW-Authenticate: Basic` en
+  un 401 de la rama Bearer** (punto 500, 13 nov 2026, incidente real en
+  producción): el navegador intercepta CUALQUIER 401 con ese header —
+  sin importar que el request real haya sido `Authorization: Bearer
+  ...`, no Basic — y saca su propio diálogo nativo de login en vez de
+  dejar que `admin.js`/`control.js` manejen el 401 con su pantalla
+  propia de "sesión expirada". Reproducido real: el usuario quedó
+  bloqueado en el panel de un tenant de producción cuando su token de
+  sesión (deslizante, 30 min) expiró a mitad de uso. El challenge Basic
+  SOLO pertenece al camino Basic real (login inicial, Swagger, curl,
+  api_clave/api_credencial/usuario_sucursal) — las 6 ramas de 401 dentro
+  de `if (scheme === 'Bearer' ...)` en `backend/utils/auth.js` y
+  `control/utils/auth.js` ya NO lo mandan. Si se agrega un mecanismo de
+  auth nuevo basado en token (no Basic), aplicar el mismo criterio desde
+  el día uno: el header de challenge debe coincidir con el ESQUEMA que
+  el cliente intentó, nunca mandarse incondicionalmente en cualquier 401
+  de `requireAdminAuth`.
 
 ## Stack
 

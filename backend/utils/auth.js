@@ -426,7 +426,7 @@ async function requireAdminAuth(req, res, next) {
   // api_credencial/usuario_sucursal (consumo programático, sin sesión de
   // navegador) siguen exclusivamente con Basic, sin cambios.
   if (scheme === 'Bearer' && encoded) {
-    // Punto 499 (13 nov 2026): NUNCA mandar `WWW-Authenticate: Basic` en
+    // Punto 500 (13 nov 2026): NUNCA mandar `WWW-Authenticate: Basic` en
     // esta rama — el navegador intercepta cualquier 401 con ese header
     // (sin importar que el request real haya sido Bearer) y saca su
     // propio diálogo nativo de login en vez de dejar que admin.js/

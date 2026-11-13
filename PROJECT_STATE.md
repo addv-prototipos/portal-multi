@@ -30688,3 +30688,66 @@ cualquier cambio de UI, no se marca aquí. Deploy a producción también
 pendiente de confirmación explícita del usuario (el fix de cupones del
 punto 497 sí se desplegó porque el usuario lo autorizó explícito; este
 punto no se desplegó sin pedirlo).
+
+## Punto 500 - INCIDENTE REAL: `WWW-Authenticate: Basic` en 401 de sesión Bearer deslogueaba al usuario con el diálogo nativo del navegador, corregido y desplegado el mismo día (13 nov 2026, CERRADO, producción real)
+
+**Reporte del usuario**: usando el panel admin del tenant demo
+`mas-computo` en producción real, un diálogo nativo del navegador
+("Acceder", pidiendo usuario/contraseña contra `https://clarvo.mx`)
+aparecía a mitad de uso y bloqueaba la app por completo.
+
+**Causa raíz**: `requireAdminAuth()` (`backend/utils/auth.js` y su
+espejo `control/utils/auth.js`) mandaba `res.set('WWW-Authenticate',
+'Basic realm="..."')` en **cualquier** 401, incluidas las 6 ramas del
+camino Bearer (token de sesión deslizante de 30 min, ver punto del
+2026-10-15/M-02) — token expirado, cross-tenant, usuario removido de
+`ADMIN_USERS`, `perfil_bd` eliminado/con error de BD, mecanismo
+desconocido. El navegador intercepta CUALQUIER 401 con ese header
+(aunque el request real haya sido `Authorization: Bearer ...`, no
+Basic) y saca su propio diálogo nativo de credenciales en vez de dejar
+que `admin.js`/`control.js` manejen el 401 con su propia pantalla de
+"sesión expirada" (`clearSession()` + `showLogin()`, ya implementada y
+nunca disparada por este bug). Confirmado real contra producción con
+`curl -H "Authorization: Bearer token-invalido"`: la respuesta SÍ traía
+`WWW-Authenticate: Basic realm="Administracion-mas-computo"` antes del
+fix.
+
+**Fix**: se quitaron los 6 `res.set('WWW-Authenticate', ...)` dentro de
+la rama `if (scheme === 'Bearer' ...)` en ambos archivos — el challenge
+Basic solo tiene sentido en el camino Basic real (login inicial de
+`admin.js`/`control.js`, Swagger, curl, api_clave/api_credencial/
+usuario_sucursal), nunca para un token Bearer ya emitido que
+simplemente expiró o se volvió inválido. Cambio quirúrgico: no toca
+ninguna lógica de autenticación/autorización, solo el header de
+respuesta en 401 — mismo nivel de seguridad, distinto comportamiento de
+navegador. 55 tests unitarios de `backend/test/unit/auth.test.js` y 20
+de `control/test/unit/auth.test.js` siguen en verde sin tocar ningún
+test (ninguno aserta `WWW-Authenticate` sobre la rama Bearer).
+
+**Verificado real en producción tras el deploy**:
+`curl -H "Authorization: Bearer x" .../mas-computo/api/admin/tickets`
+→ 401 SIN `WWW-Authenticate` (antes sí lo traía); `curl -u
+wronguser:wrongpass .../mas-computo/api/admin/tickets` → 401 CON
+`WWW-Authenticate: Basic realm="Administracion-mas-computo"` (el
+camino Basic real sigue intacto, como debe ser). Los 2 servicios
+(`clarvo_backend`, `clarvo_control`) + `clarvo_frontend` (recreado por
+el gotcha de IP vieja de nginx) quedaron `1/1` sanos.
+
+**Mecánica de deploy**: `git archive HEAD` (nunca `tar` del working
+tree — hay otra sesión paralela tocando este mismo repo hoy, ver el
+hallazgo de abajo) + `scp` + extracción + rebuild de `clrv-backend`/
+`clrv-control` + `docker service update --force` en los 3 servicios +
+verificación de checksum de los 3 archivos tocados contra `git show
+HEAD:<ruta>` (con `tr -d '\r'`, mismo gotcha de CRLF del punto 476).
+
+**Colisión de numeración de puntos, 2 veces en la misma tarde** (no es
+nuevo — ya documentado en el punto 466, "dos sesiones compartiendo el
+mismo working tree"): esta sesión intentó usar primero "punto 497" y
+luego "punto 499" para este mismo hallazgo — ambos ya habían sido
+tomados por una sesión paralela (cupones Stripe en modo prueba, y el
+editor de Términos y Condiciones) que commiteó casi al mismo tiempo.
+Renumerado a 500 (el libre más alto al momento de cerrar) en
+`PROJECT_STATE.md`, `CLAUDE.md` y los comentarios de ambos `auth.js`
+antes de dar el trabajo por terminado — revisar siempre `grep -n
+"^## Punto " PROJECT_STATE.md | tail` justo antes de escribir el
+número, no solo al empezar la sesión.
