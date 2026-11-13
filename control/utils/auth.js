@@ -155,10 +155,14 @@ function requireAdminAuth(req, res, next) {
   // M-02: Bearer (token de sesión) — único mecanismo aquí es
   // admin_users, re-chequeado contra el mapa VIGENTE en cada request
   // (revocación instantánea si cambia vía recargarAdminUsers()).
+  // Punto 499 (13 nov 2026, mismo fix que backend/utils/auth.js): NUNCA
+  // mandar WWW-Authenticate aquí — el navegador saca su diálogo nativo
+  // de login ante cualquier 401 con ese header, sin importar que el
+  // request real fuera Bearer. Ese challenge solo pertenece al camino
+  // Basic real de abajo (login inicial de /control).
   if (scheme === 'Bearer' && encoded) {
     const payload = verifyAdminToken(encoded);
     if (!payload || payload.mecanismo !== 'admin_users' || !adminUsers.has(payload.usuario)) {
-      res.set('WWW-Authenticate', 'Basic realm="Control"');
       return res.status(401).json({ error: 'Autenticacion requerida.' });
     }
     req.adminUser = payload.usuario;

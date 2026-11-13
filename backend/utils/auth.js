@@ -426,9 +426,18 @@ async function requireAdminAuth(req, res, next) {
   // api_credencial/usuario_sucursal (consumo programático, sin sesión de
   // navegador) siguen exclusivamente con Basic, sin cambios.
   if (scheme === 'Bearer' && encoded) {
+    // Punto 499 (13 nov 2026): NUNCA mandar `WWW-Authenticate: Basic` en
+    // esta rama — el navegador intercepta cualquier 401 con ese header
+    // (sin importar que el request real haya sido Bearer) y saca su
+    // propio diálogo nativo de login en vez de dejar que admin.js/
+    // control.js muestren su pantalla de "sesión expirada" — confirmado
+    // real en producción (tenant mas-computo): un token vencido a medio
+    // uso bloqueaba la app entera con el prompt nativo del navegador.
+    // El challenge Basic solo tiene sentido para el camino Basic real de
+    // abajo (login inicial/Swagger/curl/API) — nunca para un token ya
+    // emitido que simplemente expiró o se volvió inválido.
     const payload = verifyAdminToken(encoded);
     if (!payload) {
-      res.set('WWW-Authenticate', `Basic realm="${realm}"`);
       return res.status(401).json({ error: 'Autenticacion requerida.' });
     }
     // Candado cross-tenant: un token emitido bajo el tenant A nunca debe
@@ -438,7 +447,6 @@ async function requireAdminAuth(req, res, next) {
     // a pedir contraseña, necesita este chequeo explícito.
     const tenantActual = req.tenant ? req.tenant.slug : null;
     if (payload.tenantSlug !== tenantActual) {
-      res.set('WWW-Authenticate', `Basic realm="${realm}"`);
       return res.status(401).json({ error: 'Autenticacion requerida.' });
     }
     if (payload.mecanismo === 'admin_users') {
@@ -447,7 +455,6 @@ async function requireAdminAuth(req, res, next) {
       // mismo sin esperar a que expire — mismo nivel de revocación
       // inmediata que ya tiene Basic Auth.
       if (!adminUsers.has(payload.usuario)) {
-        res.set('WWW-Authenticate', `Basic realm="${realm}"`);
         return res.status(401).json({ error: 'Autenticacion requerida.' });
       }
       req.adminUser = payload.usuario;
@@ -460,7 +467,6 @@ async function requireAdminAuth(req, res, next) {
       try {
         const fila = await obtenerUsuarioAdministrativoPorRfc(payload.usuario);
         if (!fila) {
-          res.set('WWW-Authenticate', `Basic realm="${realm}"`);
           return res.status(401).json({ error: 'Autenticacion requerida.' });
         }
         // Re-chequeo instantáneo de suspensión — igual de inmediato que
@@ -479,13 +485,11 @@ async function requireAdminAuth(req, res, next) {
         return finalizarAutenticacionAdmin(req, res, next);
       } catch (err) {
         console.error('Error verificando token de sesión (perfil_bd):', err.message);
-        res.set('WWW-Authenticate', `Basic realm="${realm}"`);
         return res.status(401).json({ error: 'Autenticacion requerida.' });
       }
     }
     // Token con un mecanismo que esta ruta no reconoce (firma válida
     // pero payload inesperado) — nunca se asume válido por default.
-    res.set('WWW-Authenticate', `Basic realm="${realm}"`);
     return res.status(401).json({ error: 'Autenticacion requerida.' });
   }
 

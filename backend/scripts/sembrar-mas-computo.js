@@ -18,6 +18,16 @@
 // tenant_mas-computo):
 //   node scripts/sembrar-mas-computo.js --confirmar
 //
+// Punto 498 (demo de dashboard, 13 nov 2026): para que las tarjetas del
+// mes en curso (Total facturado, Ventas sin facturar, Balance, Total
+// gastos, Top proveedores de gasto, Distribución de gastos) no queden en
+// $0, correr con SEED_INCLUIR_MES_ACTUAL=1 — si no, la siembra se detiene
+// al último día del mes ANTERIOR y el mes en curso queda vacío. Las 5
+// tarjetas de "Riesgo y control" (bajo mínimo, sin existencia, sin
+// movimiento, mermas del mes, por vencer) se siembran siempre, sin
+// depender de esa variable (ancladas al reloj real, ver
+// sembrarSenalesRiesgoInventario).
+//
 // Perfil de crecimiento fijo (moderado, "positivo real, no exagerado"):
 // ~5%/mes con el ruido natural del PRNG, sin forzar piso/techo mes contra
 // mes — a diferencia del perfil "favorable" de sembrar-demo.js.
@@ -136,6 +146,35 @@ const CATALOGO = [
   { sku: 'CON-TIN-023', nombre: 'Cartucho de tinta genérico',           categoria: 'Consumibles de impresión', costo: 150, precio: 290, stock: 50,  peso: 4 },
   { sku: 'ACC-PAS-024', nombre: 'Pasta térmica para procesador',        categoria: 'Accesorios y periféricos', costo: 60,  precio: 140, stock: 60,  peso: 3 },
   { sku: 'ACC-MOC-025', nombre: 'Mochila porta laptop',                 categoria: 'Accesorios y periféricos', costo: 260, precio: 480, stock: 35,  peso: 0 },
+];
+
+// Producto "fantasma" (punto 498): se dio de alta en catálogo pero NUNCA
+// llegó mercancía del proveedor — a propósito fuera de CATALOGO (nunca
+// recibe el movimiento 'inventario_inicial' que sembrarCatalogoYExistencias
+// aplica a todos los demás) y fuera de catalogoCompleto (peso 0, nunca se
+// vende). Es el único camino real para que "Sin movimiento" (NOT EXISTS
+// movimientos_inventario) no sea siempre 0 — cualquier producto normal YA
+// tiene al menos ese movimiento inicial desde el día uno.
+const PRODUCTO_SIN_MOVIMIENTO = {
+  sku: 'ACC-SOP-026', nombre: 'Soporte ajustable para monitor', categoria: 'Accesorios y periféricos',
+  costo: 180, precio: 340, stock: 0, peso: 0,
+};
+
+// Señales de riesgo que la siembra original (punto 495) nunca producía —
+// agregadas en el punto 498 para que las 5 tarjetas de "Riesgo y control"
+// del dashboard de Inventarios muestren datos reales en la demo, no puros
+// ceros. Fechas ancladas al reloj REAL (no a la línea de tiempo simulada
+// de fechaInicial/finVentana) porque las queries del backend usan NOW()/
+// CURDATE() — igual que fecha_expiracion/mermas_periodo en server.js.
+const SKU_AGOTADO = 'ACC-BAT-015'; // Batería para laptop: stock bajo (35), candidato realista a agotarse
+const SKUS_BAJO_MINIMO = ['ACC-BAS-020', 'ENE-NOB-021']; // Base enfriadora / No-break: stock bajo, fácil de dejar por debajo del mínimo
+const SKUS_MERMA_MES = [
+  { sku: 'CON-TIN-023', cantidad: 2, motivo: 'Cartuchos dañados por humedad en almacén (demo).' },
+  { sku: 'ACC-CAM-018', cantidad: 1, motivo: 'Webcam con lente rayado, dada de baja en revisión de stock (demo).' },
+];
+const SKUS_POR_VENCER = [
+  { sku: 'CON-TON-022', dias: 12 },
+  { sku: 'CON-TIN-023', dias: 24 },
 ];
 
 // 7 SERVICIOS (sin existencia/costeo — D11: nunca generan movimiento de
@@ -287,7 +326,29 @@ async function sembrarCatalogoYExistencias(conexion, fechaInicial) {
     servicios.push({ ...s, id: r.insertId, tipo: 'servicio', unidad_nombre: s.unidad });
   }
 
+  // Producto fantasma (punto 498): alta en catálogo, existencia en 0,
+  // CERO filas en movimientos_inventario — a propósito, nunca pasa por
+  // el bloque de arriba (ese bloque siempre inserta 'inventario_inicial').
+  // Su categoría ya existe (es una de las de CATALOGO), así que solo se
+  // reusa el id ya resuelto en categoriaIdPorNombre.
+  const categoriaFantasmaId = categoriaIdPorNombre.get(PRODUCTO_SIN_MOVIMIENTO.categoria);
+  const [rFantasma] = await conexion.query(
+    `INSERT INTO productos
+       (sku, codigo_barras, nombre, categoria_id, unidad_id, tipo, costo, costo_promedio, ultimo_costo,
+        precio, stock_minimo, stock_maximo, punto_reorden, estado, proveedor_principal, moneda,
+        eliminado_en, creado_en, actualizado_en)
+     VALUES (?, NULL, ?, ?, ?, 'producto', ?, ?, ?, ?, ?, ?, ?, 'activo', ?, 'MXN', NULL, ?, ?)`,
+    [PRODUCTO_SIN_MOVIMIENTO.sku, PRODUCTO_SIN_MOVIMIENTO.nombre, categoriaFantasmaId, unidadPieza.id,
+      PRODUCTO_SIN_MOVIMIENTO.costo, PRODUCTO_SIN_MOVIMIENTO.costo, PRODUCTO_SIN_MOVIMIENTO.costo,
+      PRODUCTO_SIN_MOVIMIENTO.precio, 5, 0, 2, `Proveedor ${PRODUCTO_SIN_MOVIMIENTO.sku} (nunca entregó)`,
+      fechaInicial, fechaInicial]
+  );
+  await conexion.query('INSERT INTO existencias (producto_id, almacen_id, disponible, actualizado_en) VALUES (?, ?, 0, ?)', [
+    rFantasma.insertId, almacenId, fechaInicial,
+  ]);
+
   console.log(`Catálogo sembrado: ${productos.length} productos + ${servicios.length} servicios, ${categoriasNombres.length} categorías, almacén ${almacenId}.\n`);
+  console.log(`Producto fantasma (sin movimiento, sin existencia): ${PRODUCTO_SIN_MOVIMIENTO.sku}.\n`);
   return { productos, servicios, almacenId };
 }
 
@@ -424,6 +485,92 @@ async function sembrarReporteEliminado(tipo, items, fechaGeneracion, zonaHoraria
   const rangoFin = new Date(Math.max(...tiempos));
   const mdContenido = generarContenidoMD({ tipo, fechaGeneracion, rangoInicio, rangoFin, items, zonaHoraria });
   await guardarReporte({ tipo, fechaGeneracion, rangoInicio, rangoFin, items, mdContenido, correoEnviadoA: null, correoEnviado: false });
+}
+
+// Señales de riesgo de inventario (punto 498): ancladas al reloj REAL
+// (ahoraReal = Date real de cuando corre el script), porque las queries
+// del dashboard que las leen (bajoMinimo/sinExistencia/mermasPeriodo/
+// porVencer en server.js) usan NOW()/CURDATE(), nunca la línea de tiempo
+// simulada de la siembra. mermas_periodo y por_vencer decaen con el
+// tiempo real (se salen de la ventana del mes/de los 30 días) — mismo
+// riesgo inherente que ya documenta backend/utils/config.js para
+// fecha_expiracion; aceptable para una demo que se puede re-sembrar.
+async function obtenerProductoPorSku(conexion, sku) {
+  const [[p]] = await conexion.query('SELECT id, costo, stock_minimo FROM productos WHERE sku = ? LIMIT 1', [sku]);
+  return p || null;
+}
+async function obtenerDisponible(conexion, productoId, almacenId) {
+  const [[e]] = await conexion.query(
+    'SELECT disponible FROM existencias WHERE producto_id = ? AND almacen_id = ? FOR UPDATE',
+    [productoId, almacenId]
+  );
+  return Number(e.disponible);
+}
+async function registrarSalidaAjusteOMerma(conexion, { producto, almacenId, cantidad, tipo, motivo, fecha }) {
+  const anterior = await obtenerDisponible(conexion, producto.id, almacenId);
+  const cantidadReal = Math.min(cantidad, anterior);
+  if (cantidadReal <= 0) return;
+  const posterior = round2(anterior - cantidadReal);
+  const [ins] = await conexion.query(
+    `INSERT INTO movimientos_inventario
+       (folio, producto_id, almacen_id, tipo, cantidad, costo_unitario, existencia_anterior, existencia_posterior,
+        motivo, usuario, creado_en)
+     VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'admin', ?)`,
+    [producto.id, almacenId, tipo, cantidadReal, producto.costo, anterior, posterior, motivo, fecha]
+  );
+  const prefijo = tipo === 'merma' ? 'ME' : 'AJ';
+  await conexion.query('UPDATE movimientos_inventario SET folio = ? WHERE id = ?', [
+    `${prefijo}-${String(ins.insertId).padStart(6, '0')}`, ins.insertId,
+  ]);
+  await conexion.query('UPDATE existencias SET disponible = ?, actualizado_en = ? WHERE producto_id = ? AND almacen_id = ?', [
+    posterior, fecha, producto.id, almacenId,
+  ]);
+}
+
+async function sembrarSenalesRiesgoInventario(conexion, { almacenId, ahoraReal }) {
+  const diaReal = (offset) => fechaUtc(
+    ahoraReal.getUTCFullYear(), ahoraReal.getUTCMonth(), Math.max(ahoraReal.getUTCDate() - offset, 1), 11, 30
+  );
+
+  const pAgotado = await obtenerProductoPorSku(conexion, SKU_AGOTADO);
+  if (pAgotado) {
+    const disponible = await obtenerDisponible(conexion, pAgotado.id, almacenId);
+    await registrarSalidaAjusteOMerma(conexion, {
+      producto: pAgotado, almacenId, cantidad: disponible, tipo: 'ajuste_negativo',
+      motivo: 'Última pieza vendida por alta demanda; pendiente de reabastecer con el proveedor (demo).',
+      fecha: diaReal(2),
+    });
+  }
+
+  for (const sku of SKUS_BAJO_MINIMO) {
+    const p = await obtenerProductoPorSku(conexion, sku);
+    if (!p) continue;
+    const disponible = await obtenerDisponible(conexion, p.id, almacenId);
+    const objetivo = Math.max(Math.floor(Number(p.stock_minimo) * 0.5), 1);
+    const salida = Math.max(disponible - objetivo, 0);
+    if (salida > 0) {
+      await registrarSalidaAjusteOMerma(conexion, {
+        producto: p, almacenId, cantidad: salida, tipo: 'ajuste_negativo',
+        motivo: 'Salida registrada por reparaciones recientes; queda por debajo del mínimo configurado (demo).',
+        fecha: diaReal(3),
+      });
+    }
+  }
+
+  for (const m of SKUS_MERMA_MES) {
+    const p = await obtenerProductoPorSku(conexion, m.sku);
+    if (!p) continue;
+    await registrarSalidaAjusteOMerma(conexion, {
+      producto: p, almacenId, cantidad: m.cantidad, tipo: 'merma', motivo: m.motivo, fecha: diaReal(1),
+    });
+  }
+
+  for (const e of SKUS_POR_VENCER) {
+    const fechaExp = new Date(ahoraReal.getTime() + e.dias * 86400000).toISOString().slice(0, 10);
+    await conexion.query('UPDATE productos SET fecha_expiracion = ? WHERE sku = ?', [fechaExp, e.sku]);
+  }
+
+  console.log('Señales de riesgo de inventario sembradas: 1 agotado, 2 bajo mínimo, 2 mermas del mes, 2 por vencer, 1 sin movimiento (fantasma).\n');
 }
 
 async function sembrarEliminadosDemo(llavesOrdenadas, zonaHoraria) {
@@ -647,6 +794,8 @@ async function principal() {
         }
       }
     }
+
+    await sembrarSenalesRiesgoInventario(conexion, { almacenId, ahoraReal: hoyUtc });
 
     await conexion.commit();
 
