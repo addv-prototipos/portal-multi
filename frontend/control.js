@@ -248,6 +248,17 @@
     terminosHistorialGlobalTableBody: document.getElementById('terminos-historial-global-table-body'),
     terminosHistorialGlobalEmpty: document.getElementById('terminos-historial-global-empty'),
     btnTerminosHistorialGlobalMas: document.getElementById('btn-terminos-historial-global-mas'),
+    errorTerminosContenido: document.getElementById('error-terminos-contenido'),
+    btnTerminosPartirVigente: document.getElementById('btn-terminos-partir-vigente'),
+    tabTerminosPreview: document.getElementById('tab-terminos-preview'),
+    tabTerminosDiff: document.getElementById('tab-terminos-diff'),
+    terminosPreviewRender: document.getElementById('terminos-preview-render'),
+    terminosDiffRender: document.getElementById('terminos-diff-render'),
+    terminosPreviewModalOverlay: document.getElementById('terminos-preview-modal-overlay'),
+    terminosPreviewModalTitle: document.getElementById('terminos-preview-modal-title'),
+    terminosPreviewMeta: document.getElementById('terminos-preview-meta'),
+    terminosPreviewModalRender: document.getElementById('terminos-preview-modal-render'),
+    btnTerminosPreviewCerrar: document.getElementById('btn-terminos-preview-cerrar'),
     vistaEmpresas: document.getElementById('vista-control-empresas'),
     vistaPlanes: document.getElementById('vista-control-planes'),
     vistaPapelera: document.getElementById('vista-control-papelera'),
@@ -4623,7 +4634,15 @@
   }
 
   // ---------- Punto en curso: Términos y Condiciones (gate post-onboarding, solo cuenta raíz) ----------
+  // Editor Markdown seguro (nunca HTML) — ver admin.css ".md-prosa" para
+  // el render compartido y backend/control/utils/terminosCondiciones.js
+  // para el campo `formato` ('markdown' siempre para versiones nuevas,
+  // 'html_legacy' solo en filas publicadas ANTES de este punto, con el
+  // viejo editor HTML — esas se siguen mostrando tal cual, nunca se
+  // reescriben: el historial legal no se toca).
   let terminosEditandoAbierto = false;
+  let terminosVersionesCache = [];
+  let terminosVigente = null; // { id, version, contenido, formato } — null si nunca se ha publicado nada
 
   function formatearFechaHoraMx(fechaIso) {
     if (!fechaIso) return '—';
@@ -4634,6 +4653,211 @@
     }
   }
 
+  // Inline seguro: SOLO **negrita** y *cursiva*/_cursiva_ — arma nodos de
+  // texto + <strong>/<em> reales vía DOM, nunca innerHTML con el texto
+  // del usuario. Cualquier otro carácter (incluido "<", ">") queda como
+  // texto plano, literalmente imposible de interpretar como etiqueta.
+  function terminosAplicarInlineSeguro(elemento, texto) {
+    const partes = String(texto == null ? '' : texto).split(/(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_)/g);
+    partes.forEach((parte) => {
+      if (!parte) return;
+      if (/^\*\*[^*]+\*\*$/.test(parte)) {
+        const strong = document.createElement('strong');
+        strong.textContent = parte.slice(2, -2);
+        elemento.appendChild(strong);
+      } else if (/^\*[^*]+\*$/.test(parte) || /^_[^_]+_$/.test(parte)) {
+        const em = document.createElement('em');
+        em.textContent = parte.slice(1, -1);
+        elemento.appendChild(em);
+      } else {
+        elemento.appendChild(document.createTextNode(parte));
+      }
+    });
+  }
+
+  // Markdown → DOM, whitelist cerrada: encabezado (## ), listas (- / 1.)
+  // y párrafos. Devuelve un nodo real listo para insertar — nunca una
+  // cadena HTML, así que no hay forma de que esta función produzca una
+  // inyección aunque el texto de entrada contenga "<script>" o cualquier
+  // otra etiqueta: ese texto se trata siempre como contenido, no marcado.
+  function renderizarMarkdownSeguro(md) {
+    const contenedor = document.createElement('div');
+    const texto = String(md == null ? '' : md).replace(/\r\n/g, '\n');
+    texto.split(/\n{2,}/).forEach((bloqueCrudo) => {
+      const bloque = bloqueCrudo.trim();
+      if (!bloque) return;
+      if (/^##?\s+/.test(bloque)) {
+        const h = document.createElement('h4');
+        terminosAplicarInlineSeguro(h, bloque.replace(/^##?\s+/, ''));
+        contenedor.appendChild(h);
+        return;
+      }
+      const lineas = bloque.split('\n').map((l) => l.trim()).filter(Boolean);
+      const esLista = lineas.length > 0 && lineas.every((l) => /^[-*]\s+/.test(l));
+      const esNumerada = lineas.length > 0 && lineas.every((l) => /^\d+\.\s+/.test(l));
+      if (esLista || esNumerada) {
+        const lista = document.createElement(esNumerada ? 'ol' : 'ul');
+        lineas.forEach((l) => {
+          const li = document.createElement('li');
+          terminosAplicarInlineSeguro(li, l.replace(/^(?:[-*]|\d+\.)\s+/, ''));
+          lista.appendChild(li);
+        });
+        contenedor.appendChild(lista);
+        return;
+      }
+      const p = document.createElement('p');
+      terminosAplicarInlineSeguro(p, bloque.replace(/\n/g, ' '));
+      contenedor.appendChild(p);
+    });
+    return contenedor;
+  }
+
+  function terminosPintarRender(contenedorEl, contenido, formato) {
+    contenedorEl.innerHTML = '';
+    if (formato === 'html_legacy') {
+      // Único caso donde se sigue confiando contenido como HTML: filas
+      // publicadas con el editor viejo, inmutables desde entonces (nunca
+      // se re-edita contenido ya publicado). El editor nuevo JAMÁS
+      // vuelve a escribir este formato.
+      contenedorEl.innerHTML = contenido || '';
+      return;
+    }
+    contenedorEl.appendChild(renderizarMarkdownSeguro(contenido));
+  }
+
+  // Diff de líneas (LCS clásico) — compara el Markdown nuevo contra el
+  // de la versión vigente. Solo tiene sentido markdown-contra-markdown;
+  // si la vigente es 'html_legacy' no hay nada comparable línea por
+  // línea (ver terminosActualizarDiff).
+  function terminosCalcularDiffLineas(viejoTexto, nuevoTexto) {
+    const a = String(viejoTexto || '').replace(/\r\n/g, '\n').split('\n');
+    const b = String(nuevoTexto || '').replace(/\r\n/g, '\n').split('\n');
+    const n = a.length;
+    const m = b.length;
+    const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    const resultado = [];
+    let i = 0;
+    let j = 0;
+    while (i < n && j < m) {
+      if (a[i] === b[j]) { resultado.push({ tipo: 'ctx', texto: a[i] }); i++; j++; }
+      else if (dp[i + 1][j] >= dp[i][j + 1]) { resultado.push({ tipo: 'del', texto: a[i] }); i++; }
+      else { resultado.push({ tipo: 'add', texto: b[j] }); j++; }
+    }
+    while (i < n) { resultado.push({ tipo: 'del', texto: a[i] }); i++; }
+    while (j < m) { resultado.push({ tipo: 'add', texto: b[j] }); j++; }
+    return resultado;
+  }
+
+  function terminosActualizarPreview() {
+    terminosPintarRender(els.terminosPreviewRender, els.terminosContenido.value, 'markdown');
+  }
+
+  function terminosActualizarDiff() {
+    els.terminosDiffRender.innerHTML = '';
+    if (!terminosVigente) {
+      const p = document.createElement('p');
+      p.className = 'terminos-diff-sin-base';
+      p.textContent = 'Todavía no hay ninguna versión vigente — no hay nada contra qué comparar. Esta sería la primera versión publicada.';
+      els.terminosDiffRender.appendChild(p);
+      return;
+    }
+    if (terminosVigente.formato === 'html_legacy') {
+      const aviso = document.createElement('p');
+      aviso.className = 'terminos-diff-sin-base';
+      aviso.textContent = `La versión vigente (v${terminosVigente.version}) usa el formato anterior — no hay una comparación línea por línea posible. Esto es lo que dice hoy, para que la revises a mano:`;
+      els.terminosDiffRender.appendChild(aviso);
+      const envoltura = document.createElement('div');
+      envoltura.className = 'md-prosa';
+      terminosPintarRender(envoltura, terminosVigente.contenido, 'html_legacy');
+      els.terminosDiffRender.appendChild(envoltura);
+      return;
+    }
+    const diff = terminosCalcularDiffLineas(terminosVigente.contenido, els.terminosContenido.value);
+    const hayCambios = diff.some((l) => l.tipo !== 'ctx');
+    if (!hayCambios) {
+      const p = document.createElement('p');
+      p.className = 'terminos-diff-sin-base';
+      p.textContent = 'Sin cambios todavía contra la versión vigente.';
+      els.terminosDiffRender.appendChild(p);
+      return;
+    }
+    diff.forEach((linea) => {
+      const div = document.createElement('div');
+      div.className = `terminos-diffline ${linea.tipo}`;
+      div.textContent = linea.texto || ' ';
+      els.terminosDiffRender.appendChild(div);
+    });
+  }
+
+  function terminosMostrarTab(cualTab) {
+    const esPreview = cualTab === 'preview';
+    els.tabTerminosPreview.classList.toggle('on', esPreview);
+    els.tabTerminosPreview.setAttribute('aria-selected', String(esPreview));
+    els.tabTerminosDiff.classList.toggle('on', !esPreview);
+    els.tabTerminosDiff.setAttribute('aria-selected', String(!esPreview));
+    els.terminosPreviewRender.hidden = !esPreview;
+    els.terminosDiffRender.hidden = esPreview;
+    if (esPreview) terminosActualizarPreview();
+    else terminosActualizarDiff();
+  }
+
+  if (els.tabTerminosPreview) els.tabTerminosPreview.addEventListener('click', () => terminosMostrarTab('preview'));
+  if (els.tabTerminosDiff) els.tabTerminosDiff.addEventListener('click', () => terminosMostrarTab('diff'));
+
+  if (els.terminosContenido) {
+    els.terminosContenido.addEventListener('input', () => {
+      if (els.terminosPreviewRender.hidden) terminosActualizarDiff();
+      else terminosActualizarPreview();
+    });
+  }
+
+  // Toolbar: envuelve la selección actual con la sintaxis Markdown
+  // correspondiente (o la inserta vacía si no hay selección), manteniendo
+  // el foco y la posición del cursor — mismo patrón que cualquier editor
+  // de texto plano con formato.
+  function terminosInsertarMarkdown(tipo) {
+    const campo = els.terminosContenido;
+    const inicio = campo.selectionStart;
+    const fin = campo.selectionEnd;
+    const valor = campo.value;
+    const seleccion = valor.slice(inicio, fin);
+    let nuevoTexto = seleccion;
+    let cursorInicio = inicio;
+    let cursorFin = fin;
+    const envolver = (marca) => {
+      nuevoTexto = `${marca}${seleccion || 'texto'}${marca}`;
+      cursorInicio = inicio + marca.length;
+      cursorFin = cursorInicio + (seleccion || 'texto').length;
+    };
+    const prefijarLineas = (prefijo, numerar) => {
+      const lineas = (seleccion || 'elemento de la lista').split('\n');
+      nuevoTexto = lineas.map((l, idx) => `${numerar ? `${idx + 1}. ` : prefijo}${l}`).join('\n');
+      cursorInicio = inicio;
+      cursorFin = inicio + nuevoTexto.length;
+    };
+    if (tipo === 'bold') envolver('**');
+    else if (tipo === 'italic') envolver('*');
+    else if (tipo === 'heading') {
+      nuevoTexto = `## ${seleccion || 'Encabezado'}`;
+      cursorInicio = inicio;
+      cursorFin = inicio + nuevoTexto.length;
+    } else if (tipo === 'bullet') prefijarLineas('- ', false);
+    else if (tipo === 'numbered') prefijarLineas('', true);
+    campo.value = valor.slice(0, inicio) + nuevoTexto + valor.slice(fin);
+    campo.focus();
+    campo.setSelectionRange(cursorInicio, cursorFin);
+    campo.dispatchEvent(new Event('input'));
+  }
+
+  document.querySelectorAll('.terminos-tbtn[data-md]').forEach((btn) => {
+    btn.addEventListener('click', () => terminosInsertarMarkdown(btn.dataset.md));
+  });
+
   async function cargarTerminos() {
     const authHeader = getAuthHeader();
     if (!authHeader) { showLogin(); return; }
@@ -4642,21 +4866,72 @@
       const res = await fetch(`${API_BASE}/terminos`, { headers: { Authorization: authHeader } });
       if (res.status === 401) { clearSession(); showLogin(); return; }
       const data = await res.json();
-      renderTerminos(data.items || []);
+      terminosVersionesCache = data.items || [];
+      renderTerminos(terminosVersionesCache);
+      const vigenteFila = terminosVersionesCache.find((v) => v.activo);
+      if (vigenteFila) await terminosCargarVigenteCompleta(vigenteFila.id);
+      else terminosVigente = null;
       cargarTerminosHistorialGlobal(false);
     } catch {
       els.terminosError.textContent = 'No se pudo cargar el historial de versiones.';
     }
   }
 
+  // El listado (GET /terminos) no trae el contenido completo (serían
+  // varias versiones completas en una sola respuesta, sin necesidad la
+  // mayoría de las veces) — se pide aparte, una sola vez, solo la vigente,
+  // para tener base de comparación en el editor.
+  async function terminosCargarVigenteCompleta(id) {
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/terminos/${id}`, { headers: { Authorization: authHeader } });
+      if (!res.ok) { terminosVigente = null; return; }
+      terminosVigente = await res.json();
+    } catch {
+      terminosVigente = null;
+    }
+  }
+
   function renderTerminos(items) {
     els.terminosEmpty.hidden = items.length > 0;
-    els.terminosTableBody.innerHTML = items.map((v) => `<tr>
-      <td>v${escapeHtml(v.version)}</td>
-      <td>${formatearFechaHoraMx(v.creado_en)}</td>
-      <td>${v.resumen_cambios ? escapeHtml(v.resumen_cambios) : '—'}</td>
-      <td>${v.activo ? '<span class="estatus-badge estatus-activo">Vigente</span>' : '<span class="estatus-badge estatus-vence-na">Anterior</span>'}</td>
-    </tr>`).join('');
+    els.terminosTableBody.innerHTML = '';
+    items.forEach((v) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>v${escapeHtml(v.version)}</td>
+        <td>${formatearFechaHoraMx(v.creado_en)}</td>
+        <td>${v.resumen_cambios ? escapeHtml(v.resumen_cambios) : '—'}</td>
+        <td>${v.activo ? '<span class="estatus-badge estatus-activo">Vigente</span>' : '<span class="estatus-badge estatus-vence-na">Anterior</span>'}</td>
+      `;
+      const tdAcciones = document.createElement('td');
+      tdAcciones.appendChild(crearBotonAccion('btn-icono-accion', 'Ver contenido',
+        'M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z M12 15a3 3 0 100-6 3 3 0 000 6z',
+        () => terminosAbrirPreviewVersion(v.id)));
+      tr.appendChild(tdAcciones);
+      els.terminosTableBody.appendChild(tr);
+    });
+  }
+
+  async function terminosAbrirPreviewVersion(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    try {
+      const res = await fetch(`${API_BASE}/terminos/${id}`, { headers: { Authorization: authHeader } });
+      if (!res.ok) { showToast('No se pudo cargar esa versión.', true); return; }
+      const v = await res.json();
+      els.terminosPreviewModalTitle.textContent = `Versión ${v.version}`;
+      els.terminosPreviewMeta.textContent = v.formato === 'html_legacy'
+        ? 'Publicada con el formato anterior (HTML) — solo lectura, nunca se reescribe el historial.'
+        : 'Formato Markdown.';
+      terminosPintarRender(els.terminosPreviewModalRender, v.contenido, v.formato);
+      els.terminosPreviewModalOverlay.hidden = false;
+    } catch {
+      showToast('Sin conexión — intenta de nuevo.', true);
+    }
+  }
+
+  if (els.btnTerminosPreviewCerrar) {
+    els.btnTerminosPreviewCerrar.addEventListener('click', () => { els.terminosPreviewModalOverlay.hidden = true; });
   }
 
   function abrirTerminosForm() {
@@ -4666,6 +4941,13 @@
     els.terminosResumen.value = '';
     els.terminosContenido.value = '';
     els.errorTerminosVersion.textContent = '';
+    els.errorTerminosContenido.textContent = '';
+    els.btnTerminosPartirVigente.disabled = !terminosVigente || terminosVigente.formato !== 'markdown';
+    els.btnTerminosPartirVigente.setAttribute('data-tooltip',
+      !terminosVigente ? 'No hay ninguna versión vigente todavía.'
+        : terminosVigente.formato !== 'markdown' ? 'La versión vigente usa el formato anterior — no se puede partir de ella.'
+        : 'Copia el contenido de la versión vigente como punto de partida.');
+    terminosMostrarTab('preview');
     els.terminosVersion.focus();
   }
 
@@ -4676,17 +4958,25 @@
 
   if (els.btnTerminosNuevo) els.btnTerminosNuevo.addEventListener('click', abrirTerminosForm);
   if (els.btnTerminosCancelar) els.btnTerminosCancelar.addEventListener('click', cerrarTerminosForm);
+  if (els.btnTerminosPartirVigente) {
+    els.btnTerminosPartirVigente.addEventListener('click', () => {
+      if (!terminosVigente || terminosVigente.formato !== 'markdown') return;
+      els.terminosContenido.value = terminosVigente.contenido;
+      els.terminosContenido.dispatchEvent(new Event('input'));
+    });
+  }
 
   if (els.btnTerminosGuardar) {
     els.btnTerminosGuardar.addEventListener('click', async () => {
       const authHeader = getAuthHeader();
       if (!authHeader) { showLogin(); return; }
       els.errorTerminosVersion.textContent = '';
+      els.errorTerminosContenido.textContent = '';
       els.terminosError.textContent = '';
       const version = els.terminosVersion.value.trim();
       const contenido = els.terminosContenido.value.trim();
       if (!version) { els.errorTerminosVersion.textContent = 'La versión es obligatoria.'; return; }
-      if (!contenido) { els.terminosError.textContent = 'El contenido no puede estar vacío.'; return; }
+      if (!contenido) { els.errorTerminosContenido.textContent = 'El contenido no puede estar vacío.'; return; }
       els.btnTerminosGuardar.disabled = true;
       try {
         const res = await fetch(`${API_BASE}/terminos`, {

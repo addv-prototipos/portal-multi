@@ -1025,6 +1025,26 @@ solo la frase en español de la UI.
   desde `/control` → Planes. Antes de asumir qué incluye un plan real,
   `SELECT * FROM control_tenants.planes WHERE id=<n>` en producción —
   nunca el default del seed como fuente de verdad.
+- **Stampear el modo de Stripe desde `session.livemode`, nunca desde el
+  toggle de plataforma** (punto 497, 2026-11-13): `onboarding_borradores.
+  stripe_livemode` se llena en `stripePagos.js:manejarPagoConfirmado` con
+  el campo real del evento de Stripe — `stripeModo.modoActivo()` describe
+  el toggle AHORA, no el modo en que ESE pago se procesó. Cualquier KPI
+  futuro que agregue montos de esa tabla debe filtrar `stripe_livemode =
+  1`, igual que `reporteCupones.js` — una fila de prueba nunca debe sumar
+  a una métrica real. Backfill de filas viejas:
+  `control/scripts/backfill-stripe-livemode-cupones.js` (dry-run por
+  default, clasifica contra Stripe real con ambas llaves).
+- **T&C en `/control`: Markdown seguro, nunca HTML** (punto 499,
+  2026-11-13) — `terminos_versiones.formato` (`'markdown'` default,
+  `'html_legacy'` solo en filas de ANTES de esta columna, nunca se
+  reescribe el historial ya aceptado). `renderizarMarkdownSeguro()`
+  (duplicada en `control.js`/`admin.js`) arma el DOM con
+  `createElement`/`textContent`, nunca `innerHTML` del texto del usuario
+  — cerró el único sumidero real de XSS del feature
+  (`admin.js:terminosGateScroll.innerHTML = contenido`, ya corregido).
+  `publicarVersion()` hardcodea `formato='markdown'`, ignora cualquier
+  valor que llegue en el request.
 
 ## Stack
 

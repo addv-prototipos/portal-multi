@@ -30497,3 +30497,194 @@ que ya está corriendo ahí (`ssh ... cat /opt/clarvo/.env` a un temporal,
 gitignored es la fuente de verdad completa, porque puede haber divergido
 si alguna sesión anterior agregó algo directo en el servidor sin
 sincronizarlo de vuelta. Ver gotcha nuevo en `CLAUDE.md`.
+
+## Punto 498 - Dashboard del tenant demo "Mas Cómputo" mostraba $0 en KPIs del mes y 0 en señales de riesgo de inventario (13 nov 2026, CERRADO, producción real)
+
+**Causa raíz**: la siembra del punto 495 (12 nov 2026) corrió SIN
+`SEED_INCLUIR_MES_ACTUAL=1` — por diseño original del script, la línea
+de tiempo simulada se detiene al último día del mes ANTERIOR, así que
+noviembre (mes en curso) quedó sin una sola fila. Las 4 tarjetas KPI de
+"Inicio" (Total facturado, Ventas sin facturar, Balance ventas vs
+gastos, Total gastos) y los 2 widgets de BI (Top proveedores de gasto,
+Distribución de gastos por categoría) leen SIEMPRE el mes en curso
+(`fechas.inicio`/`fechas.fin` de `limitesPeriodo.js`), nunca un
+acumulado histórico — con noviembre vacío, los 6 quedaban en $0/0
+proveedores aunque los 9 meses anteriores sí tuvieran datos reales.
+Aparte, las 5 tarjetas de "Riesgo y control" (bajo mínimo, sin
+existencia, sin movimiento, mermas del mes, por vencer) nunca habían
+tenido señales sembradas — el script original solo cargaba stock
+inicial sano y lo vendía, sin forzar ningún caso límite.
+
+**Fix, en `backend/scripts/sembrar-mas-computo.js`**:
+1. Correr con `SEED_INCLUIR_MES_ACTUAL=1` (documentado ahora en el
+   encabezado del script) — cubre el mes en curso hasta `hoy - 1`.
+2. Nuevo `PRODUCTO_SIN_MOVIMIENTO` (SKU `ACC-SOP-026`, "nunca llegó
+   mercancía del proveedor"): única vía real para que "Sin movimiento"
+   no sea siempre 0 — cualquier producto normal de `CATALOGO` recibe su
+   movimiento `inventario_inicial` desde el día uno, así que la condición
+   `NOT EXISTS movimientos_inventario` nunca se cumple para ellos. Este
+   producto se inserta fuera del loop normal, con `existencias.disponible=0`
+   y CERO filas en `movimientos_inventario`.
+3. `sembrarSenalesRiesgoInventario()` (nueva, corre dentro de la misma
+   transacción, antes del commit): 1 producto agotado (`ACC-BAT-015`,
+   vendido hasta 0 vía `ajuste_negativo`), 2 productos bajados a la
+   mitad de su `stock_minimo` (`ACC-BAS-020`, `ENE-NOB-021`), 2 mermas
+   del mes (`CON-TIN-023`, `ACC-CAM-018`, tipo `merma`), 2 productos con
+   `fecha_expiracion` dentro de la ventana de "por vencer" (`CON-TON-022`
+   a 12 días, `CON-TIN-023` a 24 días). Todas ancladas al reloj REAL
+   (`ahoraReal`/`Date()` de cuando corre el script), nunca a la línea de
+   tiempo simulada — las queries del backend que las leen usan
+   `NOW()`/`CURDATE()`, mismo criterio que ya aplica `fecha_expiracion`
+   en `backend/utils/config.js`.
+
+**Verificado real** (query directa contra `tenant_mas-computo` vía
+`mysql-primary`, replicando exactamente el SQL de cada endpoint):
+ventas de noviembre $37,459.73, facturado $17,819.58, gastos $22,574.92
+(balance negativo real por ser días 1-12 del mes, con renta ya
+registrada y facturación todavía acumulando — no se fuerza a positivo),
+11 proveedores con gasto capturado este mes, 4 productos bajo mínimo, 2
+sin existencia, 1 sin movimiento, $540 en mermas del mes, 2 por vencer.
+Todas las tarjetas mencionadas en la captura del usuario dejan de estar
+en $0/0.
+
+**Riesgo inherente conocido, aceptado**: `mermas_periodo_valor` y
+`productos_por_vencer` decaen con el tiempo real (se salen de la
+ventana del mes en curso / de los 30 días de aviso) — igual que ya
+documenta `CLAUDE.md` para `fecha_expiracion`. Si se vuelve a pedir la
+demo meses después sin resembrar, esas 2 tarjetas pueden volver a
+mostrar 0 aunque bajo mínimo/sin existencia/sin movimiento sigan
+mostrando datos (son estructurales, no dependen de la fecha de hoy).
+
+**Mecánica de ejecución**: mismo patrón del punto 495 (servicio Swarm
+efímero `clrv-seed-mascomputo`, `--mount` solo de `backend/scripts`,
+`docker service rm` al terminar — sin servicio huérfano). Verificación
+por SQL directo usó `docker exec` contra el contenedor `mysql-primary`
+YA corriendo en el stack (no un servicio nuevo en la red overlay), con
+`MYSQL_PASSWORD` leído del `.env` del servidor.
+
+## Punto 497 - "Ingreso atribuido a cupones" sumaba redenciones de Stripe en modo PRUEBA como ingreso real (13 nov 2026, CERRADO, desplegado y validado en producción real)
+
+**Causa raíz**: `onboarding_borradores.stripe_promotion_code` se llenaba
+en `stripePagos.js:manejarPagoConfirmado` sin distinguir si el Checkout
+se pagó con la llave de PRUEBA o la llave LIVE de Stripe —
+`reporteCupones.js` sumaba cualquier fila con código, sin filtrar por
+modo. Reportado por el usuario con captura real: $1,996 en la tarjeta
+"Cuenta Stripe" → "Ingreso atribuido a cupones" de `/control`, con el
+badge "Modo: producción" ya activo.
+
+**Fix**:
+1. Columna nueva `onboarding_borradores.stripe_livemode` (TINYINT NULL,
+   `ensureSchema.js`) — se llena desde `session.livemode` REAL de Stripe
+   en `stripePagos.js:manejarPagoConfirmado`, nunca desde
+   `stripeModo.modoActivo()` (ese describe el toggle de PLATAFORMA en el
+   momento en que el webhook corre, no el modo en que ESE pago
+   específico se procesó realmente).
+2. `reporteCupones.js` ahora exige `stripe_livemode = 1` en el WHERE —
+   cualquier fila en 0 o sin clasificar (NULL) queda fuera del ingreso
+   real, a propósito.
+3. `control/scripts/backfill-stripe-livemode-cupones.js` (nuevo, dry-run
+   por default) — clasifica filas viejas (de antes de esta columna)
+   contra Stripe REAL probando `stripe.promotionCodes.retrieve()` con
+   ambas llaves (prueba y live), nunca por formato del id. Corrido en
+   producción real: 4 filas existentes, las 4 confirmadas PRUEBA, 0 en
+   LIVE — verificado después con query directa (`COUNT(*) WHERE
+   stripe_promotion_code IS NOT NULL AND stripe_livemode = 1` → 0).
+
+**Desplegado**: rebuild + `docker service update --force clarvo_control`
+en Vultr, backup de ambas bases ANTES de tocar código
+(`primary-20261113-203100.sql`/`control-20261113-203100.sql`,
+`/mnt/blockstorage/backups`). Checksum del archivo extraído verificado
+contra `git show HEAD:...` antes de reconstruir la imagen.
+
+**Smoke-test del punto 465 (alta real + Stripe + webhook) falló en
+automatización — no es una regresión de este deploy**: el checkbox de
+Google reCAPTCHA real no se dejó marcar por Edge automatizado
+(`RECAPTCHA_ARIA_CHECKED: false`, timeout esperando el botón "Pagar"
+habilitado) — exactamente el escenario que el propio script ya
+documenta en su comentario (línea ~148 de
+`VULTR/smoke-test-onboarding.js`: "un checkbox real de Google puede
+rechazar Edge headless... nunca asumir que el deploy está roto solo por
+esto"). Confirmado que no hubo regresión real: cero requests llegaron a
+`control` en los 10 minutos del intento (`docker service logs` sin
+ninguna línea de borrador/onboarding), es decir, el fallo ocurrió 100%
+del lado del cliente (clarvo-Site + iframe de Google), antes de tocar
+nada que este deploy haya cambiado. Verificación alterna usada en su
+lugar: query SQL directa confirmando el estado real de los 4 registros
++ logs limpios de `control` + `/control` respondiendo 200. **Pendiente
+real**: correr el smoke-test completo con clics reales (no automatizado)
+la próxima vez que se necesite confirmar el flujo de pago de punta a
+punta — este punto no lo requería porque el cambio no tocó ningún código
+de onboarding/pago/webhook.
+
+## Punto 499 - Editor de Términos y Condiciones migrado de HTML a Markdown seguro, con vista previa/comparación de cambios (13 nov 2026, CERRADO en local, pendiente de validación funcional con clics reales y de desplegar a producción)
+
+**Pedido del usuario**: el campo "Contenido" de `/control` → Términos y
+Condiciones aceptaba HTML crudo, renderizado tal cual (`innerHTML`) en
+el gate real que ve cada cliente — el usuario lo señaló explícitamente
+como brecha de inyección de código y pidió Markdown con editor básico
+(negritas, cursivas, encabezados, listas/viñetas), preview de versiones
+anteriores, y comparación de cambios entre la versión nueva y la
+vigente. Antes de implementar, se publicó un Artifact con 6 propuestas
+visuales/UX distintas (`/ui-ux-pro-max` + `/ux-copy` + `/impeccable`) —
+el usuario eligió fusionar el concepto 1 (vista previa en vivo, dos
+columnas) con el concepto 5 (acceso al historial), resuelto como: el
+editor usa el layout del concepto 1 (toolbar + textarea + panel
+preview/comparar), y el acceso al historial reusa la tabla de versiones
+YA existente (cada fila gana un botón "Ver contenido" en vez de
+duplicar un cajón lateral redundante).
+
+**Hallazgo real confirmado antes de tocar nada**: `frontend/admin.js`
+(`verificarGateTerminosYMostrar`) hacía
+`els.terminosGateScroll.innerHTML = data.version.contenido` — el único
+sumidero real de XSS del feature. Contenido real verificado en
+producción (solo 1 versión publicada, v1.1, HTML real con
+`<h4>`/`<p>`) — ese dato legal YA ACEPTADO por clientes reales nunca se
+reescribe (invariante existente: "no hay UPDATE de contenido ya
+publicado").
+
+**Diseño — columna `formato` (`'markdown'` | `'html_legacy'`),
+nunca una migración destructiva del contenido ya publicado**:
+`terminos_versiones.formato` (ensureSchema.js, backfill condicional
+UNA SOLA VEZ a `'html_legacy'` para toda fila que ya existía en el
+momento del ALTER — cualquier versión publicada después nace con el
+default `'markdown'`). `publicarVersion()` hardcodea `formato='markdown'`
+siempre, ignorando cualquier intento de mandarlo en el request — la v1.1
+real sigue siendo `html_legacy` para siempre, nunca se reescribe, y se
+sigue renderizando con el mismo camino de confianza que ya tenía (código
+inmutable, revisado por el equipo de Clarvo antes de este punto) — el
+editor nuevo JAMÁS vuelve a escribir ese formato.
+
+**Render 100% por nodos DOM, nunca por concatenación de HTML**:
+`renderizarMarkdownSeguro()` (duplicada en `control.js` y `admin.js`,
+mismo criterio del proyecto para código pequeño sin build step) arma
+`<h4>`/`<p>`/`<ul>`/`<ol>`/`<li>`/`<strong>`/`<em>` vía
+`document.createElement`/`textContent` exclusivamente — nunca
+`innerHTML` con el texto del usuario, así que ni siquiera en teoría un
+`<script>` escrito por error en el editor puede ejecutarse. Whitelist
+cerrada: `## encabezado`, `**negrita**`, `*cursiva*`/`_cursiva_`,
+`- viñeta`/`1. numerada`, el resto es texto plano siempre.
+
+**Diff solo markdown-contra-markdown**: `terminosCalcularDiffLineas()`
+(LCS clásico, línea por línea) compara el borrador contra la vigente
+SOLO si la vigente es `formato='markdown'` — con la vigente real de hoy
+(`html_legacy`), la pestaña "Comparar con vigente" lo explica en vez de
+intentar un diff sin sentido contra HTML, y muestra la vigente renderizada
+debajo para revisión manual. "Partir de la versión vigente" se deshabilita
+con el mismo criterio (no se puede partir de HTML hacia un campo Markdown).
+
+**Backend**: `GET /api/control/terminos/:id(\\d+)` (nuevo, registrado
+DESPUÉS de `/historial/:slug` y `/historial-global` a propósito, con
+`:id` restringido a dígitos — test de integración nuevo confirma que la
+ruta literal `/historial-global` sigue resolviendo). `obtenerVersionPorId`/
+`obtenerVersionVigente`/`listarVersiones` ahora seleccionan `formato`.
+10 tests unitarios + de integración nuevos, 629/629 en la suite completa
+de `control` (antes 621, +4 del punto 497 +14 del 497/499 juntos — ver
+`git log`).
+
+**Pendiente, fuera de alcance de este punto**: validación funcional con
+clics reales en navegador (Playwright o confirmación del usuario) — el
+protocolo exige esto como piso no negociable antes de dar por cerrado
+cualquier cambio de UI, no se marca aquí. Deploy a producción también
+pendiente de confirmación explícita del usuario (el fix de cupones del
+punto 497 sí se desplegó porque el usuario lo autorizó explícito; este
+punto no se desplegó sin pedirlo).

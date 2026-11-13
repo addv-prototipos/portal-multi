@@ -1375,30 +1375,58 @@
 
           <div class="admin-table-wrap">
             <table class="admin-table">
-              <thead><tr><th>Versión</th><th>Publicada</th><th>Resumen de cambios</th><th>Estado</th></tr></thead>
+              <thead><tr><th>Versión</th><th>Publicada</th><th>Resumen de cambios</th><th>Estado</th><th>Acciones</th></tr></thead>
               <tbody id="terminos-table-body"></tbody>
             </table>
           </div>
           <p class="admin-empty-state" id="terminos-empty" hidden>Todavía no hay ninguna versión publicada — el gate no bloquea a nadie hasta la primera publicación.</p>
 
-          <div id="terminos-form" class="control-form-grid" style="max-width:720px;margin-top:18px;" hidden>
-            <div class="field">
-              <label for="terminos-version">Número de versión</label>
-              <input type="text" id="terminos-version" maxlength="20" placeholder="Ej. 1.0" autocomplete="off" />
-              <p class="field-error" id="error-terminos-version" role="alert"></p>
+          <div id="terminos-form" class="terminos-editor" hidden>
+            <div class="control-form-grid" style="margin-bottom:16px;">
+              <div class="field">
+                <label for="terminos-version">Número de versión</label>
+                <input type="text" id="terminos-version" maxlength="20" placeholder="Ej. 1.0" autocomplete="off" />
+                <p class="field-error" id="error-terminos-version" role="alert"></p>
+              </div>
+              <div class="field">
+                <label for="terminos-resumen">Resumen de cambios (se muestra a quien ya había aceptado una versión anterior)</label>
+                <input type="text" id="terminos-resumen" maxlength="255" placeholder="Ej. Se agregó el detalle de proveedores externos" autocomplete="off" />
+              </div>
             </div>
-            <div class="field">
-              <label for="terminos-resumen">Resumen de cambios (se muestra a quien ya había aceptado una versión anterior)</label>
-              <input type="text" id="terminos-resumen" maxlength="255" placeholder="Ej. Se agregó el detalle de proveedores externos" autocomplete="off" />
-            </div>
-            <div class="field control-form-grid-full">
-              <label for="terminos-contenido">Contenido (HTML simple: &lt;h4&gt;/&lt;p&gt;)</label>
-              <textarea id="terminos-contenido" rows="12" placeholder="&lt;h4&gt;1. Qué aceptas...&lt;/h4&gt;&lt;p&gt;...&lt;/p&gt;"></textarea>
-              <p class="field-hint">Se muestra tal cual dentro del gate — este contenido es de confianza (lo escribe el equipo de Clarvo), nunca entrada de un cliente.</p>
-            </div>
-            <div class="btn-row control-form-grid-full" style="justify-content:flex-start;">
-              <button type="button" class="btn btn-primary" id="btn-terminos-guardar">Publicar versión</button>
-              <button type="button" class="btn btn-secondary" id="btn-terminos-cancelar">Cancelar</button>
+
+            <div class="terminos-editor-layout">
+              <div class="terminos-editor-main">
+                <div class="terminos-editor-shell">
+                  <div class="terminos-toolbar" role="toolbar" aria-label="Formato de texto">
+                    <button type="button" class="terminos-tbtn" data-md="bold" data-tooltip="Negrita" aria-label="Negrita"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4h6a3.5 3.5 0 010 7H7zM7 11h7a3.5 3.5 0 010 7H7z"/></svg></button>
+                    <button type="button" class="terminos-tbtn" data-md="italic" data-tooltip="Cursiva" aria-label="Cursiva"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M11 4h6M5 20h6M15 4L9 20"/></svg></button>
+                    <span class="terminos-tdiv"></span>
+                    <button type="button" class="terminos-tbtn" data-md="heading" data-tooltip="Encabezado" aria-label="Encabezado"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 18V6M4 12h7M11 6v12"/></svg></button>
+                    <button type="button" class="terminos-tbtn" data-md="bullet" data-tooltip="Lista con viñetas" aria-label="Lista con viñetas"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="4.5" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="18" r="1" fill="currentColor" stroke="none"/><path d="M9 6h11M9 12h11M9 18h11"/></svg></button>
+                    <button type="button" class="terminos-tbtn" data-md="numbered" data-tooltip="Lista numerada" aria-label="Lista numerada"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 5.5h1v2M4 7.5h1.4M4.2 11.2c0-.6.5-1 1-1s.9.3.9.8c0 .5-.3.7-.8 1.1l-1.1 1h2"/></svg></button>
+                    <span class="terminos-tnota">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="11" width="18" height="9" rx="1.5"/><path d="M7 11V8a5 5 0 0110 0v3"/></svg>
+                      Solo Markdown — el HTML no se admite, por seguridad
+                    </span>
+                  </div>
+                  <textarea id="terminos-contenido" class="terminos-campo-md" rows="14" placeholder="## 1. Qué aceptas y quién lo acepta&#10;&#10;Escribe el contenido real aquí..." spellcheck="false"></textarea>
+                </div>
+                <p class="field-error" id="error-terminos-contenido" role="alert"></p>
+                <div class="btn-row" style="margin-top:14px;">
+                  <button type="button" class="btn btn-primary" id="btn-terminos-guardar">Publicar versión</button>
+                  <button type="button" class="btn btn-secondary" id="btn-terminos-partir-vigente">Partir de la versión vigente</button>
+                  <button type="button" class="btn btn-secondary" id="btn-terminos-cancelar">Cancelar</button>
+                </div>
+              </div>
+
+              <div class="terminos-editor-side">
+                <div class="terminos-tabs-int" role="tablist">
+                  <button type="button" class="terminos-tab-int on" id="tab-terminos-preview" role="tab" aria-selected="true">Vista previa</button>
+                  <button type="button" class="terminos-tab-int" id="tab-terminos-diff" role="tab" aria-selected="false">Comparar con vigente</button>
+                </div>
+                <div id="terminos-preview-render" class="terminos-preview-render md-prosa"></div>
+                <div id="terminos-diff-render" class="terminos-diff-render" hidden></div>
+              </div>
             </div>
           </div>
 
@@ -1747,6 +1775,19 @@
           <button type="button" class="btn btn-secondary" id="btn-financiero-gasto-cancelar">Cancelar</button>
           <button type="button" class="btn btn-primary" id="btn-financiero-gasto-guardar"><span id="btn-financiero-gasto-guardar-label">Guardar gasto</span></button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="terminos-preview-modal-overlay" hidden>
+    <div class="modal terminos-preview-modal" role="dialog" aria-modal="true" aria-labelledby="terminos-preview-modal-title">
+      <div class="gastos-modal-header">
+        <h2 id="terminos-preview-modal-title">Versión</h2>
+        <button type="button" class="btn-icon" id="btn-terminos-preview-cerrar" aria-label="Cerrar"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="gastos-modal-body">
+        <p class="field-hint" id="terminos-preview-meta" style="margin-top:-6px;"></p>
+        <div id="terminos-preview-modal-render" class="terminos-preview-render md-prosa"></div>
       </div>
     </div>
   </div>

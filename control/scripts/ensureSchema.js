@@ -933,6 +933,27 @@ async function asegurarTablasTerminos(db) {
   if (!nombresAceptaciones.includes('email')) {
     await db.query('ALTER TABLE terminos_aceptaciones ADD COLUMN email VARCHAR(200) NULL');
   }
+
+  // Punto en curso (editor Markdown seguro, nunca HTML): `formato`
+  // distingue filas publicadas con el editor VIEJO (HTML de confianza,
+  // renderizado tal cual — único hueco de inyección real que tenía este
+  // feature) de las publicadas con el editor NUEVO (Markdown, siempre
+  // convertido a DOM vía nodos reales, nunca innerHTML con el texto del
+  // usuario). El DEFAULT 'markdown' es correcto para toda fila FUTURA —
+  // el backfill de abajo corre UNA SOLA VEZ (dentro de este mismo `if`,
+  // que solo entra si la columna no existía) y solo puede tocar filas
+  // que YA existían antes de este punto, nunca una publicada después.
+  const [columnasVersiones] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminos_versiones'`
+  );
+  const nombresVersiones = columnasVersiones.map((c) => c.COLUMN_NAME);
+  if (!nombresVersiones.includes('formato')) {
+    await db.query(
+      "ALTER TABLE terminos_versiones ADD COLUMN formato ENUM('markdown','html_legacy') NOT NULL DEFAULT 'markdown'"
+    );
+    await db.query("UPDATE terminos_versiones SET formato = 'html_legacy'");
+  }
 }
 
 // Punto 467 — vista "Financiero" de /control: gasto operativo de la

@@ -4456,6 +4456,78 @@
   let fiscalPendienteTrasTerminos = false;
   let avisoSuscripcionPorVencerTextoPendienteTrasTerminos = null;
 
+  // Editor Markdown seguro de /control (punto en curso) — el gate real
+  // que ve el cliente. `contenido` llega como Markdown ('formato'
+  // === 'markdown') desde cualquier versión publicada con el editor
+  // nuevo, o como HTML de confianza ('html_legacy') solo para la fila
+  // publicada con el editor viejo ANTES de este punto (inmutable, nunca
+  // se vuelve a escribir). Mismo renderer que frontend/control.js (se
+  // duplica a propósito, sin build step — ver convención del proyecto).
+  function terminosAplicarInlineSeguro(elemento, texto) {
+    const partes = String(texto == null ? '' : texto).split(/(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_)/g);
+    partes.forEach((parte) => {
+      if (!parte) return;
+      if (/^\*\*[^*]+\*\*$/.test(parte)) {
+        const strong = document.createElement('strong');
+        strong.textContent = parte.slice(2, -2);
+        elemento.appendChild(strong);
+      } else if (/^\*[^*]+\*$/.test(parte) || /^_[^_]+_$/.test(parte)) {
+        const em = document.createElement('em');
+        em.textContent = parte.slice(1, -1);
+        elemento.appendChild(em);
+      } else {
+        elemento.appendChild(document.createTextNode(parte));
+      }
+    });
+  }
+
+  function renderizarMarkdownSeguro(md) {
+    const contenedor = document.createElement('div');
+    contenedor.className = 'md-prosa';
+    const texto = String(md == null ? '' : md).replace(/\r\n/g, '\n');
+    texto.split(/\n{2,}/).forEach((bloqueCrudo) => {
+      const bloque = bloqueCrudo.trim();
+      if (!bloque) return;
+      if (/^##?\s+/.test(bloque)) {
+        const h = document.createElement('h4');
+        terminosAplicarInlineSeguro(h, bloque.replace(/^##?\s+/, ''));
+        contenedor.appendChild(h);
+        return;
+      }
+      const lineas = bloque.split('\n').map((l) => l.trim()).filter(Boolean);
+      const esLista = lineas.length > 0 && lineas.every((l) => /^[-*]\s+/.test(l));
+      const esNumerada = lineas.length > 0 && lineas.every((l) => /^\d+\.\s+/.test(l));
+      if (esLista || esNumerada) {
+        const lista = document.createElement(esNumerada ? 'ol' : 'ul');
+        lineas.forEach((l) => {
+          const li = document.createElement('li');
+          terminosAplicarInlineSeguro(li, l.replace(/^(?:[-*]|\d+\.)\s+/, ''));
+          lista.appendChild(li);
+        });
+        contenedor.appendChild(lista);
+        return;
+      }
+      const p = document.createElement('p');
+      terminosAplicarInlineSeguro(p, bloque.replace(/\n/g, ' '));
+      contenedor.appendChild(p);
+    });
+    return contenedor;
+  }
+
+  // `formato: 'html_legacy'` es el ÚNICO caso donde este archivo sigue
+  // confiando un valor como HTML — contenido inmutable, escrito antes de
+  // que existiera el editor Markdown. Cualquier versión nueva llega
+  // siempre como 'markdown' y se arma 100% con nodos DOM reales, nunca
+  // con innerHTML del texto del usuario.
+  function terminosPintarContenidoSeguro(contenedorEl, contenido, formato) {
+    contenedorEl.innerHTML = '';
+    if (formato === 'html_legacy') {
+      contenedorEl.innerHTML = contenido || '';
+      return;
+    }
+    contenedorEl.appendChild(renderizarMarkdownSeguro(contenido));
+  }
+
   async function verificarGateTerminosYMostrar() {
     if (!els.terminosGateOverlay) {
       terminosGateVerificando = false;
@@ -4472,7 +4544,7 @@
       const data = await res.json();
       if (!data.pendiente || !data.version) return;
       els.terminosGateVersion.textContent = `v${data.version.version}`;
-      els.terminosGateScroll.innerHTML = data.version.contenido;
+      terminosPintarContenidoSeguro(els.terminosGateScroll, data.version.contenido, data.version.formato);
       els.terminosGateFill.style.width = '0%';
       els.terminosGatePct.textContent = '0% leído';
       els.terminosGateChk.checked = false;

@@ -8,7 +8,14 @@ jest.mock('../../db', () => ({
 }));
 
 const { obtenerPool } = require('../../db');
-const { registrarAceptacion, listarHistorialGlobal, listarHistorialTenant } = require('../../utils/terminosCondiciones');
+const {
+  registrarAceptacion,
+  listarHistorialGlobal,
+  listarHistorialTenant,
+  publicarVersion,
+  obtenerVersionVigente,
+  obtenerVersionPorId,
+} = require('../../utils/terminosCondiciones');
 
 describe('utils/terminosCondiciones.js', () => {
   let pool;
@@ -98,6 +105,51 @@ describe('utils/terminosCondiciones.js', () => {
       await listarHistorialGlobal({ limit: 999, offset: 40 });
       const [, parametros] = pool.query.mock.calls[0];
       expect(parametros).toEqual([200, 40]);
+    });
+  });
+
+  // Editor Markdown seguro (punto en curso): nunca más HTML aceptado
+  // como contenido de T&C — publicarVersion() debe forzar formato a
+  // 'markdown' siempre, sin importar qué venga en el input (defensa
+  // aunque el caller nunca lo pase, ver control/server.js).
+  describe('publicarVersion', () => {
+    test('inserta con formato=markdown hardcodeado, nunca tomado del input', async () => {
+      pool.query.mockResolvedValueOnce([{}]); // UPDATE desactivar vigente
+      pool.query.mockResolvedValueOnce([{ insertId: 9 }]); // INSERT
+
+      const id = await publicarVersion({
+        version: '2.0',
+        contenido: '## Hola\n\nTexto real.',
+        resumenCambios: 'Prueba',
+        publicadoPor: 'ADMIN1',
+        formato: 'html_legacy', // intento de bypass — debe ignorarse
+      });
+
+      expect(id).toBe(9);
+      const [sqlInsert, valoresInsert] = pool.query.mock.calls[1];
+      expect(sqlInsert).toMatch(/'markdown'/);
+      expect(valoresInsert).not.toContain('html_legacy');
+    });
+
+    test('rechaza contenido vacío antes de tocar la BD', async () => {
+      await expect(publicarVersion({ version: '2.0', contenido: '   ' })).rejects.toThrow('El contenido no puede estar vacío.');
+      expect(pool.query).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('obtenerVersionVigente / obtenerVersionPorId', () => {
+    test('obtenerVersionVigente selecciona la columna formato', async () => {
+      pool.query.mockResolvedValueOnce([[{ id: 1, version: '1.1', contenido: 'x', formato: 'html_legacy' }]]);
+      const vigente = await obtenerVersionVigente();
+      expect(pool.query.mock.calls[0][0]).toMatch(/formato/);
+      expect(vigente.formato).toBe('html_legacy');
+    });
+
+    test('obtenerVersionPorId selecciona la columna formato', async () => {
+      pool.query.mockResolvedValueOnce([[{ id: 2, version: '1.2', contenido: 'y', formato: 'markdown' }]]);
+      const version = await obtenerVersionPorId(2);
+      expect(pool.query.mock.calls[0][0]).toMatch(/formato/);
+      expect(version.formato).toBe('markdown');
     });
   });
 });

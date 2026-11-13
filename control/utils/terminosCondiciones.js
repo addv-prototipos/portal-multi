@@ -11,21 +11,21 @@ const SLUG_SITIO_BASE = '__base__';
 
 async function listarVersiones() {
   const [filas] = await obtenerPool().query(
-    'SELECT id, version, resumen_cambios, activo, publicado_por, creado_en FROM terminos_versiones ORDER BY creado_en DESC'
+    'SELECT id, version, resumen_cambios, activo, formato, publicado_por, creado_en FROM terminos_versiones ORDER BY creado_en DESC'
   );
   return filas;
 }
 
 async function obtenerVersionVigente() {
   const [filas] = await obtenerPool().query(
-    'SELECT id, version, contenido, resumen_cambios, creado_en FROM terminos_versiones WHERE activo = 1 LIMIT 1'
+    'SELECT id, version, contenido, formato, resumen_cambios, creado_en FROM terminos_versiones WHERE activo = 1 LIMIT 1'
   );
   return filas[0] || null;
 }
 
 async function obtenerVersionPorId(id) {
   const [filas] = await obtenerPool().query(
-    'SELECT id, version, contenido, resumen_cambios, creado_en FROM terminos_versiones WHERE id = ? LIMIT 1',
+    'SELECT id, version, contenido, formato, resumen_cambios, creado_en FROM terminos_versiones WHERE id = ? LIMIT 1',
     [id]
   );
   return filas[0] || null;
@@ -35,7 +35,10 @@ async function obtenerVersionPorId(id) {
 // fila puede estar vigente a la vez (ver nota en ensureSchema.js). No hay
 // UPDATE de contenido ya publicado: cada cambio es una fila nueva, nunca
 // se edita una versión existente (eso rompería el historial de "qué
-// aceptó cada cliente exactamente").
+// aceptó cada cliente exactamente"). `formato` NUNCA viene del request —
+// toda versión publicada desde aquí en adelante es Markdown, punto; el
+// valor 'html_legacy' solo existe en filas de antes de este punto (ver
+// ensureSchema.js) y nunca se vuelve a escribir.
 async function publicarVersion({ version, contenido, resumenCambios, publicadoPor }) {
   const versionLimpia = String(version || '').trim();
   const contenidoLimpio = String(contenido || '').trim();
@@ -44,7 +47,7 @@ async function publicarVersion({ version, contenido, resumenCambios, publicadoPo
   const pool = obtenerPool();
   await pool.query('UPDATE terminos_versiones SET activo = 0 WHERE activo = 1');
   const [resultado] = await pool.query(
-    'INSERT INTO terminos_versiones (version, contenido, resumen_cambios, activo, publicado_por, creado_en) VALUES (?, ?, ?, 1, ?, ?)',
+    "INSERT INTO terminos_versiones (version, contenido, resumen_cambios, activo, formato, publicado_por, creado_en) VALUES (?, ?, ?, 1, 'markdown', ?, ?)",
     [versionLimpia, contenidoLimpio, resumenCambios ? String(resumenCambios).trim() : null, publicadoPor || null, new Date()]
   );
   return resultado.insertId;
@@ -90,6 +93,7 @@ async function obtenerEstadoParaTenant({ tenantSlug, usuario }) {
       id: vigente.id,
       version: vigente.version,
       contenido: vigente.contenido,
+      formato: vigente.formato,
       resumenCambios: vigente.resumen_cambios,
     },
   };

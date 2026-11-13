@@ -11395,3 +11395,63 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   overflow: hidden;
 }
 .financiero-stack-segmento { width: 100%; min-height: 1px; }
+
+/* ---------- Editor de Términos y Condiciones (/control) — Markdown
+   seguro, nunca HTML. .md-prosa es el contenedor compartido para
+   CUALQUIER render de este contenido: el gate real que ve el cliente
+   (.terminos-gate-scroll en admin.js), la vista previa del editor y el
+   modal de "ver versión anterior" — misma regla tipográfica en los 3
+   lugares, un solo punto para ajustarla. ---------- */
+.md-prosa h4 { margin: 18px 0 4px; font-size: 13.5px; font-weight: 750; color: var(--color-ink); }
+.md-prosa h4:first-child { margin-top: 0; }
+.md-prosa p { margin: 0 0 8px; max-width: 70ch; }
+.md-prosa ul, .md-prosa ol { margin: 0 0 8px; padding-left: 20px; max-width: 70ch; }
+.md-prosa li { margin-bottom: 2px; }
+.md-prosa strong { color: var(--color-ink); font-weight: 650; }
+.md-prosa em { font-style: italic; }
+
+.terminos-editor { margin-top: 18px; max-width: 980px; }
+.terminos-editor-layout { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; align-items: start; }
+.terminos-editor-main { min-width: 0; }
+.terminos-editor-shell { border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; background: #fff; }
+.terminos-toolbar {
+  display: flex; align-items: center; gap: 2px; padding: 7px 8px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--color-border); background: var(--color-accent-soft);
+}
+.terminos-tbtn {
+  background: transparent; border: 1px solid transparent; border-radius: var(--radius-sm);
+  width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--color-ink-soft); cursor: pointer; transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.terminos-tbtn:hover { background: #fff; border-color: var(--color-border); color: var(--color-accent); }
+.terminos-tbtn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.terminos-tdiv { width: 1px; align-self: stretch; background: var(--color-border); margin: 4px 6px; }
+.terminos-tnota { margin-left: auto; font-size: 11.5px; color: var(--color-ink-soft); display: flex; align-items: center; gap: 5px; padding-right: 4px; white-space: nowrap; }
+.terminos-campo-md {
+  width: 100%; min-height: 320px; border: none; resize: vertical; padding: 16px 18px;
+  font-family: 'SFMono-Regular', Consolas, monospace; font-size: 13.5px; line-height: 1.6;
+  color: var(--color-ink); background: #fff; outline: none;
+}
+.terminos-editor-side { border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; background: #fff; min-width: 0; }
+.terminos-tabs-int { display: flex; gap: 2px; padding: 4px; background: var(--color-accent-soft); border-bottom: 1px solid var(--color-border); }
+.terminos-tab-int {
+  flex: 1; border: none; background: transparent; font-family: inherit; font-size: 12.5px; font-weight: 600;
+  color: var(--color-ink-soft); padding: 7px 10px; border-radius: var(--radius-sm); cursor: pointer;
+}
+.terminos-tab-int.on { background: #fff; color: var(--color-accent); box-shadow: 0 1px 2px rgba(11,19,32,.08); }
+.terminos-preview-render, .terminos-diff-render { padding: 16px 18px; max-height: 420px; overflow: auto; font-size: 13.5px; }
+.terminos-preview-render:empty::before { content: "Escribe en el editor para ver la vista previa aquí."; color: var(--color-ink-soft); font-style: italic; }
+.terminos-diff-sin-base { color: var(--color-ink-soft); font-size: 12.5px; line-height: 1.6; }
+.terminos-diffline {
+  padding: 2px 14px 2px 26px; position: relative; font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 12.5px; white-space: pre-wrap; border-radius: 3px;
+}
+.terminos-diffline.add { background: #E3F6EA; color: #1B7A43; }
+.terminos-diffline.add::before { content: "+"; position: absolute; left: 10px; font-weight: 700; }
+.terminos-diffline.del { background: #FBE9E9; color: #B23A3A; text-decoration: line-through; text-decoration-thickness: 1px; opacity: .85; }
+.terminos-diffline.del::before { content: "\2013"; position: absolute; left: 10px; font-weight: 700; }
+.terminos-diffline.ctx { color: var(--color-ink-soft); }
+.terminos-preview-modal { max-width: 640px; width: 100%; }
+@media (max-width: 900px) {
+  .terminos-editor-layout { grid-template-columns: 1fr; }
+}

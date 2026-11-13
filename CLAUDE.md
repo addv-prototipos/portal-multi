@@ -2391,6 +2391,26 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   refrescarse en TODO call site que reciba datos frescos capaces de
   cambiarlo — nunca asumir que el cálculo inicial sigue vigente tras un
   guardado exitoso.
+- **Script de siembra demo: "Sin movimiento" nunca puede salir distinto
+  de 0 solo vendiendo del stock inicial** (punto 498, 13 nov 2026): la
+  query real (`NOT EXISTS movimientos_inventario`) nunca se cumple para
+  ningún producto del catálogo normal porque TODOS reciben su movimiento
+  `inventario_inicial` al sembrar el stock — para que esa tarjeta
+  muestre datos en una demo hace falta un producto "fantasma" sembrado
+  FUERA de ese flujo (alta en `productos` + fila en `existencias` con
+  `disponible=0`, CERO filas en `movimientos_inventario`), nunca más
+  stock/ventas del catálogo existente. Mismo criterio aplica a
+  "bajo mínimo"/"sin existencia"/"mermas del mes"/"por vencer": el
+  script de siembra original (punto 495) nunca forzaba ninguno de esos 5
+  casos límite — hace falta sembrarlos a propósito
+  (`sembrarSenalesRiesgoInventario()` en `sembrar-mas-computo.js`), con
+  las fechas de mermas/vencimiento ancladas al reloj REAL (no a la línea
+  de tiempo simulada), porque esas 2 queries usan `NOW()`/`CURDATE()` y
+  decaen con el tiempo — si se resiembra meses después sin este paso,
+  vuelven a 0 aunque las otras 3 (estructurales) sigan con datos.
+  Replicar este mismo patrón en cualquier script de siembra demo futuro
+  que necesite poblar tarjetas de "riesgo"/"estado actual", no solo
+  historial transaccional.
 
 ## Stack
 

@@ -120,6 +120,7 @@ const { hashPasswordAdmin, validarPasswordAdmin, derivarNombreUsuario } = requir
 const { isValidEmail } = require('./utils/validateFiscal');
 const {
   listarVersiones: listarVersionesTerminos,
+  obtenerVersionPorId,
   publicarVersion,
   registrarAceptacion: registrarAceptacionTerminos,
   obtenerEstadoParaTenant,
@@ -2265,6 +2266,30 @@ app.get(
     const offset = Number(req.query.offset) || 0;
     const { filas, total } = await listarHistorialGlobal({ limit, offset });
     res.json({ items: filas, total, limit, offset });
+  })
+);
+
+// Contenido completo de UNA versión (editor: base para "Partir de la
+// vigente"/diff, y el modal "Ver contenido" de cualquier fila del
+// historial). `:id` restringido a dígitos a propósito — registrado
+// DESPUÉS de las rutas literales de arriba (/historial/:slug,
+// /historial-global) para que nunca las intercepte por error.
+app.get(
+  '/api/control/terminos/:id(\\d+)',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const version = await obtenerVersionPorId(Number(req.params.id));
+    if (!version) return res.status(404).json({ error: 'Esa versión no existe.' });
+    res.json({
+      id: version.id,
+      version: version.version,
+      contenido: version.contenido,
+      formato: version.formato,
+      resumenCambios: version.resumen_cambios,
+      creadoEn: version.creado_en,
+    });
   })
 );
 
