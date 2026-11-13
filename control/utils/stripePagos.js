@@ -164,11 +164,16 @@ async function manejarPagoConfirmado(session, db) {
 
   const metodo = metodoDeSession(session);
   const promotionCodeId = promotionCodeIdDeSession(session);
+  // session.livemode es el campo real de Stripe (siempre presente en el
+  // objeto del evento) — nunca stripeModo.modoActivo(), que describe el
+  // toggle de PLATAFORMA en el momento en que esto corre, no el modo en
+  // el que Stripe de verdad procesó este pago.
+  const livemode = session.livemode ? 1 : 0;
   await db.query(
     `UPDATE onboarding_borradores
-       SET pago_estado = 'confirmado', metodo_pago = ?, stripe_promotion_code = ?, actualizado_en = ?
+       SET pago_estado = 'confirmado', metodo_pago = ?, stripe_promotion_code = ?, stripe_livemode = ?, actualizado_en = ?
      WHERE token = ? AND estado = 'activo' AND pago_estado != 'confirmado'`,
-    [metodo, promotionCodeId, new Date(), token]
+    [metodo, promotionCodeId, livemode, new Date(), token]
   );
 
   try {

@@ -664,6 +664,13 @@ async function asegurarTablaOnboardingBorradores(db) {
     // nunca un valor inventado.
     { nombre: 'stripe_promotion_code', definicion: 'VARCHAR(100) NULL' },
     { nombre: 'utm_source', definicion: 'VARCHAR(100) NULL' },
+    // Punto en curso (cupones prueba vs producción): `session.livemode`
+    // real de Stripe (nunca el toggle de plataforma, que puede cambiar
+    // después del pago) — 1 = cobro real, 0 = modo prueba. NULL = fila
+    // de antes de esta columna, sin clasificar todavía (ver script de
+    // backfill, que resuelve contra Stripe con las 2 llaves). El reporte
+    // de cupones (reporteCupones.js) excluye todo lo que no sea 1.
+    { nombre: 'stripe_livemode', definicion: 'TINYINT(1) NULL' },
     // Recordatorios de activación (punto en curso): cuándo se mandó el
     // último, y cuántos van — el scheduler de control/utils/recordatorios.js
     // los usa para decidir si ya toca otro o si hay que archivar.

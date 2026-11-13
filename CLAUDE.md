@@ -634,6 +634,25 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   encuentra código o docs que mencionen Turnstile en este proyecto fuera
   de un comentario histórico ("migrado de..."), es rastro de ANTES de
   este punto — corregirlo, no asumir que sigue vigente.
+- **"Ingreso atribuido a cupones" (/control → Cuenta Stripe) contaba
+  redenciones de modo PRUEBA como ingreso real** (punto 497, 2026-11-13):
+  `onboarding_borradores.stripe_promotion_code` se llenaba en
+  `stripePagos.js:manejarPagoConfirmado` sin importar si el Checkout se
+  pagó con la llave de prueba o la llave live — `reporteCupones.js` sumaba
+  TODO lo que tuviera código, sin distinguir modo. Fix: columna nueva
+  `stripe_livemode` (TINYINT NULL, `ensureSchema.js`), poblada desde
+  `session.livemode` real de Stripe (nunca desde `stripeModo.modoActivo()`,
+  que describe el toggle de plataforma AHORA, no el modo en que ese pago
+  específico se procesó) — `reporteCupones.js` ahora exige
+  `stripe_livemode = 1`. Filas viejas (de antes de esta columna) quedan
+  NULL hasta correr `control/scripts/backfill-stripe-livemode-cupones.js`
+  (dry-run por default, `--confirmar` para escribir) — clasifica cada
+  código contra Stripe real probando ambas llaves
+  (`stripe.promotionCodes.retrieve`), nunca por formato del id. Si se
+  agrega otro KPI/reporte futuro que lea `onboarding_borradores` y
+  agregue montos reales (ingreso, MRR, lo que sea), aplicar el mismo
+  filtro `stripe_livemode = 1` desde el día uno — cualquier fila sin
+  clasificar o de modo prueba NUNCA debe sumar a una métrica real.
 - **`ensureSchema()` corre en cada restart/deploy** — cualquier backfill o
   valor forzado debe ser CONDICIONAL (solo si el dato está en un estado
   viejo conocido), nunca incondicional, o revierte en silencio datos

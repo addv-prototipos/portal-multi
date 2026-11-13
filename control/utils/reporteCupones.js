@@ -7,6 +7,14 @@
 // capturado en el momento de crear el borrador — si esa captura no
 // existía todavía cuando se creó un borrador viejo, queda `null` y el
 // reporte lo muestra como "Sin datos", nunca lo adivina.
+//
+// stripe_livemode = 1 obligatorio (punto en curso, cupones prueba vs
+// producción): un pago hecho con la llave de PRUEBA de Stripe nunca debe
+// sumar a "Ingreso atribuido a cupones" ni a ninguna métrica real — filas
+// con 0 o NULL (sin clasificar todavía, de antes de que existiera esta
+// columna) quedan fuera a propósito. Ver script de backfill
+// (control/scripts/backfill-stripe-livemode-cupones.js) para clasificar
+// filas viejas contra Stripe real, nunca a ojo.
 
 const { obtenerPool } = require('../db');
 const { listarCodigosDescuento } = require('./stripeConfig');
@@ -16,7 +24,7 @@ async function listarReporteCupones(db = obtenerPool()) {
   const [borradores] = await db.query(
     `SELECT plan_clave, ciclo, estado, stripe_promotion_code, utm_source
        FROM onboarding_borradores
-      WHERE stripe_promotion_code IS NOT NULL`
+      WHERE stripe_promotion_code IS NOT NULL AND stripe_livemode = 1`
   );
 
   let codigosStripe = [];
