@@ -649,7 +649,7 @@ app.get(
 // (STRIPE_WEBHOOK_SECRET), no un gate de origen/CORS. req.rawBody viene
 // del `verify` de express.json() de arriba — Stripe exige el body crudo
 // exacto para validar esa firma.
-app.post('/api/control/webhooks/stripe', async (req, res) => {
+app.post('/api/control/webhooks/stripe', asyncHandler(async (req, res) => {
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   if (!stripeKey) {
     // Fail-closed, mismo criterio que recaptcha.js: sin configurar, nunca
@@ -700,7 +700,7 @@ app.post('/api/control/webhooks/stripe', async (req, res) => {
     const { registrarErrorProcesamiento } = require('./utils/stripeWebhookMonitor');
     registrarErrorProcesamiento({ tipo: event.type, id: event.id, mensaje: err.message }).catch(() => {});
   }
-});
+}));
 
 // Health-check bajo demanda (pensado para monitoreo externo — uptime
 // checker, panel de /control, o simplemente un operador verificando a
