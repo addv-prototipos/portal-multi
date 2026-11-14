@@ -20,19 +20,27 @@ jest.mock('../../utils/notificarBackend', () => ({
 jest.mock('../../utils/adminAuditoria', () => ({
   registrarAccesoAdmin: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../../utils/stripePagos', () => ({
-  obtenerStripe: jest.fn(),
+// Punto 502: tenantLifecycle.js ya no importa obtenerStripe() de
+// stripePagos.js (ese require era circular de 3 saltos —
+// stripePagos -> onboardingConversion -> tenantLifecycle — y rompía en
+// producción real según el orden en que Node cargara los 3 módulos).
+// Ahora arma su propio cliente de Stripe (obtenerStripeLocal, duplicado
+// a propósito) desde stripeModo.obtenerCredencialesActivas() + el
+// paquete `stripe` directo — se mockean esos 2 en su lugar.
+jest.mock('../../utils/stripeModo', () => ({
+  obtenerCredencialesActivas: jest.fn().mockResolvedValue({ modo: 'prueba', secretKey: 'sk_test_fake', publishableKey: 'pk_test_fake' }),
 }));
+let mockSubscripcionesActuales = null;
+jest.mock('stripe', () => jest.fn().mockImplementation(() => ({ subscriptions: mockSubscripcionesActuales })));
 
 const { obtenerPool } = require('../../db');
 const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico, calcularUsoDiscoFisico } = require('../../utils/notificarBackend');
 const { registrarAccesoAdmin } = require('../../utils/adminAuditoria');
-const { obtenerStripe } = require('../../utils/stripePagos');
+const { obtenerCredencialesActivas } = require('../../utils/stripeModo');
 
 function mockStripeSuscripciones() {
-  const subscriptions = { update: jest.fn().mockResolvedValue({}), cancel: jest.fn().mockResolvedValue({}) };
-  obtenerStripe.mockResolvedValue({ subscriptions });
-  return subscriptions;
+  mockSubscripcionesActuales = { update: jest.fn().mockResolvedValue({}), cancel: jest.fn().mockResolvedValue({}) };
+  return mockSubscripcionesActuales;
 }
 const {
   ErrorTransicionTenant,
@@ -367,7 +375,7 @@ describe('utils/tenantLifecycle.js', () => {
         .mockResolvedValueOnce([{ affectedRows: 1 }])
         .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'baja', stripe_subscription_id: 'sub_abc123' }]])
         .mockResolvedValueOnce([{}]);
-      obtenerStripe.mockRejectedValue(new Error('Stripe no disponible'));
+      obtenerCredencialesActivas.mockRejectedValueOnce(new Error('Stripe no disponible'));
 
       const resultado = await darDeBajaTenant('cliente1', { actor: 'admin' });
 
@@ -457,7 +465,7 @@ describe('utils/tenantLifecycle.js', () => {
     test('Stripe falla al cancelar: el borrado físico sigue adelante igual, solo se reporta el error', async () => {
       const pool = mockPool();
       pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'baja', stripe_subscription_id: 'sub_abc123' }]]);
-      obtenerStripe.mockRejectedValue(new Error('Stripe no disponible'));
+      obtenerCredencialesActivas.mockRejectedValueOnce(new Error('Stripe no disponible'));
 
       const resultado = await eliminarTenantDefinitivo('cliente1', { actor: 'admin' });
 

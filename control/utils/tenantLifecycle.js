@@ -18,12 +18,30 @@ const { registrarAccesoAdmin } = require('./adminAuditoria');
 // Cancelación de la suscripción real de Stripe al dar de baja/eliminar
 // (punto en curso, bug real encontrado por el usuario: ninguna de las 2
 // transiciones tocaba Stripe — la suscripción seguía cobrando para
-// siempre aunque el tenant ya no existiera físicamente). Import directo
-// de stripePagos.js (nunca de cancelacionSuscripcion.js, que YA importa
-// `suspenderTenant` de ESTE mismo archivo — un require circular ahí
-// sería frágil, mismo criterio de "duplicar en vez de cruzar" que el
-// resto del proyecto).
-const { obtenerStripe } = require('./stripePagos');
+// siempre aunque el tenant ya no existiera físicamente).
+//
+// Punto 502 (14 nov 2026, incidente real en producción): el import
+// directo de `obtenerStripe` desde `stripePagos.js` SÍ era un require
+// circular, solo que de 3 saltos en vez de 2 — `stripePagos.js` importa
+// `convertirBorrador` de `onboardingConversion.js`, que a su vez importa
+// `obtenerTenantPorSlug`/`activarTenant` de ESTE MISMO archivo. El
+// comentario anterior ya reconocía el riesgo de un ciclo de 2 saltos
+// (contra `cancelacionSuscripcion.js`) pero no vio este de 3. Según cuál
+// de los 3 archivos cargara primero, Node devolvía el `module.exports`
+// de `tenantLifecycle.js` A MEDIO LLENAR al resto del ciclo — confirmado
+// real: un pago de Stripe confirmado de verdad nunca aprovisionó el
+// tenant ("obtenerTenantPorSlug is not a function"), el mismo tipo de
+// incidente que originó el punto 465. Fix: duplicar aquí la función
+// (5 líneas, ver stripePagos.js:obtenerStripe) en vez de cruzar con ese
+// archivo — mismo criterio de "duplicar en vez de cruzar" que ya aplica
+// el resto del proyecto, ahora aplicado también a ESTE cruce.
+const Stripe = require('stripe');
+const { obtenerCredencialesActivas } = require('./stripeModo');
+async function obtenerStripeLocal() {
+  const { secretKey } = await obtenerCredencialesActivas();
+  if (!secretKey) throw new Error('El cobro con Stripe no está configurado todavía.');
+  return new Stripe(secretKey);
+}
 
 // Días que un tenant permanece en "baja" (Papelera) antes de que
 // purgarBajasVencidas() lo borre para siempre — decisión confirmada con
@@ -111,7 +129,7 @@ async function obtenerTenantPorSlug(slug, db = obtenerPool()) {
 async function cancelarSuscripcionBestEffort(stripeSubscriptionId, { inmediato }) {
   if (!stripeSubscriptionId) return null;
   try {
-    const stripe = await obtenerStripe();
+    const stripe = await obtenerStripeLocal();
     if (inmediato) {
       await stripe.subscriptions.cancel(stripeSubscriptionId);
       return 'inmediato';
