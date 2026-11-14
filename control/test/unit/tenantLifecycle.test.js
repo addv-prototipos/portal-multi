@@ -20,7 +20,7 @@ jest.mock('../../utils/notificarBackend', () => ({
 jest.mock('../../utils/adminAuditoria', () => ({
   registrarAccesoAdmin: jest.fn().mockResolvedValue(undefined),
 }));
-// Punto 502: tenantLifecycle.js ya no importa obtenerStripe() de
+// Punto 503: tenantLifecycle.js ya no importa obtenerStripe() de
 // stripePagos.js (ese require era circular de 3 saltos —
 // stripePagos -> onboardingConversion -> tenantLifecycle — y rompía en
 // producción real según el orden en que Node cargara los 3 módulos).

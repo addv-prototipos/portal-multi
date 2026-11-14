@@ -20,7 +20,7 @@ const { registrarAccesoAdmin } = require('./adminAuditoria');
 // transiciones tocaba Stripe — la suscripción seguía cobrando para
 // siempre aunque el tenant ya no existiera físicamente).
 //
-// Punto 502 (14 nov 2026, incidente real en producción): el import
+// Punto 503 (14 nov 2026, incidente real en producción): el import
 // directo de `obtenerStripe` desde `stripePagos.js` SÍ era un require
 // circular, solo que de 3 saltos en vez de 2 — `stripePagos.js` importa
 // `convertirBorrador` de `onboardingConversion.js`, que a su vez importa
