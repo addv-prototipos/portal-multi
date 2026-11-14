@@ -30751,3 +30751,73 @@ Renumerado a 500 (el libre más alto al momento de cerrar) en
 antes de dar el trabajo por terminado — revisar siempre `grep -n
 "^## Punto " PROJECT_STATE.md | tail` justo antes de escribir el
 número, no solo al empezar la sesión.
+
+## Punto 501 - Imágenes de inventario: marco rectangular sin recorte, barra de progreso de subida y palomita en vez de toast (13 nov 2026, CERRADO, desplegado y validado en producción real)
+
+**Pedido del usuario**: en `/admin` → Inventarios, la miniatura de la
+tabla, el acercamiento al pasar el mouse y la vista previa del modal de
+edición recortaban las fotos de producto (molde cuadrado +
+`object-fit: cover`); subir una foto no daba ninguna señal de progreso;
+el guardado usaba un toast genérico en vez de la palomita animada de
+"Registrar venta". Propuesta visual con 2 direcciones (Artifact,
+antes/después interactivo) — usuario eligió **Propuesta B**.
+
+**Implementado** (`frontend/admin.css`/`admin.html`/`admin.js`):
+1. `.inv-thumb` pasa de 32×32 cuadrado+cover a 40×28 rectangular+contain
+   (columna de tabla ensanchada a 56px); `.inv-imagen-actual img`
+   (preview del modal) pasa de 64×64 a 128×84 rectangular+contain.
+2. Lupa (`#lupa-producto-flotante`) deja de ser un `<img>` suelto —
+   ahora es una tarjeta (foto completa + nombre/SKU debajo), usada en
+   Inventarios y en las sugerencias de producto de Ventas (2 call sites
+   de `activarLupaProducto`, ambos actualizados para pasar el caption).
+3. `subirImagenProducto()` migró de `fetch()` a `XMLHttpRequest` (único
+   call site de todo `admin.js` que lo necesita) para tener
+   `upload.onprogress` real — barra de progreso + porcentaje bajo el
+   dropzone, dropzone deshabilitado mientras sube. Como esto saca el
+   request del interceptor global de `fetch()` (renovación de
+   `X-Admin-Session-Token` + detección de 403 `CUENTA_SUSPENDIDA`), esas
+   2 cosas se replican a mano dentro de la nueva función.
+4. Insignia de éxito (`.inv-imagen-badge-exito`) reusa EXACTO el trazo
+   SVG animado de `.orden-form-exito-check` (circle+path,
+   `orden-check-circulo`/`orden-check-palomita`) sobre la esquina de la
+   foto recién subida — reemplaza cualquier aviso de "imagen subida".
+   `mostrarProductoGuardado()` (nueva, mismo patrón que
+   `mostrarCompraConfirmada()`) reemplaza el
+   `showToast(data.mensaje || 'Producto guardado.')` de siempre — el
+   modal ya se cierra ANTES de esto, así que es un overlay centrado
+   (`#producto-guardado-overlay`, mismas clases que
+   `compra-confirmada-overlay`), no un swap inline.
+
+**Probado real con clics/upload reales** (Chrome DevTools contra stack
+local, antes de desplegar): miniatura y zoom muestran una foto real sin
+recortar con nombre/SKU; subida real de una imagen (logo del sitio
+usado como foto de prueba) mostró la barra de progreso, la insignia con
+`classList.contains('is-visible')` confirmada tras completar, y el
+preview rectangular final sin recorte; "Guardar cambios" mostró
+`#producto-guardado-overlay` con el mensaje real del backend y se
+auto-ocultó sola — cero toast, cero errores de consola.
+
+**Desplegado a producción**: mismo mecanismo de siempre (`git archive
+HEAD` → scp → extracción → rebuild `clrv-frontend` → `docker service
+update --force clarvo_frontend`), checksum de los 3 archivos verificado
+contra `git show HEAD:<ruta>` antes y después del rebuild. Confirmado
+`admin.js` en producción ya sirve el código nuevo
+(`grep -c inv-imagen-progreso` → 3). Los 9 servicios del stack quedaron
+sanos (`docker service ls`), `GET /mas-computo/admin` → 200.
+
+**Smoke-test obligatorio (`node VULTR/smoke-test-onboarding.js
+--borrar`) falló en automatización — no es una regresión de este
+deploy**: mismo escenario YA documentado en el punto 492/496 de este
+archivo — el checkbox real de Google reCAPTCHA no se deja marcar por
+Playwright/Edge automatizado (`RECAPTCHA_ARIA_CHECKED: false`, 2
+intentos, mismo resultado). Este deploy tocó ÚNICAMENTE
+`frontend/admin.*` (panel admin por tenant) — cero relación con
+`clarvo-Site`/onboarding/Stripe/webhook, que corren en un stack
+completamente separado (`/opt/clarvo-site`) nunca tocado hoy.
+Verificación alterna usada en su lugar (mismo criterio ya aceptado):
+checksum de archivo exacto + `docker service ls` sano + `GET
+/mas-computo/admin` 200 + prueba funcional real ya hecha en local ANTES
+de desplegar. Pendiente real, sin relación con este punto: correr el
+smoke-test completo con clics humanos reales (no automatizado) la
+próxima vez que se necesite confirmar el flujo de pago de punta a
+punta.
