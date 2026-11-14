@@ -2428,6 +2428,61 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   el día uno: el header de challenge debe coincidir con el ESQUEMA que
   el cliente intentó, nunca mandarse incondicionalmente en cualquier 401
   de `requireAdminAuth`.
+- **Agregar un valor nuevo a una columna `ENUM` existente: el
+  `CREATE TABLE IF NOT EXISTS` de `ensureSchema()` NUNCA basta, hace
+  falta un `ALTER TABLE ... MODIFY COLUMN` idempotente aparte** (punto
+  502, 13 nov 2026, bug real encontrado solo con prueba funcional —
+  `node --check` y los mocks de Jest nunca lo atraparon): `tipo ENUM(...)`
+  de `notificaciones_cliente` (`backend/db.js`) solo tenía 2 valores —
+  agregar un tercero (`venta_registrada`) al literal del `CREATE TABLE`
+  no tocó ninguna BD que ya existiera (igual que cualquier columna nueva,
+  pero un `ENUM` no es una columna nueva, es una redefinición de una ya
+  existente). El primer `INSERT` con el valor nuevo reventó en runtime
+  con `WARN_DATA_TRUNCATED`/"Data truncated for column 'tipo'" — y como
+  ese `INSERT` vivía DESPUÉS de la venta ya insertada, el cliente vio "no
+  se pudo registrar la venta" con la venta en realidad ya guardada
+  (mismo bug-shape que un 500 a medio camino puede duplicar/confundir,
+  ya documentado para flujos de Stripe). Patrón correcto, igual que
+  cualquier `ALTER TABLE ADD COLUMN` condicional de este archivo: leer
+  `INFORMATION_SCHEMA.COLUMNS.COLUMN_TYPE` de la columna, y si el valor
+  nuevo no aparece en ese string, correr
+  `ALTER TABLE ... MODIFY COLUMN tipo ENUM('a','b','c') NOT NULL` (nunca
+  quita valores, siempre seguro de re-correr). Antes de agregar un valor
+  nuevo a cualquier `ENUM` ya existente en este proyecto, aplicar este
+  mismo patrón desde el día uno — y recordar que, como con cualquier
+  cambio de `ensureSchema()`, una base `tenant_*` ya aprovisionada NO lo
+  recibe sola (requiere reinvocar `/internal/activar-tenant/:slug`).
+
+- **Un require circular entre 3+ archivos puede tardar meses en explotar
+  — "duplicar en vez de cruzar" no basta si solo se revisa el salto
+  directo** (punto 503, 14 nov 2026, incidente real en producción):
+  `tenantLifecycle.js` evitó a propósito un ciclo de 2 saltos contra
+  `cancelacionSuscripcion.js`, pero no vio que su import de
+  `stripePagos.js` (solo para `obtenerStripe`) cerraba un ciclo de 3
+  saltos distinto: `tenantLifecycle → stripePagos → onboardingConversion
+  → tenantLifecycle`. Según el orden real en que Node cargara los 3
+  módulos, uno de ellos recibía el `module.exports` de otro A MEDIO
+  LLENAR (funciones como `undefined`) — nunca en `node --check` ni en
+  tests que mockean el módulo completo, solo en producción real con el
+  orden de carga real. Antes de importar una función de otro archivo
+  "solo para una cosa chiquita" en cualquier `utils/` de `backend/` o
+  `control/`, trazar el árbol de requires de ESE archivo completo (no
+  solo el import directo) buscando si algo en esa cadena importa de
+  vuelta al archivo actual — si lo encuentra, duplicar la función
+  (patrón ya establecido, ver `obtenerStripeLocal` en
+  `tenantLifecycle.js`) en vez de cruzar, aunque el import parezca
+  inocente.
+- **Selectores contra una página de un tercero (Stripe Checkout, Stripe
+  Elements) no son estables — nunca adivinar, siempre dumpear primero**
+  (punto 503): Stripe migró su Checkout a un Payment Element unificado
+  donde el formulario completo vive dentro de un iframe propio
+  (`elements-inner-habanero-<hash>.html`), no en la página top-level —
+  un selector viejo (`#cardNumber`, `button[type="submit"]` sobre
+  `page` directo) se queda esperando para siempre sin ningún error
+  claro. Antes de tocar cualquier selector contra una página externa que
+  ya falló, navegar ahí con Playwright y volcar `page.frames()` +
+  `$$eval('input'/'button', ...)` de cada frame — nunca copiar un
+  selector de memoria ni de documentación vieja.
 
 ## Stack
 

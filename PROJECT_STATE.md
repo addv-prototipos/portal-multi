@@ -30821,3 +30821,173 @@ de desplegar. Pendiente real, sin relación con este punto: correr el
 smoke-test completo con clics humanos reales (no automatizado) la
 próxima vez que se necesite confirmar el flujo de pago de punta a
 punta.
+
+## Punto 502 - Portal de cliente: descripción del producto/servicio en Gestión de crédito + ticket digital "Ver detalle" + notificación de nuevo cargo con auto-refresh (13 nov 2026, CERRADO en local, pendiente de desplegar a producción)
+
+**Pedido del usuario**: en Gestión de crédito del portal de cliente, cada
+crédito solo mostraba el número de venta — pidió agregar la descripción
+del producto/servicio y un "ver detalle" que muestre el mismo ticket
+digital que se le mandó por correo al registrarse la venta. Además, la
+campana de notificaciones del portal (punto 337-ish, ver
+`frontend/portal.js`) solo avisaba pagos registrados — pidió que también
+avise cuando le llega un adeudo/cargo nuevo, y que la página de Crédito
+se refresque sola al detectar un pago o cargo nuevo, sin que el cliente
+tenga que recargar a mano.
+
+**Implementado**:
+1. `backend/server.js GET /api/mi-cuenta/credito`: la respuesta ya traía
+   `concepto` (sin usarse en el frontend) — se amplió el SELECT/mapeo de
+   `ventasPendientes` con `cantidad` (subtotal neto), `ivaPorcentaje`,
+   `descuentoPorcentaje`/`descuentoMonto`, `metodoPago` y
+   `folioConciliacion` — mismo desglose que ya arma
+   `construirCorreoOrdenCompra()` para el correo de confirmación, leído
+   de la misma fila de `ordenes_compra`, nunca reenviado.
+2. `frontend/credito.js`/`credito.html`/`portal.css`: cada tarjeta de
+   crédito ahora muestra el concepto (con `text-overflow:ellipsis`) y un
+   botón "Ver detalle" que abre `#ticket-detalle-overlay` — un modal con
+   el mismo lenguaje visual del ticket de correo (recibo, filas
+   fecha/hora/concepto/cantidad/descuento/IVA/TOTAL/método de
+   pago/folio de conciliación si aplica). Cierra con X, clic fuera o
+   Escape.
+3. `backend/server.js POST /api/admin/ordenes-compra`: nuevo bloque,
+   espejo exacto del ya existente en `PUT .../cobro` (notificación
+   "Pago registrado") — al registrar una venta con correo de una cuenta
+   cliente real, inserta `notificaciones_cliente` tipo
+   `venta_registrada` ("Nuevo cargo registrado"). `backend/db.js`: el
+   `ENUM` de la columna `tipo` solo tenía 2 valores
+   (`pago_registrado`,`promocion`) — se agregó el tercero en el
+   `CREATE TABLE` (BDs nuevas) + un `ALTER TABLE ... MODIFY COLUMN`
+   idempotente guardado por `INFORMATION_SCHEMA.COLUMNS.COLUMN_TYPE`
+   (BDs ya existentes, incluida la del pool base).
+4. `frontend/portal.js`: ícono propio (factura) y etiqueta "cargo" para
+   `venta_registrada` en la campana del cliente; `abrirDestino()` ahora
+   lleva a Crédito con ambos tipos. Nuevo:
+   `TIPOS_NOTIF_REFRESCAN_CREDITO` — al detectar en el sondeo (60s, o al
+   volver a la pestaña) un id nuevo de tipo `pago_registrado` o
+   `venta_registrada`, dispara `document.dispatchEvent(new
+   CustomEvent('portal:credito-actualizado'))`; `credito.js` escucha ese
+   evento y recarga sola la página (sin recargar si el modal de ticket
+   está abierto, para no cerrárselo al cliente a medio leer).
+
+**Bug real encontrado solo con prueba funcional, nunca por `node --check`
+ni Jest**: el primer intento de registrar una venta con el nuevo bloque
+de notificación reventó en runtime con `Error: Data truncated for column
+'tipo'` (`WARN_DATA_TRUNCATED`, MySQL) — el `ENUM` real en BD no tenía
+`venta_registrada` todavía (la migración de `db.js` se corrigió recién
+arriba). La venta YA se había insertado cuando el error ocurrió (el
+`INSERT notificaciones_cliente` corre DESPUÉS del `INSERT
+ordenes_compra`), así que el cliente vio "No se pudo registrar la venta
+— error interno" con la venta en realidad ya guardada — mismo bug-shape
+que "reintentar tras un 500 puede duplicar" ya documentado en otros
+puntos de este archivo para flujos de cobro de Stripe. Corregido antes de
+cualquier despliegue; si se reintenta este mismo patrón (notificación
+nueva con un `ENUM` nuevo) en el futuro, agregar el valor al `ENUM` en el
+mismo cambio que el primer `INSERT` que lo usa, nunca después.
+
+**Probado real con clics reales** (Chrome DevTools contra stack local
+reconstruido, cliente de prueba creado a propósito —
+`TEQA900101AB1`/`testqa-credito@example.com`): 2 ventas registradas (una
+con descuento 10% + efectivo, otra con transferencia + folio real
+`CV0001`) — ambos "Ver detalle" mostraron el desglose correcto, el
+segundo con el bloque de folio de conciliación visible; campana mostró
+"Nuevo cargo registrado" con ícono de factura al crear cada venta;
+registrado un cobro total sobre una de las 2 desde Cuentas por cobrar y,
+sin recargar la página, la vista de Crédito en la pestaña del cliente se
+actualizó sola (créditos activos 2→1, total pagado $0→$290, la venta
+pagada se movió de "Tus créditos" a "Historial de abonos") al disparar un
+nuevo sondeo de la campana — confirma el auto-refresh end-to-end.
+
+**Tests backend actualizados**: `miCuentaCredito.test.js` (mock/esperado
+con los 6 campos nuevos) y `ordenes-compra.test.js` (2 llamadas nuevas a
+`pool.query` en la cola del mock, por el `SELECT`+`INSERT` de la
+notificación) — suite completa 1390/1390 en verde salvo 1 falla
+preexistente sin relación (`facturacionHabilitadaPlan`, de otra sesión).
+
+**Pendiente**: desplegar a producción (sincronizar `VULTR/`, rebuild
+`backend`+`frontend`, smoke-test real).
+
+## Punto 503 - 2 bugs reales en producción encontrados y corregidos corriendo el smoke-test de onboarding de punta a punta: selector de Stripe Checkout y dependencia circular que rompía el aprovisionamiento (14 nov 2026, CERRADO, producción real)
+
+**Pedido del usuario**: arreglar el selector de Stripe Checkout en
+`VULTR/smoke-test-onboarding.js` (fallaba desde el punto 501). Para
+probarlo sin bloquear producción real, el usuario pidió además una
+regla nueva y durable: **cada vez que se despliega, pasar Stripe y
+reCAPTCHA a modo prueba antes de probar, y regresarlos a producción al
+terminar** — sin tener que pedirlo cada vez (ver memoria
+`feedback_deploy_modo_prueba_stripe_recaptcha.md` y el nuevo
+procedimiento en `VULTR/README-VULTR.md`).
+
+**Hallazgo 1 — selector de Stripe Checkout desactualizado**: Stripe
+Checkout migró a su UI "Guacamole"/Payment Element unificado — el
+formulario completo (email + tarjeta + nombre + botón "Suscribirse")
+vive DENTRO de un iframe propio
+(`js.stripe.com/v3/elements-inner-habanero-<hash>.html`), nunca en la
+página top-level como asumía el selector viejo (`#cardNumber`/`#email`/
+`button[type="submit"]` sobre `page` directo). Confirmado con un dump
+real de `page.frames()` + `$$eval` contra un Checkout Session de
+prueba real (nunca adivinado). Fix: localizar el frame real
+(`page.frames().find(f => f.url().includes('elements-inner-habanero'))`)
+y operar sobre ESE frame (`#linkAuthentication-emailInput`,
+`#payment-numberInput/-expiryInput/-cvcInput/-nameInput`,
+`button[type="submit"]`). Timeout del `waitForURL` final subido de 30s
+a 45s — Stripe corre un chequeo anti-fraude invisible (hCaptcha
+invisible, visto real en el dump de frames) antes de redirigir, y el
+tiempo varía (8s una corrida, >30s otra, mismo flujo exacto).
+
+**Hallazgo 2 — dependencia circular rompía el aprovisionamiento
+automático de CUALQUIER pago real** (más grave, encontrado solo porque
+el Hallazgo 1 ya dejaba completar el checkout real): `tenantLifecycle.js`
+→ `stripePagos.js` → `onboardingConversion.js` → `tenantLifecycle.js`
+(de vuelta) — un ciclo de 3 saltos. El propio archivo ya documentaba
+haber evitado un ciclo de 2 saltos (contra `cancelacionSuscripcion.js`)
+pero no vio este de 3, introducido al agregar la cancelación real de
+Stripe al dar de baja (import de `obtenerStripe` desde `stripePagos.js`).
+Según el orden real en que Node cargara los 3 módulos,
+`onboardingConversion.js` recibía el `module.exports` de
+`tenantLifecycle.js` A MEDIO LLENAR (`obtenerTenantPorSlug`/
+`activarTenant` como `undefined`). Confirmado real en el log de
+`control`: "Pago confirmado pero no se pudo aprovisionar el tenant del
+borrador ...: obtenerTenantPorSlug is not a function" — el pago de
+Stripe se cobra bien, el tenant JAMÁS se activa solo, mismo tipo de
+incidente que originó el punto 465 pero con causa distinta. Fix:
+`tenantLifecycle.js` ya no importa `obtenerStripe` de `stripePagos.js`
+— arma su propio cliente de Stripe (`obtenerStripeLocal`, duplicado a
+propósito, mismo criterio de "duplicar en vez de cruzar" que el propio
+archivo ya aplicaba) desde `stripeModo.js` + el paquete `stripe`
+directo, rompiendo el ciclo. Probado real requiriendo los 3 módulos en
+el orden exacto que antes disparaba el bug (`tenantLifecycle` primero)
+— las 3 funciones resuelven como función, no `undefined`. 629 tests de
+`control` en verde (2 actualizados: mockeaban `stripePagos`, ahora
+mockean `stripeModo` + el constructor de `stripe`).
+
+**Hallazgo 3, menor, ya corregido de paso**: `POST
+/api/control/webhooks/stripe` nunca tuvo el wrapper `asyncHandler` que
+usa el resto de las rutas — cualquier error transitorio ahí (se
+reprodujo real con un `ECONNRESET` de MySQL en medio del hallazgo 2) se
+volvía una promesa rechazada sin atrapar, y el handler global de
+`unhandledRejection` del proceso mata TODO `control` con
+`process.exit(1)`, no solo esa request. Ya envuelto en `asyncHandler`.
+
+**Verificado real de punta a punta** (3 corridas completas del smoke-test
+contra producción, modo prueba activado solo durante la prueba):
+`OK — tenant real activado SOLO por el webhook: smoke-test-<ts>` →
+baja + eliminación definitiva limpia, con cancelación real de la
+suscripción de Stripe (`stripeCancelado:"al_corte"`/`"inmediato"`).
+
+**Mecánica de modo prueba**: Stripe vía `PUT
+/api/control/ajustes/stripe-modo` (toggle real, nunca tocar `.env`);
+reCAPTCHA vía swap temporal de `RECAPTCHA_SECRET_KEY`
+(`/opt/clarvo/.env`) y `PUBLIC_RECAPTCHA_SITE_KEY`
+(`/opt/clarvo-site/.env`, horneada en el build de Astro — necesita
+rebuild, no solo restart) a las llaves de prueba documentadas de
+Google. Ambas restauradas a sus valores reales exactos (guardados ANTES
+de tocar nada) y redesplegadas al terminar — confirmado con el mismo
+`GET` de Stripe (`"modo":"produccion"`) y un `grep` del bundle JS real
+de `clarvo-site-web` mostrando la llave real de vuelta.
+
+**Colisión de numeración, 2 veces más en la misma tarde** (ya
+documentado en los puntos 466/500 — sesión paralela trabajando el mismo
+repo hoy, esta vez en una feature de "crédito"): intenté "punto 502" dos
+veces, ya tomado. Renumerado a 503 en código/tests/`PROJECT_STATE.md`
+antes de cerrar — mismo recordatorio de siempre: `grep -n "^## Punto "
+PROJECT_STATE.md | tail` justo antes de escribir el número.
