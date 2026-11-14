@@ -1019,10 +1019,18 @@
     invModalImagenField: document.getElementById('inv-modal-imagen-field'),
     invImagenActual: document.getElementById('inv-imagen-actual'),
     invImagenActualPreview: document.getElementById('inv-imagen-actual-preview'),
+    invImagenBadgeExito: document.getElementById('inv-imagen-badge-exito'),
     btnInvImagenQuitar: document.getElementById('btn-inv-imagen-quitar'),
     invImagenDropzone: document.getElementById('inv-imagen-dropzone'),
+    invImagenDropzoneTexto: document.getElementById('inv-imagen-dropzone-texto'),
+    invImagenDropzoneHint: document.getElementById('inv-imagen-dropzone-hint'),
+    invImagenProgreso: document.getElementById('inv-imagen-progreso'),
+    invImagenProgresoFill: document.getElementById('inv-imagen-progreso-fill'),
+    invImagenProgresoPct: document.getElementById('inv-imagen-progreso-pct'),
     invImagenInput: document.getElementById('inv-imagen-input'),
     errorInvModalImagen: document.getElementById('error-inv-modal-imagen'),
+    productoGuardadoOverlay: document.getElementById('producto-guardado-overlay'),
+    productoGuardadoTexto: document.getElementById('producto-guardado-texto'),
     invModalCategoria: document.getElementById('inv-modal-categoria'),
     btnInvCategoriasToggle: document.getElementById('btn-inv-categorias-toggle'),
     invCategoriasPanel: document.getElementById('inv-categorias-panel'),
@@ -2135,16 +2143,29 @@
   // y anclado a <body> — nunca dentro de la miniatura, para no quedar
   // recortado por el overflow:auto de la tabla/dropdown que la contiene.
   const elLupaProducto = document.getElementById('lupa-producto-flotante');
-  function mostrarLupaProducto(wrapEl, imgEl) {
+  const elLupaProductoImg = document.getElementById('lupa-producto-flotante-img');
+  const elLupaProductoNombre = document.getElementById('lupa-producto-flotante-nombre');
+  const elLupaProductoSku = document.getElementById('lupa-producto-flotante-sku');
+  // Punto 501 (Propuesta B): tarjeta (ancho fijo 200px, alto variable
+  // según si hay texto de caption) en vez del <img> cuadrado de antes —
+  // el cálculo de posición usa un alto estimado (nunca exacto, el
+  // elemento sigue oculto al medir) solo para no salirse del viewport,
+  // igual de aproximado que el cálculo anterior con "tamano = 180".
+  function mostrarLupaProducto(wrapEl, imgEl, caption) {
     if (!elLupaProducto || !imgEl || !imgEl.src) return;
-    elLupaProducto.src = imgEl.src;
+    elLupaProductoImg.src = imgEl.src;
+    const tieneCaption = Boolean(caption && caption.nombre);
+    if (elLupaProductoNombre) elLupaProductoNombre.textContent = tieneCaption ? caption.nombre : '';
+    if (elLupaProductoSku) elLupaProductoSku.textContent = tieneCaption && caption.sku ? caption.sku : '';
+    elLupaProducto.classList.toggle('sin-caption', !tieneCaption);
     const rect = wrapEl.getBoundingClientRect();
-    const tamano = 180;
+    const anchoTarjeta = 200;
+    const altoTarjeta = tieneCaption ? 168 : 120;
     const margen = 10;
     let left = rect.right + margen;
-    if (left + tamano > window.innerWidth) left = Math.max(margen, rect.left - tamano - margen);
-    let top = rect.top + rect.height / 2 - tamano / 2;
-    top = Math.max(margen, Math.min(top, window.innerHeight - tamano - margen));
+    if (left + anchoTarjeta > window.innerWidth) left = Math.max(margen, rect.left - anchoTarjeta - margen);
+    let top = rect.top + rect.height / 2 - altoTarjeta / 2;
+    top = Math.max(margen, Math.min(top, window.innerHeight - altoTarjeta - margen));
     elLupaProducto.style.left = `${left}px`;
     elLupaProducto.style.top = `${top}px`;
     elLupaProducto.hidden = false;
@@ -2152,11 +2173,11 @@
   function ocultarLupaProducto() {
     if (elLupaProducto) elLupaProducto.hidden = true;
   }
-  function activarLupaProducto(wrapEl, imgEl) {
+  function activarLupaProducto(wrapEl, imgEl, caption) {
     if (!wrapEl || !imgEl) return;
-    wrapEl.addEventListener('mouseenter', () => mostrarLupaProducto(wrapEl, imgEl));
+    wrapEl.addEventListener('mouseenter', () => mostrarLupaProducto(wrapEl, imgEl, caption));
     wrapEl.addEventListener('mouseleave', ocultarLupaProducto);
-    wrapEl.addEventListener('focusin', () => mostrarLupaProducto(wrapEl, imgEl));
+    wrapEl.addEventListener('focusin', () => mostrarLupaProducto(wrapEl, imgEl, caption));
     wrapEl.addEventListener('focusout', ocultarLupaProducto);
   }
 
@@ -12854,7 +12875,7 @@
       const producto = productos.find((p) => p.id === Number(btn.dataset.id));
       const imgThumb = btn.querySelector('img.inv-thumb');
       if (producto && producto.imagen_thumb_url) cargarImagenAutenticada(imgThumb, producto.imagen_thumb_url);
-      activarLupaProducto(btn.querySelector('.inv-thumb-zoom-wrap'), imgThumb);
+      activarLupaProducto(btn.querySelector('.inv-thumb-zoom-wrap'), imgThumb, producto ? { nombre: producto.nombre, sku: producto.sku } : null);
     });
   }
 
@@ -21177,7 +21198,7 @@
       if (btnReordenar) btnReordenar.addEventListener('click', () => abrirMovimientoModal(p, 'entrada'));
       const imgThumbFila = tr.querySelector('img.inv-thumb');
       if (p.imagen_thumb_url) cargarImagenAutenticada(imgThumbFila, p.imagen_thumb_url);
-      activarLupaProducto(tr.querySelector('.inv-thumb-zoom-wrap'), imgThumbFila);
+      activarLupaProducto(tr.querySelector('.inv-thumb-zoom-wrap'), imgThumbFila, { nombre: p.nombre, sku: p.sku });
 
       const celdaAcciones = tr.lastElementChild;
       const contenedor = document.createElement('div');
@@ -21415,6 +21436,18 @@
     inventarioModalEditando = null;
   }
 
+  // Punto 501 (Propuesta B): reemplaza showToast() al guardar un
+  // producto — mismo recurso que mostrarCompraConfirmada() (el modal ya
+  // se cierra ANTES de esto, así que no hay dónde hacer el swap inline
+  // de "Registrar venta"; overlay centrado con la misma palomita,
+  // auto-cierra sola).
+  function mostrarProductoGuardado(mensaje) {
+    if (!els.productoGuardadoOverlay) { showToast(mensaje, false); return; }
+    els.productoGuardadoTexto.textContent = mensaje;
+    els.productoGuardadoOverlay.hidden = false;
+    setTimeout(() => { els.productoGuardadoOverlay.hidden = true; }, 1900);
+  }
+
   // Punto 159 (Segmento B): alterna entre "ya tiene imagen" (preview +
   // Quitar) y "sin imagen todavía" (dropzone) — mismo elemento del modal,
   // sin reabrir nada, para que subir/quitar se sienta inmediato.
@@ -21441,35 +21474,108 @@
     }
   }
 
-  async function subirImagenProducto(archivoOriginal) {
-    if (!inventarioModalEditando) return;
+  // Punto 501 (Propuesta B): barra de progreso real durante la subida —
+  // antes el dropzone se quedaba estático del primer al último byte, sin
+  // ninguna señal. fetch() no reporta avance de subida de forma
+  // confiable entre navegadores para FormData, así que esta ruta pasa a
+  // XMLHttpRequest (único call site de todo admin.js que lo necesita) —
+  // eso significa que el interceptor global de fetch() (arriba, "punto
+  // 290"/M-02: renueva X-Admin-Session-Token y detecta 403
+  // CUENTA_SUSPENDIDA) nunca ve este request, así que ambas cosas se
+  // replican aquí a mano para no perder esa cobertura.
+  function ponerDropzoneSubiendo(subiendo) {
+    els.invImagenDropzone.classList.toggle('is-subiendo', subiendo);
+    els.invImagenInput.disabled = subiendo;
+    els.invImagenProgreso.hidden = !subiendo;
+    els.invImagenDropzoneHint.hidden = subiendo;
+    if (!subiendo) {
+      els.invImagenProgresoFill.style.width = '0%';
+      els.invImagenProgresoPct.textContent = '0%';
+      els.invImagenDropzoneTexto.textContent = 'Arrastra una imagen o haz clic para seleccionar';
+    }
+  }
+
+  function actualizarProgresoImagen(pct) {
+    const pctRedondeado = Math.round(pct);
+    els.invImagenProgresoFill.style.width = `${pctRedondeado}%`;
+    els.invImagenProgresoPct.textContent = `${pctRedondeado}%`;
+    els.invImagenDropzoneTexto.textContent = `Subiendo imagen… ${pctRedondeado}%`;
+  }
+
+  // Insignia de éxito (palomita, ver admin.css .inv-imagen-badge-exito):
+  // quitar+reagregar la clase fuerza que el navegador vuelva a correr el
+  // trazo SVG animado cada vez (si no, una segunda subida seguida no
+  // repetiría la animación — el navegador no "re-dispara" una animación
+  // ya terminada solo por seguir con la misma clase puesta).
+  function mostrarBadgeExitoImagen() {
+    if (!els.invImagenBadgeExito) return;
+    els.invImagenBadgeExito.classList.remove('is-visible');
+    void els.invImagenBadgeExito.offsetWidth;
+    els.invImagenBadgeExito.classList.add('is-visible');
+  }
+
+  function subirImagenProducto(archivoOriginal) {
+    if (!inventarioModalEditando) return Promise.resolve();
     els.errorInvModalImagen.textContent = '';
     const authHeader = getAuthHeader();
-    if (!authHeader) return;
+    if (!authHeader) return Promise.resolve();
 
-    const archivo = await comprimirSiAplica(archivoOriginal, { objetivoKB: 200, calidadMin: 0.45, dimMaxPx: 1600 });
-    const formData = new FormData();
-    formData.append('imagen', archivo);
-    try {
-      const res = await fetch(`${API_BASE}/admin/inventarios/productos/${inventarioModalEditando.id}/imagen`, {
-        method: 'POST',
-        headers: { Authorization: authHeader },
-        body: formData,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        els.errorInvModalImagen.textContent = data.mensaje || data.error || 'No se pudo subir la imagen.';
-        return;
-      }
-      inventarioModalEditando.imagen_url = data.imagen_url;
-      inventarioModalEditando.imagen_thumb_url = data.imagen_thumb_url;
-      mostrarEstadoImagenProducto(inventarioModalEditando);
-      cargarInventarios();
-    } catch (err) {
-      els.errorInvModalImagen.textContent = 'No se pudo subir la imagen. Revisa tu conexión.';
-    } finally {
+    return comprimirSiAplica(archivoOriginal, { objetivoKB: 200, calidadMin: 0.45, dimMaxPx: 1600 }).then(
+      (archivo) =>
+        new Promise((resolve) => {
+          const formData = new FormData();
+          formData.append('imagen', archivo);
+
+          ponerDropzoneSubiendo(true);
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', `${API_BASE}/admin/inventarios/productos/${inventarioModalEditando.id}/imagen`);
+          xhr.setRequestHeader('Authorization', authHeader);
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) actualizarProgresoImagen((e.loaded / e.total) * 100);
+          });
+          xhr.addEventListener('load', () => {
+            const tokenFresco = xhr.getResponseHeader('X-Admin-Session-Token');
+            if (tokenFresco) setSession(tokenFresco);
+
+            let data = {};
+            try { data = JSON.parse(xhr.responseText || '{}'); } catch (err) { data = {}; }
+
+            if (xhr.status === 403 && data.codigo === 'CUENTA_SUSPENDIDA') {
+              ponerDropzoneSubiendo(false);
+              clearSession();
+              showLogin();
+              els.loginError.textContent = data.error || 'Tu cuenta está suspendida. Contacta a un administrador.';
+              resolve();
+              return;
+            }
+            if (xhr.status < 200 || xhr.status >= 300) {
+              ponerDropzoneSubiendo(false);
+              els.errorInvModalImagen.textContent = data.mensaje || data.error || 'No se pudo subir la imagen.';
+              resolve();
+              return;
+            }
+
+            actualizarProgresoImagen(100);
+            inventarioModalEditando.imagen_url = data.imagen_url;
+            inventarioModalEditando.imagen_thumb_url = data.imagen_thumb_url;
+            setTimeout(() => {
+              ponerDropzoneSubiendo(false);
+              mostrarEstadoImagenProducto(inventarioModalEditando);
+              mostrarBadgeExitoImagen();
+              cargarInventarios();
+              resolve();
+            }, 160);
+          });
+          xhr.addEventListener('error', () => {
+            ponerDropzoneSubiendo(false);
+            els.errorInvModalImagen.textContent = 'No se pudo subir la imagen. Revisa tu conexión.';
+            resolve();
+          });
+          xhr.send(formData);
+        })
+    ).finally(() => {
       els.invImagenInput.value = '';
-    }
+    });
   }
 
   async function quitarImagenProducto() {
@@ -21589,7 +21695,7 @@
         return;
       }
       cerrarProductoModal();
-      showToast(data.mensaje || 'Producto guardado.');
+      mostrarProductoGuardado(data.mensaje || 'Producto guardado.');
       await cargarInventarios();
       cargarDashboardInventario();
     } catch (err) {

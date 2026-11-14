@@ -5220,6 +5220,21 @@
     </div>
   </div>
 
+  <!-- Punto 501 (Propuesta B): "Producto guardado" ya no usa showToast —
+       el modal de edición/alta de producto se cierra ANTES de mostrar
+       esto (cerrarProductoModal(), no hay dónde hacer swap inline como
+       en "Registrar venta"), mismo recurso que compra-confirmada-overlay:
+       overlay centrado con la misma palomita, auto-cierra sola. -->
+  <div class="modal-overlay" id="producto-guardado-overlay" hidden role="status" aria-live="polite">
+    <div class="compra-confirmada-card">
+      <svg class="orden-form-exito-check" width="56" height="56" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <circle cx="32" cy="32" r="28" stroke="#05DBF2" stroke-width="4"/>
+        <path d="M20 33l8 8 16-18" stroke="#05DBF2" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <p class="orden-form-exito-texto" id="producto-guardado-texto">Producto guardado</p>
+    </div>
+  </div>
+
   <!-- Propuesta B8 (elegida, generaliza B5): catálogo con 2 pestañas de
        upscale comprable (disco/usuarios, cobro recurrente real vía
        Subscription Item de Stripe, ver tenantUpscaleCompra.js) + D1
@@ -6142,15 +6157,27 @@
           <div class="field inv-modal-imagen-field" id="inv-modal-imagen-field" hidden>
             <label>Imagen del producto</label>
             <div class="inv-imagen-actual" id="inv-imagen-actual" hidden>
-              <img id="inv-imagen-actual-preview" alt="Imagen del producto" />
+              <div class="inv-imagen-actual-wrap">
+                <img id="inv-imagen-actual-preview" alt="Imagen del producto" />
+                <span class="inv-imagen-badge-exito" id="inv-imagen-badge-exito" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 64 64" fill="none">
+                    <circle cx="32" cy="32" r="28" stroke="#05DBF2" stroke-width="5"/>
+                    <path d="M20 33l8 8 16-18" stroke="#05DBF2" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+              </div>
               <button type="button" class="btn btn-secondary" id="btn-inv-imagen-quitar">Quitar imagen</button>
             </div>
             <label class="dropzone" id="inv-imagen-dropzone" for="inv-imagen-input">
               <span class="dropzone-icono" aria-hidden="true">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 16V4m0 0L7 9m5-5l5 5M5 20h14" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
               </span>
-              <span>Arrastra una imagen o haz clic para seleccionar</span>
-              <span class="field-hint">JPG, PNG o WEBP · máx. <span id="inv-imagen-limite-mb">5</span> MB</span>
+              <span id="inv-imagen-dropzone-texto">Arrastra una imagen o haz clic para seleccionar</span>
+              <span class="field-hint" id="inv-imagen-dropzone-hint">JPG, PNG o WEBP · máx. <span id="inv-imagen-limite-mb">5</span> MB</span>
+              <span class="inv-imagen-progreso" id="inv-imagen-progreso" hidden>
+                <span class="inv-imagen-progreso-track"><span class="inv-imagen-progreso-fill" id="inv-imagen-progreso-fill"></span></span>
+                <span class="inv-imagen-progreso-meta"><span>Subiendo imagen…</span><span class="inv-imagen-progreso-pct" id="inv-imagen-progreso-pct">0%</span></span>
+              </span>
             </label>
             <input type="file" id="inv-imagen-input" accept="image/jpeg,image/png,image/webp" hidden />
             <p class="field-error" id="error-inv-modal-imagen" role="alert"></p>
@@ -6791,8 +6818,19 @@
   <!-- Efecto lupa de imagen de producto: un solo elemento flotante
        compartido (Inventarios + sugerencias de Ventas), reposicionado por
        JS en cada hover — hijo directo de <body> para no quedar recortado
-       por el overflow de la tabla/dropdown que lo dispara. -->
-  <img id="lupa-producto-flotante" class="lupa-producto-flotante" alt="" hidden />
+       por el overflow de la tabla/dropdown que lo dispara. Punto 501
+       (Propuesta B): tarjeta con la foto completa (object-fit:contain,
+       nunca recortada) + nombre/SKU debajo, en vez del <img> suelto con
+       cover de antes. -->
+  <div id="lupa-producto-flotante" class="lupa-producto-flotante" hidden>
+    <span class="lupa-producto-flotante-imgwrap">
+      <img id="lupa-producto-flotante-img" class="lupa-producto-flotante-img" alt="" />
+    </span>
+    <span class="lupa-producto-flotante-cap">
+      <span class="lupa-producto-flotante-nombre" id="lupa-producto-flotante-nombre"></span>
+      <span class="lupa-producto-flotante-sku" id="lupa-producto-flotante-sku"></span>
+    </span>
+  </div>
 
   <!-- Punto 416: muro de bloqueo por suscripción no pagada/vencida —
        dispara desde el interceptor global de fetch (ver admin.js,
