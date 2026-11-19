@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Guía — Configurar Google Analytics para Clarvo</title>
+<style>
+  :root {
+    --page-bg: #F7F8FA; --page-surface: #FFFFFF; --page-ink: #14151A;
+    --page-ink-soft: #5B6472; --page-border: #E3E6EC; --accent: #03285B;
+    --accent-soft: #E7ECF3; --ok: #1FAE6B; --ok-soft: #E4F6ED;
+    --warn: #B4530C; --warn-soft: #FBEBDC; --danger: #B3261E; --danger-soft: #FBEAE9;
+    --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+    --mono: ui-monospace, 'SF Mono', Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --page-bg:#0D0F14; --page-surface:#15171F; --page-ink:#ECEDF2; --page-ink-soft:#9BA1AF; --page-border:#262A36; --accent:#5B9BFF; --accent-soft:#1A2338; --ok:#3CCB8C; --ok-soft:#102B20; --warn:#E08A3C; --warn-soft:#2E1F0E; --danger:#F37C73; --danger-soft:#2E1513; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--page-bg); color: var(--page-ink); }
+  .shell { max-width: 880px; margin: 0 auto; padding: clamp(24px, 5vw, 64px) clamp(18px, 4vw, 32px) 80px; }
+
+  header.top { margin-bottom: 40px; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--page-ink-soft); margin-bottom: 12px; }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  h1 { font-size: clamp(26px, 3.4vw, 36px); font-weight: 800; letter-spacing: -0.015em; margin: 0 0 12px; text-wrap: balance; }
+  .lead { font-size: 16px; line-height: 1.65; color: var(--page-ink-soft); max-width: 64ch; margin: 0; }
+
+  nav.toc { background: var(--page-surface); border: 1px solid var(--page-border); border-radius: var(--radius-lg); padding: 18px 22px; margin: 32px 0 44px; }
+  nav.toc h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--page-ink-soft); margin: 0 0 12px; }
+  nav.toc ol { margin: 0; padding-left: 20px; font-size: 14px; line-height: 2; }
+  nav.toc a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  nav.toc a:hover { text-decoration: underline; }
+
+  section.step { margin-bottom: 52px; scroll-margin-top: 20px; }
+  .step-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 16px; }
+  .step-num { flex-shrink: 0; width: 34px; height: 34px; border-radius: 9px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; }
+  .step-head h2 { font-size: 21px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .step-body { padding-left: 48px; }
+  .step-body p { font-size: 14.5px; line-height: 1.68; color: var(--page-ink-soft); margin: 0 0 14px; }
+  .step-body p strong { color: var(--page-ink); font-weight: 650; }
+
+  .mock-nav { background: var(--page-surface); border: 1px solid var(--page-border); border-radius: var(--radius-md); padding: 12px 16px; font-size: 13px; margin: 14px 0 18px; display: flex; align-items: center; gap: 8px; color: var(--page-ink-soft); }
+  .mock-nav b { color: var(--page-ink); font-weight: 650; }
+  .mock-nav svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+  .checklist { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+  .checklist li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.55; }
+  .checklist li svg { flex-shrink: 0; margin-top: 2px; width: 16px; height: 16px; color: var(--ok); }
+
+  .codebox { background: var(--accent-soft); border: 1px solid var(--page-border); border-radius: var(--radius-sm); padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; margin: 10px 0 16px; overflow-x: auto; white-space: pre; color: var(--page-ink); }
+
+  .callout { display: flex; gap: 10px; padding: 12px 15px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.55; margin: 14px 0; }
+  .callout svg { flex-shrink: 0; margin-top: 1px; width: 16px; height: 16px; }
+  .callout.warn { background: var(--warn-soft); color: var(--warn); }
+  .callout.danger { background: var(--danger-soft); color: var(--danger); }
+  .callout.ok { background: var(--ok-soft); color: var(--ok); }
+  .callout b { font-weight: 700; }
+
+  .field-prev { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 14px 0; }
+  .field-prev div { background: var(--page-surface); border: 1px solid var(--page-border); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 12.5px; }
+  .field-prev div b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--page-ink-soft); margin-bottom: 3px; }
+
+  table.cmp { width: 100%; border-collapse: collapse; margin: 14px 0 18px; font-size: 13px; }
+  table.cmp th, table.cmp td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--page-border); }
+  table.cmp th { color: var(--page-ink-soft); font-weight: 650; font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; }
+  table.cmp td code { font-family: var(--mono); font-size: 12px; }
+
+  .divider { height: 1px; background: var(--page-border); margin: 48px 0; }
+
+  footer.end { background: var(--accent-soft); border: 1px solid var(--page-border); border-radius: var(--radius-lg); padding: 24px 26px; font-size: 14px; line-height: 1.65; }
+  footer.end h3 { margin: 0 0 8px; font-size: 15px; }
+  footer.end code { font-family: var(--mono); background: var(--page-surface); padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <span class="eyebrow"><span class="dot"></span>Guía paso a paso · Google Analytics 4</span>
+    <h1>Configurar Google Analytics para Clarvo, de cero</h1>
+    <p class="lead">
+      El código de <strong>clarvo-Site</strong> ya está implementado completo —
+      snippet de GA4, banner de consentimiento de cookies, y 4 eventos reales
+      del embudo de alta (inicio, paso completado, inicio de pago, conversión).
+      Lo único que falta es <strong>un ID de medición real</strong> (formato
+      <code>G-XXXXXXXXXX</code>) que sale de crear una propiedad de Analytics —
+      gratis, sin tarjeta, 7 pasos.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <h2>En esta guía</h2>
+    <ol>
+      <li><a href="#paso1">Entrar a Google Analytics</a></li>
+      <li><a href="#paso2">Crear la cuenta y la propiedad</a></li>
+      <li><a href="#paso3">Crear el flujo de datos web</a></li>
+      <li><a href="#paso4">Obtener el ID de medición</a></li>
+      <li><a href="#paso5">Dónde va esta llave en Clarvo</a></li>
+      <li><a href="#paso6">Qué ya está implementado (sin que tengas que pedirlo)</a></li>
+      <li><a href="#paso7">Probar que funciona, en tiempo real</a></li>
+    </ol>
+  </nav>
+
+  <section class="step" id="paso1">
+    <div class="step-head"><span class="step-num">1</span><h2>Entrar a Google Analytics</h2></div>
+    <div class="step-body">
+      <p>Entra con la cuenta de Google del negocio (la misma que administra el
+      dominio <strong>clarvo.mx</strong>, no una personal — vas a querer
+      compartir acceso con más gente del equipo después) a:</p>
+      <div class="mock-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg> <b>analytics.google.com</b></div>
+      <p>Google Analytics 4 es gratuito, sin límite de cuota relevante para el
+      tráfico de un sitio como este — no pide tarjeta ni proyecto de Google
+      Cloud (eso es para APIs distintas, como el Measurement Protocol
+      server-side, que no se usa aquí).</p>
+    </div>
+  </section>
+
+  <section class="step" id="paso2">
+    <div class="step-head"><span class="step-num">2</span><h2>Crear la cuenta y la propiedad</h2></div>
+    <div class="step-body">
+      <p>Si es la primera vez que usas Analytics con esta cuenta de Google, te
+      pide crear una <b>cuenta</b> (el contenedor de más arriba, ej.
+      "ADDV"/"Clarvo") y dentro de ella una <b>propiedad</b> (el sitio en sí).
+      Clic en <strong>Crear propiedad</strong> y llena:</p>
+      <ul class="checklist">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> <b>Nombre de la propiedad</b>: <code>Clarvo — Sitio público</code> (o similar, identificable).</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> <b>Zona horaria</b>: <code>México</code> (Ciudad de México) — para que los reportes por día/hora coincidan con la operación real, mismo criterio que ya aplica el resto del proyecto para fechas.</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> <b>Moneda</b>: <code>Peso mexicano (MXN)</code> — los eventos de conversión ya implementados (ver paso 6) mandan montos en MXN.</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> En "Detalles del negocio": tamaño/industria — cualquier respuesta razonable, Google solo la usa para sugerir reportes default, no afecta el tracking.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="step" id="paso3">
+    <div class="step-head"><span class="step-num">3</span><h2>Crear el flujo de datos web</h2></div>
+    <div class="step-body">
+      <p>Ya dentro de la propiedad nueva, Analytics pide elegir la plataforma —
+      elige <strong>Web</strong> (no app iOS/Android) y llena:</p>
+      <ul class="checklist">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> <b>URL del sitio web</b>: <code>https://clarvo.mx</code>.</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> <b>Nombre del flujo</b>: <code>clarvo.mx</code> (o el default que sugiera).</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Deja <b>"Medición mejorada"</b> activada (default) — son los extras automáticos de GA4 (scroll, clics salientes, etc.), no interfiere con nada de lo ya implementado.</li>
+      </ul>
+      <div class="callout ok">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Un sitio = un flujo de datos (a diferencia de reCAPTCHA, aquí no hace falta agregar <code>localhost</code> como dominio — GA4 no valida el dominio contra una lista, cualquier página que tenga el snippet manda datos a la propiedad, sea local o real; ver el aviso del paso 7 sobre por qué eso importa).</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" id="paso4">
+    <div class="step-head"><span class="step-num">4</span><h2>Obtener el ID de medición</h2></div>
+    <div class="step-body">
+      <p>Al terminar de crear el flujo, Analytics muestra los <b>Detalles del
+      flujo</b> — ahí arriba, en grande, está el único dato que necesitas:</p>
+      <div class="field-prev">
+        <div><b>ID de MEDICIÓN</b>Formato <code>G-XXXXXXXXXX</code>. No es secreto — va directo en el HTML/JS del navegador, cualquiera que inspeccione el sitio puede verlo (mismo nivel de "público" que la site key de reCAPTCHA).</div>
+      </div>
+      <p>Si se te olvida copiarlo, lo vuelves a encontrar en <b>Administrar →
+      Flujos de datos → (clic en el flujo) → ID de medición</b>, siempre en la
+      misma pantalla.</p>
+    </div>
+  </section>
+
+  <section class="step" id="paso5">
+    <div class="step-head"><span class="step-num">5</span><h2>Dónde va esta llave en Clarvo</h2></div>
+    <div class="step-body">
+      <p>Mismo patrón que ya usa el proyecto para toda llave pública de
+      terceros (reCAPTCHA site key, etc.) — una sola variable de entorno en
+      <code>clarvo-Site</code>, ya leída por el código (ver paso 6):</p>
+      <div class="codebox"># clarvo-Site/.env — local, para development (astro dev)
+PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX</div>
+      <p>En producción (Vultr), la misma variable va horneada en el build de
+      Astro — igual que <code>PUBLIC_RECAPTCHA_SITE_KEY</code>, necesita
+      <code>docker compose build</code> (nunca basta con reiniciar el
+      contenedor) cada vez que cambie:</p>
+      <div class="codebox"># VULTR/clarvo-site.env (o el nombre real que use el runbook de deploy)
+PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX</div>
+      <div class="callout danger">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span><b>Pedido explícito del usuario (nov 2026): no se despliega nada todavía.</b> Mándame este <code>G-XXXXXXXXXX</code> (por el canal que prefieras) y yo lo agrego al <code>.env</code> local para que puedas probarlo tú mismo primero (paso 7) — el salto a producción (Vultr) solo pasa cuando tú lo confirmes explícito, como con cualquier otro deploy real a clarvo.mx.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" id="paso6">
+    <div class="step-head"><span class="step-num">6</span><h2>Qué ya está implementado</h2></div>
+    <div class="step-body">
+      <p>Sin que tengas que pedir nada extra, el código ya cubre lo que
+      cualquier implementación seria de Analytics necesita:</p>
+      <ul class="checklist">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> <b>Consentimiento real, no solo un aviso cosmético</b>: GA4 nunca se carga (cero requests, cero cookies) hasta que el visitante acepta cookies analíticas en el banner del sitio — <code>src/components/Analytics.astro</code> + <code>src/components/site/CookieConsent.astro</code>, cumple el Aviso de Privacidad (<code>/privacidad</code>) ya publicado bajo la LFPDPPP.</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> <b>Pageviews automáticos</b> en cualquier página del sitio (lo trae <code>gtag</code> por default).</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> <b>4 eventos del embudo de alta real</b> (<code>src/lib/analytics.ts</code>, conectados en <code>OnboardingModal.tsx</code>):
+          <div class="codebox">onboarding_iniciado   → se abrió el wizard, con qué plan/ciclo
+onboarding_paso       → completó un paso (empresa, config, credenciales...)
+begin_checkout        → va a pagar (evento estándar de ecommerce de GA4)
+purchase              → el webhook de Stripe confirmó el pago (conversión real,
+                         con monto/plan — la métrica que de verdad importa)</div>
+        </li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> <code>purchase</code> nunca se duplica (protegido contra el polling de OXXO/SPEI y recargas de la página de éxito reportando la misma alta dos veces).</li>
+      </ul>
+      <div class="callout warn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="16" r="0.5" fill="currentColor"/></svg>
+        <span>Un paso de 1 clic, dentro de Analytics, no de código: en <b>Administrar → Eventos</b>, marca <code>purchase</code> como <b>"Evento clave"</b> (conversión) — así aparece en los reportes de conversiones/ingresos en vez de solo en la lista general de eventos. Los otros 3 se pueden marcar también si quieres ver el embudo completo paso por paso.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" id="paso7">
+    <div class="step-head"><span class="step-num">7</span><h2>Probar que funciona, en tiempo real</h2></div>
+    <div class="step-body">
+      <p>En cuanto me pases el ID de medición y lo agregue al <code>.env</code>
+      local, puedes verlo llegar en vivo, sin esperar al reporte normal (ese
+      tarda horas en consolidarse):</p>
+      <ul class="checklist">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> En Analytics: <b>Informes → Tiempo real</b>.</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> En el sitio local: abre <code>localhost:4321</code>, y en el banner de cookies de hasta abajo, clic en <b>"Aceptar todas"</b> — sin este paso, GA nunca se carga (es el comportamiento correcto, no un bug).</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Deberías verte a ti mismo como "1 usuario en los últimos 30 minutos" en el reporte de Tiempo real, en cuestión de segundos.</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Clic en "Elige un plan" para abrir el wizard — <code>onboarding_iniciado</code> debe aparecer en la lista de eventos del reporte de Tiempo real casi de inmediato.</li>
+      </ul>
+      <div class="callout ok">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Los 3 eventos restantes del embudo (<code>onboarding_paso</code>, <code>begin_checkout</code>, <code>purchase</code>) necesitan que el wizard llegue a hablar con la API real de Clarvo (<code>PUBLIC_CLARVO_API_BASE_URL</code>) — en un <code>clarvo-Site</code> local sin esa URL apuntada, el wizard no avanza del primer paso (error "No se pudo conectar", nada que ver con Analytics). Se pueden probar completos en cuanto el sitio local apunte al backend real, o directo en producción cuando llegue ese momento.</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <footer class="end">
+    <h3>Qué sigue</h3>
+    Crea la propiedad (pasos 1-4, 5 minutos, sin tarjeta) y mándame el
+    <code>G-XXXXXXXXXX</code>. Lo agrego al <code>.env</code> local, lo pruebas
+    tú mismo con el reporte de Tiempo real (paso 7), y el salto a producción
+    (<code>VULTR/clarvo-site.env</code> + rebuild) solo pasa cuando tú lo
+    confirmes explícito — ningún cambio de código adicional hace falta para
+    ese salto, ya está todo implementado y probado.
+  </footer>
+</div>
+</body>
+</html>
