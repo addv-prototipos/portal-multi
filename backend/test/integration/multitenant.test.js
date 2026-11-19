@@ -178,7 +178,7 @@ describe('Multi-tenant (segmento 3) — resolución de tenant end-to-end', () =>
   // (true, migración-segura) EXCEPTO sucursalesHabilitado, que por
   // diseño default a false cuando la columna está ausente (feature nueva
   // que nadie tenía antes — ver tenantContext.js).
-  test('GET /api/admin/login con tenant resuelto expone "funciones" con los 17 flags del plan', async () => {
+  test('GET /api/admin/login con tenant resuelto expone "funciones" con los 18 flags del plan', async () => {
     mockControlPool([TENANT_CLIENTE1]);
 
     const res = await request(app)
@@ -189,6 +189,11 @@ describe('Multi-tenant (segmento 3) — resolución de tenant end-to-end', () =>
     expect(res.status).toBe(200);
     expect(res.body.funciones).toEqual({
       facturacionHabilitada: true,
+      // facturacionHabilitadaPlan es el ceiling del PLAN (nunca se mueve
+      // por el switch "Gestión de facturas" del propio tenant) — con
+      // TENANT_CLIENTE1 sin facturacion_habilitada=0, cae al default true
+      // (ver tenantContext.js).
+      facturacionHabilitadaPlan: true,
       portalClientesHabilitado: true,
       sucursalesHabilitado: false,
       marcaLookfeelHabilitado: true,
