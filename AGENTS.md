@@ -1045,6 +1045,19 @@ solo la frase en español de la UI.
   (`admin.js:terminosGateScroll.innerHTML = contenido`, ya corregido).
   `publicarVersion()` hardcodea `formato='markdown'`, ignora cualquier
   valor que llegue en el request.
+- **Agregar un valor nuevo a un `ENUM` existente necesita `ALTER TABLE
+  ... MODIFY COLUMN` aparte — `CREATE TABLE IF NOT EXISTS` no basta**
+  (punto 502, 2026-11-13, bug real solo visible con prueba funcional):
+  `notificaciones_cliente.tipo` ganó un 3er valor
+  (`venta_registrada`, "nuevo cargo") — agregarlo solo al literal del
+  `CREATE TABLE` en `backend/db.js` no tocó ninguna BD ya existente, y el
+  primer `INSERT` con ese valor reventó con `WARN_DATA_TRUNCATED` DESPUÉS
+  de que la venta ya se había guardado (el cliente vio "no se pudo
+  registrar la venta" con la venta real ya en la BD). Fix: leer
+  `INFORMATION_SCHEMA.COLUMNS.COLUMN_TYPE`, y si el valor nuevo no
+  aparece en ese string, correr `ALTER TABLE ... MODIFY COLUMN tipo
+  ENUM(...) NOT NULL` (idempotente, nunca quita valores). Ver detalle
+  completo en `CLAUDE.md`.
 
 ## Stack
 

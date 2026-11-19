@@ -256,10 +256,17 @@
   const ICONOS_NOTIF_CLIENTE = {
     pago_registrado:
       '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    venta_registrada:
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 3h10a1 1 0 011 1v16l-3-2-2 2-2-2-2 2-2-2-3 2V4a1 1 0 011-1z" stroke-linejoin="round"/><path d="M9 8h6M9 12h6" stroke-linecap="round"/></svg>',
     promocion:
       '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 7l9 6 9-6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   };
-  const TITULOS_NOTIF_CLIENTE = { pago_registrado: 'pago', promocion: 'promo' };
+  const TITULOS_NOTIF_CLIENTE = { pago_registrado: 'pago', venta_registrada: 'cargo', promocion: 'promo' };
+  // Tipos que representan movimiento real de saldo (pago recibido o cargo
+  // nuevo) — al detectarse en el sondeo, la página de Crédito (si está
+  // abierta) se refresca sola en vez de esperar a que el cliente recargue
+  // a mano.
+  const TIPOS_NOTIF_REFRESCAN_CREDITO = ['pago_registrado', 'venta_registrada'];
 
   function construirCampanaNotifCliente() {
     const contenedor = document.querySelector('.portal-header-actions');
@@ -340,10 +347,16 @@
 
     function abrirDestino(item) {
       marcarLeido(item.id);
-      if (item.tipo === 'pago_registrado') {
+      if (item.tipo === 'pago_registrado' || item.tipo === 'venta_registrada') {
         window.location.href = urlPagina('credito');
       }
       render();
+    }
+
+    function claseIconoNotif(tipo) {
+      if (tipo === 'pago_registrado') return 'pago';
+      if (tipo === 'venta_registrada') return 'cargo';
+      return 'promo';
     }
 
     function render() {
@@ -362,7 +375,7 @@
             ? ''
             : fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
           return `<button type="button" class="portal-notif-item${leido(it.id) ? '' : ' is-nueva'}" data-id="${escapeHtmlAttr(it.id)}" data-tipo="${escapeHtmlAttr(it.tipo)}">
-            <span class="portal-notif-icon portal-notif-icon-${it.tipo === 'pago_registrado' ? 'pago' : 'promo'}">${ICONOS_NOTIF_CLIENTE[it.tipo] || ''}</span>
+            <span class="portal-notif-icon portal-notif-icon-${claseIconoNotif(it.tipo)}">${ICONOS_NOTIF_CLIENTE[it.tipo] || ''}</span>
             <span class="portal-notif-texto">
               <strong>${escapeHtml(it.titulo)}</strong>
               <span>${escapeHtml(it.mensaje)}</span>
@@ -402,6 +415,12 @@
             reproducirCampanadaNotifCliente();
             btn.classList.add('is-ringing');
             setTimeout(() => btn.classList.remove('is-ringing'), 600);
+            const llegoMovimientoSaldo = itemsActuales.some(
+              (it) => idsNuevos.includes(it.id) && TIPOS_NOTIF_REFRESCAN_CREDITO.includes(it.tipo)
+            );
+            if (llegoMovimientoSaldo) {
+              document.dispatchEvent(new CustomEvent('portal:credito-actualizado'));
+            }
           }
         }
         idsSondeoAnterior = new Set(itemsActuales.map((it) => it.id));

@@ -64,6 +64,8 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
       pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
       pool.query.mockResolvedValueOnce([{ insertId: 10, affectedRows: 1 }]); // INSERT
       pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE numero_compra
+      pool.query.mockResolvedValueOnce([[{ rfc: 'XAXX010101000' }]]); // usuarios (campana: nuevo cargo)
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // INSERT notificaciones_cliente
 
       const res = await request(app)
         .post('/api/admin/ordenes-compra')

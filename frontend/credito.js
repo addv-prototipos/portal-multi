@@ -20,6 +20,13 @@
     creditoAbonosWrap: document.getElementById('credito-abonos-wrap'),
     creditoAbonosBody: document.getElementById('credito-abonos-body'),
     creditoAbonosEmpty: document.getElementById('credito-abonos-empty'),
+    ticketOverlay: document.getElementById('ticket-detalle-overlay'),
+    ticketCerrar: document.getElementById('ticket-detalle-cerrar'),
+    ticketTitulo: document.getElementById('ticket-detalle-titulo'),
+    ticketFilas: document.getElementById('ticket-detalle-filas'),
+    ticketTotal: document.getElementById('ticket-detalle-total'),
+    ticketFolioWrap: document.getElementById('ticket-detalle-folio-wrap'),
+    ticketFolio: document.getElementById('ticket-detalle-folio'),
   };
 
   // Mismo patrón ya usado en login.js/app.js/admin.js — sin bundler, cada
@@ -40,6 +47,26 @@
     div.textContent = texto == null ? '' : String(texto);
     return div.innerHTML;
   }
+
+  function formatearFechaHora(fechaISO) {
+    if (!fechaISO) return { fecha: '—', hora: '—' };
+    const fecha = new Date(String(fechaISO).replace(' ', 'T') + (String(fechaISO).includes('Z') ? '' : 'Z'));
+    if (Number.isNaN(fecha.getTime())) return { fecha: '—', hora: '—' };
+    return {
+      fecha: fecha.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }),
+      hora: fecha.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
+    };
+  }
+
+  // Mismas etiquetas cortas que admin.js (ETIQUETAS_METODO_PAGO_ORDEN) —
+  // duplicadas a propósito, mismo criterio sin bundler que el resto del
+  // sitio.
+  const ETIQUETAS_METODO_PAGO = {
+    efectivo: 'Efectivo',
+    transferencia: 'Transferencia',
+    tarjeta_credito: 'Tarjeta de crédito',
+    tarjeta_debito: 'Tarjeta de débito',
+  };
 
   // r=44, mismo radio que el SVG estático de credito.html — la
   // circunferencia se calcula una sola vez aquí en vez de hardcodearla.
@@ -86,12 +113,65 @@
       </svg>
       <div class="credito-item-info">
         <span class="credito-item-numero">${escaparHtml(venta.numeroCompra)}</span>
+        <span class="credito-item-concepto">${escaparHtml(venta.concepto)}</span>
         <span class="credito-item-detalle">$${formatearMoneda(venta.total - venta.saldo)} pagado de $${formatearMoneda(venta.total)} · ${formatearFechaCorta(venta.fechaCompra)}</span>
       </div>
-      <div class="credito-item-pct">${Math.round(pctPendiente * 100)}% pendiente</div>
+      <div class="credito-item-derecha">
+        <div class="credito-item-pct">${Math.round(pctPendiente * 100)}% pendiente</div>
+        <button type="button" class="credito-item-ver-detalle">Ver detalle</button>
+      </div>
     `;
+    item.querySelector('.credito-item-ver-detalle').addEventListener('click', () => abrirTicketDigital(venta));
     return item;
   }
+
+  function filaTicket(etiqueta, valor) {
+    return `<div class="ticket-digital-fila"><span>${escaparHtml(etiqueta)}</span><span>${valor}</span></div>`;
+  }
+
+  // Mismo desglose que construirCorreoOrdenCompra() en el backend (el
+  // correo que ya le llegó al cliente al registrarse la venta) — "Cantidad"
+  // es el subtotal neto (ya con descuento aplicado, si hubo), el IVA se
+  // deriva de total-subtotal igual que en el correo, nunca recalculado con
+  // otra fórmula que pudiera divergir.
+  function abrirTicketDigital(venta) {
+    if (!els.ticketOverlay) return;
+    const { fecha, hora } = formatearFechaHora(venta.fechaCompra);
+    els.ticketTitulo.textContent = venta.numeroCompra;
+    const filasHtml = [
+      filaTicket('Fecha', escaparHtml(fecha)),
+      filaTicket('Hora', escaparHtml(hora)),
+      filaTicket('Concepto', escaparHtml(venta.concepto)),
+      filaTicket('Cantidad', `$${formatearMoneda(venta.cantidad)} MXN`),
+    ];
+    if (venta.descuentoPorcentaje) {
+      filasHtml.push(filaTicket(`Descuento (${venta.descuentoPorcentaje}%)`, `-$${formatearMoneda(venta.descuentoMonto)} MXN`));
+    }
+    filasHtml.push(filaTicket(`IVA (${venta.ivaPorcentaje}%)`, `$${formatearMoneda(venta.total - venta.cantidad)} MXN`));
+    if (venta.metodoPago) {
+      filasHtml.push(filaTicket('Método de pago', escaparHtml(ETIQUETAS_METODO_PAGO[venta.metodoPago] || venta.metodoPago)));
+    }
+    els.ticketFilas.innerHTML = filasHtml.join('');
+    els.ticketTotal.textContent = `$${formatearMoneda(venta.total)} MXN`;
+    const conFolio = venta.metodoPago === 'transferencia' && venta.folioConciliacion;
+    els.ticketFolioWrap.hidden = !conFolio;
+    if (conFolio) els.ticketFolio.textContent = venta.folioConciliacion;
+    els.ticketOverlay.hidden = false;
+  }
+
+  function cerrarTicketDigital() {
+    if (els.ticketOverlay) els.ticketOverlay.hidden = true;
+  }
+
+  if (els.ticketCerrar) els.ticketCerrar.addEventListener('click', cerrarTicketDigital);
+  if (els.ticketOverlay) {
+    els.ticketOverlay.addEventListener('click', (e) => {
+      if (e.target === els.ticketOverlay) cerrarTicketDigital();
+    });
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && els.ticketOverlay && !els.ticketOverlay.hidden) cerrarTicketDigital();
+  });
 
   function aplicarEsqueletoLista() {
     if (!els.listaCreditos) return;
@@ -186,6 +266,14 @@
       Esqueleto.aplicarErrorTabla(els.creditoAbonosBody, 4, 'No se pudo conectar con el servidor.', cargarCredito);
     }
   }
+
+  // Disparado por portal.js (campana de notificaciones) al detectar en el
+  // sondeo un "pago registrado" o "nuevo cargo" — recarga sola esta
+  // página sin que el cliente tenga que refrescar a mano para ver su
+  // saldo actualizado.
+  document.addEventListener('portal:credito-actualizado', () => {
+    if (!els.ticketOverlay || els.ticketOverlay.hidden) cargarCredito();
+  });
 
   document.addEventListener('DOMContentLoaded', async () => {
     const sesionOk = await requireSession();

@@ -162,6 +162,7 @@
   justify-content: center;
 }
 .portal-notif-icon-pago { background: var(--color-accent-soft); color: #0F6E5D; }
+.portal-notif-icon-cargo { background: var(--color-accent-soft); color: var(--color-warn); }
 .portal-notif-icon-promo { background: var(--color-accent-soft); color: var(--color-accent); }
 .portal-notif-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .portal-notif-texto strong { font-size: 13px; font-weight: 600; color: var(--color-ink); }
@@ -849,14 +850,73 @@
 .credito-item-anillo { flex-shrink: 0; }
 .credito-item-info { flex: 1; min-width: 0; font-size: 13.5px; }
 .credito-item-numero { display: block; font-weight: 700; font-size: 14.5px; color: var(--color-ink); margin-bottom: 3px; }
+.credito-item-concepto {
+  display: block; color: var(--color-ink); font-size: 13px; margin-bottom: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .credito-item-detalle { color: var(--color-ink-soft); }
+.credito-item-derecha {
+  flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+}
 .credito-item-pct {
-  flex-shrink: 0; font-weight: 700; font-size: 13.5px; color: var(--color-warn);
+  font-weight: 700; font-size: 13.5px; color: var(--color-warn);
   font-variant-numeric: tabular-nums;
 }
+.credito-item-ver-detalle {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-size: 12.5px; font-weight: 600; color: var(--color-accent);
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.credito-item-ver-detalle:hover { color: var(--color-accent-dark); }
+.credito-item-ver-detalle:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .dona-pagado, .dona-pendiente { transition: none; }
 }
+
+/* Ticket digital (punto en curso): mismo lenguaje visual del correo de
+   confirmación de venta (recibo de bordes punteados, degradado
+   navy→cian) — "Ver detalle" en un crédito abre esto en vez de reenviar
+   ningún correo, se lee de los mismos datos ya guardados en la venta. */
+.ticket-digital {
+  max-width: 360px;
+  position: relative;
+  padding-top: 30px;
+}
+.ticket-digital-cerrar {
+  position: absolute; top: 14px; right: 14px;
+  width: 30px; height: 30px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; color: var(--color-ink-soft); cursor: pointer;
+}
+.ticket-digital-cerrar:hover { background: var(--color-accent-soft); color: var(--color-ink); }
+.ticket-digital-cerrar:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.ticket-digital-eyebrow {
+  margin: 0; text-align: center; font-size: 11.5px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--color-ink-soft);
+}
+.ticket-digital-numero {
+  margin: 4px 0 0; text-align: center; font-family: var(--font-display);
+  font-size: 19px; font-weight: 700; color: var(--color-ink);
+}
+.ticket-digital-sep { border-top: 1px dashed var(--color-border); margin: 16px 0; }
+.ticket-digital-filas { display: flex; flex-direction: column; gap: 9px; }
+.ticket-digital-fila {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  font-size: 13.5px; color: var(--color-ink-soft);
+}
+.ticket-digital-fila span:last-child { color: var(--color-ink); font-variant-numeric: tabular-nums; text-align: right; }
+.ticket-digital-fila-total { font-size: 15px; font-weight: 700; color: var(--color-ink); }
+.ticket-digital-fila-total span:last-child { color: var(--color-accent); }
+.ticket-digital-folio {
+  margin-top: 16px; padding: 12px 14px; border-radius: 10px; text-align: center;
+  background: var(--color-accent-soft);
+}
+.ticket-digital-folio p:first-child { margin: 0 0 3px; font-size: 11.5px; color: var(--color-ink-soft); }
+.ticket-digital-folio p:last-child {
+  margin: 0; font-size: 17px; font-weight: 700; letter-spacing: 0.03em; color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+.ticket-digital-folio[hidden] { display: none; }
 
 /* ---------- Vista previa de imagen (tickets.html) ---------- */
 .dropzone-preview {

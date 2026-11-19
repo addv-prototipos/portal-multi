@@ -66,8 +66,8 @@ describe('Cliente: Mi Cuenta — Gestión de crédito (GET /api/mi-cuenta/credit
     pool.query.mockResolvedValueOnce([[{ email: 'cliente@empresa.mx' }]]); // SELECT email
     pool.query.mockResolvedValueOnce([
       [
-        { id: 1, numero_compra: 'OC-000001', concepto: 'Venta 1', total: '500.00', monto_cobrado: '500.00', estado_pago: 'pagada', fecha_compra: '2026-09-01 10:00:00' },
-        { id: 2, numero_compra: 'OC-000002', concepto: 'Venta 2', total: '300.00', monto_cobrado: '100.00', estado_pago: 'pendiente', fecha_compra: '2026-09-15 10:00:00' },
+        { id: 1, numero_compra: 'OC-000001', concepto: 'Venta 1', cantidad: '430.17', iva_porcentaje: '16.00', total: '500.00', descuento_porcentaje: null, descuento_monto: null, monto_cobrado: '500.00', estado_pago: 'pagada', fecha_compra: '2026-09-01 10:00:00', metodo_pago: 'efectivo', folio_conciliacion: null },
+        { id: 2, numero_compra: 'OC-000002', concepto: 'Venta 2', cantidad: '258.62', iva_porcentaje: '16.00', total: '300.00', descuento_porcentaje: null, descuento_monto: null, monto_cobrado: '100.00', estado_pago: 'pendiente', fecha_compra: '2026-09-15 10:00:00', metodo_pago: 'transferencia', folio_conciliacion: 'CV-000001' },
       ],
     ]); // SELECT ventas
     pool.query.mockResolvedValueOnce([
@@ -79,7 +79,20 @@ describe('Cliente: Mi Cuenta — Gestión de crédito (GET /api/mi-cuenta/credit
     expect(res.status).toBe(200);
     expect(res.body.resumen).toEqual({ totalFacturado: 800, totalPagado: 600, saldoPendiente: 200 });
     expect(res.body.ventasPendientes).toEqual([
-      { id: 2, numeroCompra: 'OC-000002', concepto: 'Venta 2', total: 300, saldo: 200, fechaCompra: '2026-09-15 10:00:00' },
+      {
+        id: 2,
+        numeroCompra: 'OC-000002',
+        concepto: 'Venta 2',
+        cantidad: 258.62,
+        ivaPorcentaje: 16,
+        descuentoPorcentaje: null,
+        descuentoMonto: null,
+        total: 300,
+        saldo: 200,
+        fechaCompra: '2026-09-15 10:00:00',
+        metodoPago: 'transferencia',
+        folioConciliacion: 'CV-000001',
+      },
     ]);
     expect(res.body.abonos).toEqual([
       { monto: 100, notas: 'Abono inicial', creadoEn: '2026-09-16 09:00:00', numeroCompra: 'OC-000002' },

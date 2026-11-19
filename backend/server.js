@@ -2263,7 +2263,8 @@ app.get(
     }
 
     const [ventas] = await pool.query(
-      `SELECT id, numero_compra, concepto, total, monto_cobrado, estado_pago, fecha_compra
+      `SELECT id, numero_compra, concepto, cantidad, iva_porcentaje, total, descuento_porcentaje, descuento_monto,
+              monto_cobrado, estado_pago, fecha_compra, metodo_pago, folio_conciliacion
        FROM ordenes_compra WHERE email = ? AND eliminado_en IS NULL ORDER BY fecha_compra DESC`,
       [email]
     );
@@ -2272,15 +2273,26 @@ app.get(
     const totalPagado = ventas.reduce((acc, v) => acc + Number(v.monto_cobrado), 0);
     const saldoPendiente = Math.round((totalFacturado - totalPagado) * 100) / 100;
 
+    // Campos extra (cantidad/iva/descuento/método/folio) alimentan el
+    // "ticket digital" que el cliente puede abrir con "Ver detalle" —
+    // mismo desglose que ya recibió por correo al registrarse la venta
+    // (ver construirCorreoOrdenCompra), nunca reenviado, solo leído de la
+    // misma fila guardada.
     const ventasPendientes = ventas
       .filter((v) => v.estado_pago !== 'pagada')
       .map((v) => ({
         id: v.id,
         numeroCompra: v.numero_compra,
         concepto: v.concepto,
+        cantidad: Number(v.cantidad),
+        ivaPorcentaje: Number(v.iva_porcentaje),
+        descuentoPorcentaje: v.descuento_porcentaje != null ? Number(v.descuento_porcentaje) : null,
+        descuentoMonto: v.descuento_monto != null ? Number(v.descuento_monto) : null,
         total: Number(v.total),
         saldo: Math.round((Number(v.total) - Number(v.monto_cobrado)) * 100) / 100,
         fechaCompra: v.fecha_compra,
+        metodoPago: v.metodo_pago || null,
+        folioConciliacion: v.folio_conciliacion || null,
       }));
 
     const [abonos] = await pool.query(
@@ -8544,6 +8556,35 @@ app.post(
       }).catch((err) => {
         console.error('No se pudo enviar el correo de confirmación de la orden de compra:', err.message);
       });
+    }
+
+    // Campana del portal de cliente: nuevo cargo/adeudo registrado — mismo
+    // criterio y misma tabla que "Pago registrado" (PUT .../cobro, ver
+    // arriba) para que el cliente se entere de la venta sin esperar el
+    // correo (o aunque se haya registrado en modalidad "Imprimir ticket",
+    // sin correo). Omitido en silencio si el correo no corresponde a
+    // ninguna cuenta cliente (venta de mostrador, o "cliente nuevo" sin
+    // cuenta todavía) o si la venta se registró sin correo — no hay a
+    // quién notificar.
+    if (email) {
+      const [filasClienteVenta] = await pool.query(
+        "SELECT rfc FROM usuarios WHERE email = ? AND perfil = 'cliente' LIMIT 1",
+        [email]
+      );
+      if (filasClienteVenta.length > 0) {
+        await pool.query(
+          'INSERT INTO notificaciones_cliente (rfc, tipo, titulo, mensaje, orden_id, creado_por, creado_en) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [
+            filasClienteVenta[0].rfc,
+            'venta_registrada',
+            'Nuevo cargo registrado',
+            `Se registró un nuevo cargo de $${total.toFixed(2)} sobre la venta ${numeroCompra} (${concepto}).`,
+            resultado.insertId,
+            req.adminUser || null,
+            ahora,
+          ]
+        );
+      }
     }
 
     res.status(201).json({

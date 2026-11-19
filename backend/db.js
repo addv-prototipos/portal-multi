@@ -1043,23 +1043,25 @@ async function ensureSchema(db = pool) {
   `);
 
   // notificaciones_cliente (punto en curso, campana del portal de
-  // cliente): 2 tipos hoy — 'pago_registrado' (automática, se inserta
+  // cliente): 3 tipos hoy — 'pago_registrado' (automática, se inserta
   // sola al registrar un cobro en PUT /api/admin/ordenes-compra/:id/cobro,
-  // rfc = la cuenta cliente dueña de esa venta, resuelta por correo) y
-  // 'promocion' (manual, el admin la escribe y envía desde /admin,
-  // siempre rfc NULL = broadcast a todos los clientes del tenant — sin
-  // segmentar por cliente en esta primera versión). `rfc IS NULL` es la
-  // señal de "para todos", no un dato faltante — GET /api/notificaciones
-  // trae `WHERE rfc = ? OR rfc IS NULL`. `orden_id` solo aplica a
-  // 'pago_registrado' (click-through a esa venta en Mi cuenta → Crédito);
-  // NULL en 'promocion'. Sin CONSTRAINT FOREIGN KEY, mismo motivo que
-  // abonos/orden_productos arriba — el lado cliente nunca hace DELETE/
-  // REFERENCES cross-tabla.
+  // rfc = la cuenta cliente dueña de esa venta, resuelta por correo),
+  // 'venta_registrada' (automática, mismo criterio, al REGISTRAR una
+  // venta con correo de cliente — "nuevo cargo/adeudo") y 'promocion'
+  // (manual, el admin la escribe y envía desde /admin, siempre rfc NULL
+  // = broadcast a todos los clientes del tenant — sin segmentar por
+  // cliente en esta primera versión). `rfc IS NULL` es la señal de "para
+  // todos", no un dato faltante — GET /api/notificaciones trae
+  // `WHERE rfc = ? OR rfc IS NULL`. `orden_id` aplica a 'pago_registrado'
+  // y 'venta_registrada' (click-through a esa venta en Mi cuenta →
+  // Crédito); NULL en 'promocion'. Sin CONSTRAINT FOREIGN KEY, mismo
+  // motivo que abonos/orden_productos arriba — el lado cliente nunca hace
+  // DELETE/REFERENCES cross-tabla.
   await db.query(`
     CREATE TABLE IF NOT EXISTS notificaciones_cliente (
       id INT AUTO_INCREMENT PRIMARY KEY,
       rfc VARCHAR(50) NULL,
-      tipo ENUM('pago_registrado','promocion') NOT NULL,
+      tipo ENUM('pago_registrado','promocion','venta_registrada') NOT NULL,
       titulo VARCHAR(200) NOT NULL,
       mensaje VARCHAR(500) NOT NULL,
       orden_id INT NULL,
@@ -1081,7 +1083,7 @@ async function ensureSchema(db = pool) {
   // archivado manual — gana sobre `vigencia_hasta` (una promo archivada
   // a mano antes de vencer no debe "revivir" sola por su vigencia).
   const [colsNotifCliente] = await db.query(
-    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notificaciones_cliente'`
+    `SELECT COLUMN_NAME, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notificaciones_cliente'`
   );
   const nombresNotifCliente = colsNotifCliente.map((c) => c.COLUMN_NAME);
   if (!nombresNotifCliente.includes('vigencia_hasta')) {
@@ -1089,6 +1091,14 @@ async function ensureSchema(db = pool) {
   }
   if (!nombresNotifCliente.includes('archivada_en')) {
     await db.query('ALTER TABLE notificaciones_cliente ADD COLUMN archivada_en DATETIME NULL');
+  }
+  // Tercer valor del ENUM "tipo" (venta_registrada, punto en curso) —
+  // `CREATE TABLE IF NOT EXISTS` de arriba no toca una tabla que ya
+  // existía con el ENUM viejo de 2 valores; MODIFY es seguro de re-correr
+  // siempre (nunca se quita ningún valor, solo se agrega).
+  const colTipoNotifCliente = colsNotifCliente.find((c) => c.COLUMN_NAME === 'tipo');
+  if (colTipoNotifCliente && !colTipoNotifCliente.COLUMN_TYPE.includes('venta_registrada')) {
+    await db.query("ALTER TABLE notificaciones_cliente MODIFY COLUMN tipo ENUM('pago_registrado','promocion','venta_registrada') NOT NULL");
   }
 
   // Gastos de la operación (módulo "Gastos", ver PROJECT_STATE.md):

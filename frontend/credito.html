@@ -83,6 +83,33 @@
     </section>
   </main>
 
+  <!-- Ticket digital: mismo desglose que el correo de confirmación que ya
+       recibió al registrarse la venta (construirCorreoOrdenCompra en el
+       backend) — se lee de los mismos datos guardados, nunca se reenvía
+       nada. -->
+  <div class="modal-overlay" id="ticket-detalle-overlay" hidden>
+    <div class="modal ticket-digital" role="dialog" aria-modal="true" aria-labelledby="ticket-detalle-titulo">
+      <button type="button" class="ticket-digital-cerrar" id="ticket-detalle-cerrar" aria-label="Cerrar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <p class="ticket-digital-eyebrow">Venta</p>
+      <p class="ticket-digital-numero" id="ticket-detalle-titulo"></p>
+      <div class="ticket-digital-sep"></div>
+      <div class="ticket-digital-filas" id="ticket-detalle-filas"></div>
+      <div class="ticket-digital-sep"></div>
+      <div class="ticket-digital-filas">
+        <div class="ticket-digital-fila ticket-digital-fila-total">
+          <span>TOTAL A FACTURAR</span>
+          <span id="ticket-detalle-total"></span>
+        </div>
+      </div>
+      <div class="ticket-digital-folio" id="ticket-detalle-folio-wrap" hidden>
+        <p>Concepto para tu transferencia</p>
+        <p id="ticket-detalle-folio"></p>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="/theme.js"></script>
