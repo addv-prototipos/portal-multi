@@ -5507,6 +5507,31 @@
     </div>
   </div>
 
+  <!-- Asistente de Facturación: pregunta única por cuenta (localStorage,
+       mismo patrón que el tour de bienvenida) a la cuenta raíz de un
+       tenant cuyo PLAN incluye Facturación — se dispara justo antes del
+       recorrido guiado, con la misma prioridad que el gate de Términos
+       (ver mostrarAsistenteFacturacionSiAplica en admin.js). Sin botón de
+       cerrar ni click-fuera a propósito: es una decisión real de negocio
+       (apaga/prende un módulo), no un aviso informativo que se pueda
+       ignorar. -->
+  <div class="modal-overlay" id="asistente-facturacion-overlay" hidden>
+    <div class="modal asistente-facturacion-modal" role="alertdialog" aria-modal="true" aria-labelledby="asistente-facturacion-title">
+      <div class="asistente-facturacion-av">
+        <span class="asistente-facturacion-circ">V</span>
+        <span class="asistente-facturacion-nombre">Clarvo</span>
+      </div>
+      <h2 id="asistente-facturacion-title">¿Vas a facturar a tus clientes?</h2>
+      <p class="panel-subtitle">Tu plan incluye Gestión de facturas — tus clientes pueden pedir su factura (RFC,
+        constancia, tickets) desde su portal. Puedes cambiar esto cuando quieras desde Configuraciones.</p>
+      <p class="field-error" id="asistente-facturacion-error" role="alert"></p>
+      <div class="btn-row asistente-facturacion-botones">
+        <button type="button" class="btn btn-secondary" id="asistente-facturacion-no">Por ahora no</button>
+        <button type="button" class="btn btn-primary" id="asistente-facturacion-si">Sí, voy a facturar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Aviso al iniciar sesión: faltan los datos fiscales de la compañía -->
   <div class="modal-overlay" id="config-fiscal-faltante-overlay" hidden>
     <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="config-fiscal-faltante-title">

@@ -30991,3 +30991,87 @@ repo hoy, esta vez en una feature de "crédito"): intenté "punto 502" dos
 veces, ya tomado. Renumerado a 503 en código/tests/`PROJECT_STATE.md`
 antes de cerrar — mismo recordatorio de siempre: `grep -n "^## Punto "
 PROJECT_STATE.md | tail` justo antes de escribir el número.
+
+## Punto 504 - Asistente de Facturación: pregunta única pre-onboarding ("¿vas a facturar a tus clientes?"), con tutorial de reactivación sobre capturas reales (19 nov 2026, CERRADO, probado end-to-end en Docker local real — pendiente de desplegar a producción)
+
+**Pedido del usuario**: antes del recorrido guiado existente en `/admin`,
+mostrar un mensaje a la cuenta administradora de cualquier tenant cuyo
+plan incluya Facturación (nunca Clarvo Solicita, ese plan no la incluye)
+preguntando si va a facturar a sus clientes — si dice que no, apagar
+`Gestión de facturas` de una vez y, sin que se pueda ignorar la
+pregunta, recordarle paso a paso (como un video-tutorial, con capturas
+reales de la plataforma) dónde reactivarla cuando quiera. Primero se
+publicó un Artifact con 8 conceptos visuales/UX distintos
+(`/ui-ux-pro-max` + `/ux-copy`); el usuario eligió el concepto 7
+(asistente conversacional, avatar + tono cercano) con la condición
+explícita de que no se pudiera ignorar.
+
+**Reconciliación de diseño, explícita en el código**: el concepto 7 del
+mockup era un widget de chat flotante, descartable — eso contradice
+"que no lo ignoren". La implementación real conserva la personalidad del
+concepto 7 (avatar circular "V", copy conversacional en primera persona)
+pero usa la MISMA mecánica de modal bloqueante que ya tiene el gate de
+Términos y Condiciones (`.modal-overlay`, `role="alertdialog"`, sin botón
+de cerrar, sin click-fuera, sin `Escape` registrado para este overlay) —
+es una decisión de negocio real (apaga/prende un módulo del tenant), no
+un aviso informativo descartable.
+
+**Cero endpoint/columna nuevos** — reutiliza 2 piezas ya existentes:
+1. `funciones.facturacionHabilitadaPlan` (ya expuesto en `GET
+   /api/admin/login` desde el punto de la fiscal-profile-visibility) es
+   el ceiling real del plan — Clarvo Solicita nunca lo trae en `true`,
+   así que la exclusión es automática, no una condición aparte.
+2. "Una sola vez por cuenta" usa el MISMO mecanismo de localStorage que
+   el tour de bienvenida (`claveOnboarding()`/`leerEstadoOnboarding()`,
+   clave por tenant+usuario) — nueva clave `facturacionPreguntada`,
+   nunca un endpoint para "recordar que ya se preguntó".
+3. El "No" apaga el módulo con el MISMO endpoint real que ya usa el
+   switch de Configuraciones (`PUT /api/admin/config/facturacion
+   {activo:false}`) — nunca se inventó un camino paralelo. Si la
+   petición falla, el modal se queda abierto y reintentable — nunca se
+   marca `facturacionPreguntada` sin que el apagado haya ocurrido de
+   verdad (mismo criterio que "nunca cobrar en Stripe antes de validar",
+   aplicado aquí a "nunca marcar resuelto antes de confirmar el efecto
+   real").
+
+**El punto más delicado: 3 overlays bloqueantes pueden competir por el
+mismo login** (T&C → Asistente de Facturación → tour, en ese orden) —
+mismo bug-shape ya documentado para T&C-vs-tour (puntos 447/459), ahora
+con un eslabón más en la cadena:
+- `mostrarAsistenteFacturacionSiAplica()` se inserta DENTRO de
+  `iniciarTourBienvenidaSiAplica()`, ANTES del filtro "solo escritorio"
+  (a diferencia del tour, este modal no depende del sidebar de
+  escritorio — se muestra igual en celular).
+- Si el gate de T&C sigue abierto/verificándose, se difiere con su
+  propia bandera (`facturacionAsistentePendienteTrasTerminos`) —
+  `reanudarAvisosTrasTerminos()` la resuelve PRIMERO y a propósito
+  excluye al tour en esa misma pasada (aunque `tourPendienteTrasTerminos`
+  también esté en `true`): el tour real solo se muestra DESPUÉS de que
+  el asistente se resuelve, nunca antes ni encima.
+- El aviso fiscal y el de "suscripción por vencer" (que ya se diferían
+  contra el tour) ahora TAMBIÉN chequean
+  `els.asistenteFacturacionOverlay` además de `els.onboardingTourOverlay`
+  — se extrajo el bloque de reanudación de `cerrarTourBienvenida()` a
+  una función compartida (`reanudarAvisosTrasOnboardingBloqueante()`) que
+  se llama también desde `resolverAsistenteFacturacion()` cuando el tour
+  NO terminó abriéndose después (celular, o `tourVisto` ya en `true`) —
+  sin este fallback, un aviso diferido detrás del asistente se habría
+  quedado pendiente para siempre en ese caso.
+
+**Probado end-to-end en Docker local real, contra `test-sa-de-cv` (plan
+CLARVO Crece)** — no mockeado: usuario `AD` (perfil `administrador`) con
+password sembrada a mano con el mismo `scrypt` real del backend. Ambas
+ramas confirmadas reales:
+- **"No"**: toast real, `control_tenants.tenants.facturacion_pausada`
+  pasó de `0` a `1` en la BD real (verificado por query directa), el
+  grupo "GESTIÓN DE FACTURAS" desapareció del sidebar real (mismo
+  criterio de "ocultar también el frontend" que ya exige
+  `requiereFeature()`), sigue desaparecido tras recargar.
+- **"Sí"**: el gate se cierra y el tour real se abre inmediatamente
+  después ("Paso 1 de 6"), sin tocar `facturacion_pausada`.
+- Recarga tras responder cualquiera de las 2: el modal nunca se vuelve a
+  mostrar (`facturacionPreguntada:true` en `localStorage`).
+
+**Pendiente, fuera de alcance de este punto**: desplegar a producción
+(no se ha pedido — commit/push tampoco se hizo sin que se pidiera
+explícito, mismo criterio del resto de esta sesión).

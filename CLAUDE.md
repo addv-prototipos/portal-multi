@@ -2108,6 +2108,26 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   guards de los demás avisos deben revisar AMBAS — de lo contrario un
   aviso síncrono/más rápido puede colarse mientras el fetch del gate
   nuevo sigue resolviendo.
+- **Un 3er overlay bloqueante en la cadena de login (T&C → X → tour) debe
+  excluir al tour en la MISMA pasada al resolverse, no solo diferir
+  contra él** (punto 504, 2026-11-19, Asistente de Facturación):
+  extender el patrón del punto 459 a un eslabón intermedio nuevo tiene un
+  riesgo propio — si `reanudarAvisosTrasTerminos()` resuelve la bandera
+  del nuevo overlay Y la del tour en la misma llamada (ambas pueden
+  quedar en `true` a la vez si el usuario tardó en responder el gate de
+  T&C), el tour se abriría ANTES de que el usuario alcance a responder
+  el overlay nuevo. Fix: la rama del overlay nuevo hace `return` después
+  de mostrarse, sin caer a la rama del tour en esa misma pasada — el
+  propio resolver del overlay nuevo es quien llama
+  `iniciarTourBienvenidaSiAplica()` después, cuando el usuario responde.
+  Mismo criterio para el aviso fiscal/de suscripción: ya se diferían
+  contra `els.onboardingTourOverlay`, pero un gate intermedio nuevo
+  también necesita su propio check (`els.<nuevoOverlay> && !...hidden`)
+  en los mismos 2 sitios, o quedan huérfanos si el tour nunca termina
+  abriéndose después (celular, o `tourVisto` ya true) — por eso el
+  resolver del overlay nuevo también llama al resume compartido
+  (`reanudarAvisosTrasOnboardingBloqueante()`, extraído de
+  `cerrarTourBienvenida()`) como fallback cuando el tour no abrió.
 - **Cualquier job largo en segundo plano que viva DENTRO del proceso de
   Node (no una cola externa) necesita autosanado por staleness, no solo
   un estado "en progreso"** (punto 458, 2026-10-30, patrón ya aplicado al

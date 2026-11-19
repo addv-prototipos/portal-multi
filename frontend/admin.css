@@ -11609,3 +11609,17 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 @media (max-width: 900px) {
   .terminos-editor-layout { grid-template-columns: 1fr; }
 }
+
+/* ---------- Asistente de Facturación (gate pre-onboarding) — mismo
+   mecanismo de bloqueo que .terminos-gate-modal (sin botón de cerrar,
+   sin click-fuera), con la identidad conversacional del concepto
+   elegido: avatar circular con la "V" de Clarvo. ---------- */
+.asistente-facturacion-modal { max-width: 440px; width: 100%; text-align: center; }
+.asistente-facturacion-av { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 4px; }
+.asistente-facturacion-circ {
+  width: 44px; height: 44px; border-radius: 50%; background: var(--color-accent); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.05rem;
+}
+.asistente-facturacion-nombre { font-size: 0.74rem; font-weight: 700; color: var(--color-ink-soft); letter-spacing: .02em; }
+.asistente-facturacion-botones { flex-direction: column; gap: 9px; margin-top: 18px; }
+.asistente-facturacion-botones .btn { width: 100%; }

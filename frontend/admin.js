@@ -1335,6 +1335,10 @@
     terminosGateNombreField: document.getElementById('terminos-gate-nombre-field'),
     terminosGateNombreInput: document.getElementById('terminos-gate-nombre-input'),
     terminosGateCita: document.getElementById('terminos-gate-cita'),
+    asistenteFacturacionOverlay: document.getElementById('asistente-facturacion-overlay'),
+    asistenteFacturacionError: document.getElementById('asistente-facturacion-error'),
+    asistenteFacturacionSi: document.getElementById('asistente-facturacion-si'),
+    asistenteFacturacionNo: document.getElementById('asistente-facturacion-no'),
     configFiscalFaltanteOverlay: document.getElementById('config-fiscal-faltante-overlay'),
     btnConfigFiscalFaltanteCerrar: document.getElementById('btn-config-fiscal-faltante-cerrar'),
     globalConfigError: document.getElementById('global-config-error'),
@@ -4597,6 +4601,16 @@
   }
 
   function reanudarAvisosTrasTerminos() {
+    // El asistente de Facturación va PRIMERO y a propósito excluye al
+    // tour en esta misma pasada (aunque tourPendienteTrasTerminos
+    // también esté en true) — resolverAsistenteFacturacion() ya llama a
+    // iniciarTourBienvenidaSiAplica() en cuanto el admin responde, así
+    // que el tour real se muestra DESPUÉS de resolver, nunca antes ni
+    // encima.
+    if (facturacionAsistentePendienteTrasTerminos) {
+      facturacionAsistentePendienteTrasTerminos = false;
+      if (mostrarAsistenteFacturacionSiAplica()) return;
+    }
     if (tourPendienteTrasTerminos) {
       tourPendienteTrasTerminos = false;
       construirYMostrarTour();
@@ -4718,6 +4732,10 @@
     // destino que tampoco está disponible.
     if (!puedeCompletarDatosFiscales() || !planPermite('facturacionHabilitada')) return;
     if (els.onboardingTourOverlay && !els.onboardingTourOverlay.hidden) {
+      avisoFiscalPendienteTrasTour = true;
+      return;
+    }
+    if (els.asistenteFacturacionOverlay && !els.asistenteFacturacionOverlay.hidden) {
       avisoFiscalPendienteTrasTour = true;
       return;
     }
@@ -10255,6 +10273,10 @@
       return;
     }
     if (els.onboardingTourOverlay && !els.onboardingTourOverlay.hidden) {
+      avisoSuscripcionPorVencerTextoPendiente = texto;
+      return;
+    }
+    if (els.asistenteFacturacionOverlay && !els.asistenteFacturacionOverlay.hidden) {
       avisoSuscripcionPorVencerTextoPendiente = texto;
       return;
     }
@@ -24064,9 +24086,103 @@
     return true;
   }
 
+  // ---------- Asistente de Facturación: pregunta única pre-onboarding ----------
+  // Solo a cuenta administrador (mismo alcance que ya usa el tour en este
+  // mismo punto) de un tenant cuyo PLAN incluye Facturación —
+  // tenantFuncionesPlan.facturacionHabilitadaPlan es el ceiling real del
+  // plan (nunca se mueve por el switch de Configuraciones), así que
+  // Clarvo Solicita nunca cae aquí porque ese plan nunca trae el flag en
+  // true. "Una sola vez por cuenta" con el mismo mecanismo de
+  // localStorage que el tour (claveOnboarding/leerEstadoOnboarding) —
+  // cero endpoint nuevo solo para recordar "ya se le preguntó".
+  //
+  // Pedido explícito del usuario: que NO se pueda ignorar — por eso usa
+  // el mismo patrón de modal bloqueante que el gate de Términos y
+  // Condiciones (sin botón de cerrar, sin click-fuera, sin Escape
+  // registrado para este overlay) en vez del widget de chat flotante y
+  // descartable del mockup original; conserva de ese concepto el avatar
+  // y el tono conversacional, pero la decisión de negocio real (apaga/
+  // prende un módulo) exige la misma seriedad que ya tiene el gate de T&C.
+  let asistenteFacturacionResuelto = false;
+  let facturacionAsistentePendienteTrasTerminos = false;
+  function mostrarAsistenteFacturacionSiAplica() {
+    if (asistenteFacturacionResuelto) return false;
+    if (!els.asistenteFacturacionOverlay) return false;
+    if (perfilActual !== 'administrador') return false;
+    if (!tenantFuncionesPlan || tenantFuncionesPlan.facturacionHabilitadaPlan !== true) return false;
+    const estado = leerEstadoOnboarding();
+    if (estado.facturacionPreguntada) return false;
+    // Mismo criterio que construirYMostrarTour(): nunca 2 overlays
+    // bloqueantes compitiendo — si el gate de T&C sigue abierto o
+    // verificándose, se difiere y reanudarAvisosTrasTerminos() lo
+    // retoma al cerrarse.
+    if (terminosGateAbierta || terminosGateVerificando) {
+      facturacionAsistentePendienteTrasTerminos = true;
+      return false;
+    }
+    els.asistenteFacturacionError.textContent = '';
+    els.asistenteFacturacionSi.disabled = false;
+    els.asistenteFacturacionNo.disabled = false;
+    els.asistenteFacturacionOverlay.hidden = false;
+    return true;
+  }
+
+  async function resolverAsistenteFacturacion(vaAFacturar) {
+    els.asistenteFacturacionError.textContent = '';
+    if (vaAFacturar) {
+      guardarEstadoOnboarding({ facturacionPreguntada: true });
+      asistenteFacturacionResuelto = true;
+      els.asistenteFacturacionOverlay.hidden = true;
+      showToast('Gestión de facturas sigue activa — tus clientes ya pueden pedir su factura desde su portal.');
+      iniciarTourBienvenidaSiAplica();
+      // Si el tour no terminó abriéndose (celular, o ya visto antes —
+      // ver iniciarTourBienvenidaSiAplica), cualquier aviso fiscal/de
+      // suscripción que se haya diferido detrás de ESTE overlay se
+      // resume aquí mismo; si el tour sí abrió, cerrarTourBienvenida()
+      // ya se encarga al cerrarse.
+      if (els.onboardingTourOverlay && els.onboardingTourOverlay.hidden) reanudarAvisosTrasOnboardingBloqueante();
+      return;
+    }
+    // "No": apaga el módulo de verdad — mismo endpoint real que usa el
+    // switch de Configuraciones (PUT /api/admin/config/facturacion). Si
+    // falla, se queda abierto y reintentable — nunca se marca
+    // "preguntada" sin que el apagado haya ocurrido de verdad.
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    els.asistenteFacturacionSi.disabled = true;
+    els.asistenteFacturacionNo.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/admin/config/facturacion`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activo: false }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo guardar — inténtalo de nuevo.');
+      guardarEstadoOnboarding({ facturacionPreguntada: true });
+      asistenteFacturacionResuelto = true;
+      els.asistenteFacturacionOverlay.hidden = true;
+      showToast('Gestión de facturas desactivada. Puedes reactivarla cuando quieras desde Configuraciones → Módulo Gestión de facturas.');
+      iniciarTourBienvenidaSiAplica();
+      if (els.onboardingTourOverlay && els.onboardingTourOverlay.hidden) reanudarAvisosTrasOnboardingBloqueante();
+    } catch (err) {
+      els.asistenteFacturacionError.textContent = err.message || 'No se pudo guardar — inténtalo de nuevo.';
+      els.asistenteFacturacionSi.disabled = false;
+      els.asistenteFacturacionNo.disabled = false;
+    }
+  }
+
+  if (els.asistenteFacturacionSi) els.asistenteFacturacionSi.addEventListener('click', () => resolverAsistenteFacturacion(true));
+  if (els.asistenteFacturacionNo) els.asistenteFacturacionNo.addEventListener('click', () => resolverAsistenteFacturacion(false));
+
   function iniciarTourBienvenidaSiAplica() {
     if (tourDisparadoEnEstaSesion) return;
     if (!perfilActual || !ONBOARDING_TOUR_PASOS[perfilActual]) return;
+    // El asistente de Facturación corre ANTES del filtro "solo escritorio"
+    // de abajo a propósito: a diferencia del tour (depende del sidebar de
+    // escritorio), es un modal centrado simple, sin motivo para negárselo
+    // a un admin que entra desde su celular.
+    if (mostrarAsistenteFacturacionSiAplica()) return;
     // Solo escritorio: en móvil no existe .admin-sidebar-nav (reemplazada
     // por el launcher de íconos, punto 127) y el globo no cabría bien.
     if (window.matchMedia && !window.matchMedia('(min-width: 900px)').matches) return;
@@ -24139,8 +24255,12 @@
     paso.el.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
   }
 
-  function cerrarTourBienvenida() {
-    els.onboardingTourOverlay.hidden = true;
+  // Compartido entre el cierre del tour Y el del asistente de
+  // Facturación — ambos son overlays bloqueantes que pueden haber
+  // diferido el aviso fiscal/de suscripción detrás de ellos (ver los
+  // checks de els.asistenteFacturacionOverlay/els.onboardingTourOverlay
+  // en mostrarAvisoFiscalSiFalta/evaluarAvisoSuscripcionPorVencer).
+  function reanudarAvisosTrasOnboardingBloqueante() {
     if (avisoFiscalPendienteTrasTour) {
       avisoFiscalPendienteTrasTour = false;
       els.configFiscalFaltanteOverlay.hidden = false;
@@ -24156,6 +24276,11 @@
       avisoSuscripcionPorVencerTextoPendiente = null;
       mostrarAvisoSuscripcionPorVencer(texto);
     }
+  }
+
+  function cerrarTourBienvenida() {
+    els.onboardingTourOverlay.hidden = true;
+    reanudarAvisosTrasOnboardingBloqueante();
   }
 
   els.btnOnboardingTourSaltar.addEventListener('click', cerrarTourBienvenida);
