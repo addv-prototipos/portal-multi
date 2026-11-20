@@ -1058,6 +1058,13 @@ solo la frase en español de la UI.
   aparece en ese string, correr `ALTER TABLE ... MODIFY COLUMN tipo
   ENUM(...) NOT NULL` (idempotente, nunca quita valores). Ver detalle
   completo en `CLAUDE.md`.
+- **`{` + backtick-template-literal como único hijo de un `<script
+  define:vars>` en Astro es código inerte, nunca se ejecuta** (punto 505,
+  2026-11-19, `clarvo-Site/src/components/Analytics.astro`) — el código
+  va DIRECTO como hijo del `<script define:vars>`, nunca envuelto en `{`
+  + backtick, o Astro evalúa esa expresión como string y la descarta.
+  Bug real nunca detectado hasta activar GTM real en producción. GA4/GTM
+  (`GTM-MWPWGKQ5`) ya está en producción. Detalle completo en `CLAUDE.md`.
 
 ## Stack
 

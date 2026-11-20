@@ -2503,6 +2503,32 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   ya falló, navegar ahí con Playwright y volcar `page.frames()` +
   `$$eval('input'/'button', ...)` de cada frame — nunca copiar un
   selector de memoria ni de documentación vieja.
+- **`{` + backtick-template-literal como único hijo de un `<script
+  define:vars>` en Astro es código inerte, nunca se ejecuta** (punto 505,
+  2026-11-19, `clarvo-Site/src/components/Analytics.astro`): el patrón
+  `<script define:vars={{x}}>{`...codigo...`}</script>` hace que Astro
+  evalúe la expresión `{`...`}` (una STRING literal) y la DESCARTE —
+  nunca la inserta como el texto ejecutable del script. El bug existía
+  desde que el componente se creó pero nunca se detectó porque
+  `PUBLIC_GA_MEASUREMENT_ID` siempre estuvo vacío (`measurementId &&
+  (<script>...)` ni renderizaba el tag). Se expuso al activar el
+  contenedor real de Google Tag Manager en producción — `window.gtag`
+  nunca se definía, `__clarvoGaLoaded` nunca pasaba de `undefined`. Fix:
+  el código va DIRECTO como hijo del `<script define:vars>`, nunca
+  envuelto en `{` + backtick. Si se repite este patrón en otro
+  `define:vars` de Astro, verificar con `document.querySelectorAll('script')`
+  en el navegador real que el `textContent` sea el código JS, no el
+  string con backticks todavía visibles — el servidor SSR y el build
+  estático renderizan el HTML "con buena pinta" (el string ahí sentado se
+  ve igual a simple vista), solo se nota al confirmar que
+  `window.__clarvoGaLoaded`/`window.gtag` de verdad existen en runtime.
+  GA4/GTM (contenedor `GTM-MWPWGKQ5`, decisión del usuario — GTM en vez
+  de gtag.js directo) ya está en producción real desde este punto;
+  `Analytics.astro` detecta el prefijo `GTM-` vs `G-` para elegir entre
+  `gtm.js` y `gtag/js`. CSP de `clarvo-Site` (`security-headers.conf`)
+  necesitó agregar `googletagmanager.com` también a `connect-src`, no
+  solo a `script-src` — GTM hace sus propias llamadas XHR además de
+  inyectar scripts.
 
 ## Stack
 
