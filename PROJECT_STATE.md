@@ -30822,7 +30822,7 @@ smoke-test completo con clics humanos reales (no automatizado) la
 próxima vez que se necesite confirmar el flujo de pago de punta a
 punta.
 
-## Punto 502 - Portal de cliente: descripción del producto/servicio en Gestión de crédito + ticket digital "Ver detalle" + notificación de nuevo cargo con auto-refresh (13 nov 2026, CERRADO en local, pendiente de desplegar a producción)
+## Punto 502 - Portal de cliente: descripción del producto/servicio en Gestión de crédito + ticket digital "Ver detalle" + notificación de nuevo cargo con auto-refresh (13 nov 2026, CERRADO, desplegado y validado en producción real el 20 nov 2026 — ver punto 505)
 
 **Pedido del usuario**: en Gestión de crédito del portal de cliente, cada
 crédito solo mostraba el número de venta — pidió agregar la descripción
@@ -30992,7 +30992,7 @@ veces, ya tomado. Renumerado a 503 en código/tests/`PROJECT_STATE.md`
 antes de cerrar — mismo recordatorio de siempre: `grep -n "^## Punto "
 PROJECT_STATE.md | tail` justo antes de escribir el número.
 
-## Punto 504 - Asistente de Facturación: pregunta única pre-onboarding ("¿vas a facturar a tus clientes?"), con tutorial de reactivación sobre capturas reales (19 nov 2026, CERRADO, probado end-to-end en Docker local real — pendiente de desplegar a producción)
+## Punto 504 - Asistente de Facturación: pregunta única pre-onboarding ("¿vas a facturar a tus clientes?"), con tutorial de reactivación sobre capturas reales (19 nov 2026, CERRADO, desplegado y validado en producción real el 20 nov 2026 — ver punto 505)
 
 **Pedido del usuario**: antes del recorrido guiado existente en `/admin`,
 mostrar un mensaje a la cuenta administradora de cualquier tenant cuyo
@@ -31075,3 +31075,119 @@ ramas confirmadas reales:
 **Pendiente, fuera de alcance de este punto**: desplegar a producción
 (no se ha pedido — commit/push tampoco se hizo sin que se pidiera
 explícito, mismo criterio del resto de esta sesión).
+
+## Punto 505 - Despliegue a producción real de los puntos 502 (ticket digital/crédito) y 504 (Asistente de Facturación) (20 nov 2026, CERRADO, producción real)
+
+**Pedido del usuario**: desplegar a Vultr el commit `ae7a9b8` (Asistente de
+Facturación, punto 504) — explícitamente pidió la lista de qué iba a salir
+antes de ejecutar. El commit `f6e24f8` (ticket digital/crédito, punto 502)
+viaja junto a fuerza porque el deploy sube el árbol completo de HEAD
+(`git archive HEAD`, nunca cherry-pick) y es el commit inmediato anterior —
+el usuario confirmó explícitamente desplegar ambos juntos.
+
+**Runbook seguido completo** (`VULTR/README-VULTR.md`): backup real de
+`mysql-primary`+`mysql-control` (tamaños verificados, no 0 bytes) →
+`git -c core.autocrlf=false archive HEAD -- backend control frontend docker`
+→ scp + extracción en `/opt/clarvo` → verificación de checksums MD5 de 5
+archivos tocados (`backend/db.js`, `backend/server.js`, `frontend/admin.js`,
+`frontend/credito.js`, `frontend/portal.css`) idénticos local vs. servidor →
+modo mantenimiento activado (centinela) → rebuild + `docker service update
+--force` de `backend` y `frontend` (control no se tocó, sin rebuild) →
+mantenimiento se resetea solo al recrear `frontend` → `curl` confirma 200 en
+`/login` y `/api/health`.
+
+**Migración de esquema propagada a mano** (gotcha ya documentado en
+`CLAUDE.md`: `ensureSchema(poolTenant)` nunca se re-corre sola en un tenant
+ya aprovisionado): el commit 502 agrega `'venta_registrada'` al ENUM
+`notificaciones_cliente.tipo`. Solo había 1 tenant real activo en
+producción (`mas-computo`, el demo de marketing del punto 495 — el otro,
+`smoke-test-1794668397531`, ya estaba `baja` de una corrida anterior, sin
+tocar). Se reinvocó `POST /internal/activar-tenant/mas-computo` desde
+dentro del contenedor `backend` (200 OK) y se verificó directo en
+`INFORMATION_SCHEMA.COLUMNS` que el ENUM real de `tenant_mas-computo` ya
+trae el valor nuevo.
+
+**Smoke-test de onboarding (`VULTR/smoke-test-onboarding.js --borrar`)
+reportó FALLO pero el deploy es real y válido — falso negativo del propio
+script, no del código desplegado**: Stripe test mode + alta real +
+Checkout real + webhook real completaron de punta a punta en 14 segundos
+reales (confirmado consultando directo
+`control_tenants.onboarding_borradores` — `estado='convertido'`,
+`pago_estado='confirmado'` — y `control_tenants.tenants` — `estado='activo'`
+para el slug `smoke-test-1795145496284`, creado y activado con 14s de
+diferencia). El script lanzó `"Borrador no encontrado"` al hacer polling
+porque algo en su lectura del token de la URL de éxito de Stripe (via
+`page.url().searchParams.get('onboarding')`) no coincidió — mismo
+bug-shape ya documentado en el punto 503 (Stripe cambia su UI de Checkout
+sin aviso) — **pendiente de diagnosticar el script en sí en una sesión
+futura, fuera de alcance de este punto, no es un defecto de producción**.
+El tenant de prueba que quedó activo (el script nunca llegó a su paso de
+`--borrar` por el error previo) se limpió a mano: `POST
+/api/control/tenants/<slug>/baja` → `POST
+/api/control/tenants/<slug>/eliminar` (ambos 200 OK, Stripe cancelado
+`inmediato`).
+
+**Stripe y reCAPTCHA regresados a producción real al terminar** (decisión
+ya establecida, nunca dejar el sitio público sin protección real): modo
+Stripe confirmado `"produccion"` con los mismos últimos 4 dígitos de la
+llave real (`lcqh`) que antes de la prueba; `RECAPTCHA_SECRET_KEY`/
+`PUBLIC_RECAPTCHA_SITE_KEY` restaurados a los valores reales guardados
+antes de tocarlos, `control` redeployado y `clarvo-site-web` reconstruido
+(la llave pública va horneada en el build de Astro) — confirmado con
+`grep` del bundle real (`6LcxHh0u...`, la llave real, no la de prueba
+`6LeIxAcT...`).
+
+**Estado final verificado**: `docker service ls` con los 7 servicios
+relevantes en `1/1`, `https://clarvo.mx/login` y `/api/health` en 200.
+
+## Punto 506 - Bug real del smoke-test de onboarding: carrera con `history.replaceState()` del propio OnboardingModal, no un cambio de UI de Stripe (20 nov 2026, CERRADO, producción real)
+
+**Contexto**: el smoke-test corrido en el punto 505 reportó FALLO
+("Borrador no encontrado") pese a que el pago/webhook reales habían
+funcionado perfecto (confirmado por BD en ese mismo punto) — se dejó como
+diagnóstico pendiente para otra sesión.
+
+**Causa real, encontrada leyendo el código fuente de `clarvo-Site`
+(`src/components/onboarding/OnboardingModal.tsx`), nunca fue un cambio de
+Stripe**: el mismo `useEffect` que lee `?onboarding=<token>` de la URL de
+retorno de Stripe (`success_url`) hace, en su bloque `finally`,
+`window.history.replaceState()` para BORRAR ese parámetro de la barra de
+direcciones del visitante (cosmético — nunca se pensó para scripts
+externos). Para Playwright esa limpieza es una navegación
+same-document más — si corre antes de que `smoke-test-onboarding.js`
+alcance a llamar `page.url()` después de su propio
+`waitForURL(/clarvo\.mx/)`, el parámetro ya desapareció: `token=null`,
+y el polling pregunta para siempre por
+`/api/public/onboarding/estado-pago/null` (nunca encuentra fila, aunque
+el tenant real ya esté activo). Carrera real, no determinística —
+depende de qué tan rápido responda el fetch interno de `estadoPago()`
+del propio componente.
+
+**Fix real en `VULTR/smoke-test-onboarding.js`**: en vez de leer
+`page.url()` después del hecho, se registra un listener
+`page.on('framenavigated', ...)` ANTES del clic de "Pagar" que captura la
+URL de la PRIMERA navegación que trae `onboarding=` en la query —  por
+construcción, el `replaceState` posterior nunca puede volver a traerlo
+(ya lo borró), así que no hay forma de que ese listener capture la
+versión equivocada. `page.url()` se deja solo como red de seguridad de
+respaldo; si ninguno de los dos trae el token, el script ahora lanza un
+error explícito e inmediato (en vez de gastar 2 minutos haciendo polling
+contra `/estado-pago/null`).
+
+**Validado real contra producción, modo Stripe+reCAPTCHA de prueba
+(mismo procedimiento del punto 505)**: `node
+VULTR/smoke-test-onboarding.js --borrar` corrió limpio de punta a punta —
+alta real, pago real, webhook real, activación real, y esta vez SÍ
+limpió el tenant de prueba solo (sin intervención manual), confirmando
+que el fix también resuelve la limpieza automática, no solo el reporte
+de éxito. Stripe y reCAPTCHA devueltos a producción real al terminar,
+verificados (`lcqh` en Stripe, llave pública real `6LcxHh0u...` confirmada
+en el bundle de `clarvo-site-web`, sin rastro de la llave de prueba).
+
+**Principio para la próxima vez que algo similar pase**: antes de asumir
+"Stripe cambió su UI otra vez" (el bug-shape del punto 503), revisar
+primero el código PROPIO que corre en esa misma página — un
+`history.replaceState`/`pushState` en cualquier componente que lea un
+parámetro de la URL de retorno de un proveedor externo es sospechoso por
+defecto para cualquier automatización que dependa de leer esa misma URL
+después de que la página ya cargó.
