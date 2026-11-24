@@ -1536,8 +1536,17 @@
 
         <div class="planes-wizard-panel" id="planes-wizard-panel-2" data-paso="2">
           <h3>¿Qué módulos incluye este plan?</h3>
-          <p class="field-hint planes-wizard-sub">Actívalos o apágalos — el paso de "Dependientes" se ajusta solo según lo que elijas aquí.</p>
-          <div class="planes-wizard-modulos" id="planes-wizard-modulos"></div>
+          <p class="field-hint planes-wizard-sub">Actívalos o apágalos — pulsa el ícono <strong>(i)</strong> de cada tarjeta para ver todo lo que desbloquea.</p>
+          <div class="planes-wizard-modulos-layout">
+            <div class="planes-wizard-modulos" id="planes-wizard-modulos"></div>
+            <aside class="planes-wizard-detalle-panel" id="planes-wizard-detalle-panel" aria-live="polite">
+              <div class="planes-wizard-detalle-vacio" id="planes-wizard-detalle-vacio">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+                <span>Elige un módulo para ver todo lo que desbloquea.</span>
+              </div>
+              <div class="planes-wizard-detalle-contenido" id="planes-wizard-detalle-contenido" hidden></div>
+            </aside>
+          </div>
         </div>
 
         <div class="planes-wizard-panel" id="planes-wizard-panel-3" data-paso="3">

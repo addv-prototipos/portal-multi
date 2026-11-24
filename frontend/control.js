@@ -400,6 +400,8 @@
     planesWizardPanel4: document.getElementById('planes-wizard-panel-4'),
     planesWizardPanel5: document.getElementById('planes-wizard-panel-5'),
     planesWizardModulos: document.getElementById('planes-wizard-modulos'),
+    planesWizardDetalleVacio: document.getElementById('planes-wizard-detalle-vacio'),
+    planesWizardDetalleContenido: document.getElementById('planes-wizard-detalle-contenido'),
     planesWizardReglasAuto: document.getElementById('planes-wizard-reglas-auto'),
     planesWizardReportes: document.getElementById('planes-wizard-reportes'),
     planesWizardResumenBody: document.getElementById('planes-wizard-resumen-body'),
@@ -3241,6 +3243,91 @@
       icono: '<path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"/>' },
   ];
 
+  // "Ver detalle" — panel lateral fijo (punto en curso, propuesta 2 del
+  // Artifact aprobado por el usuario): contenido ESTÁTICO por módulo, no
+  // recalculado contra el estado actual del wizard — cada texto ya deja
+  // claro cuándo algo "también" lo da otro módulo o "requiere" otro
+  // además del propio, así no hace falta recomputar nada en vivo.
+  // tipo: 'propio' (lo trae el módulo solo) | 'dep' (depende de este +
+  // otro, se activa aparte) | 'auto' (se enciende solo, sin interruptor
+  // propio) — mismos 3 colores que ya usa validarReglasDependencia()/
+  // REPORTES_WIZARD_DEF en el resto del asistente.
+  const DETALLE_MODULO_WIZARD = {
+    facturacion_habilitada: {
+      propio: ['Vistas <b>Tickets</b> y <b>Constancias</b>', 'Captura y validación de RFC real del cliente al dar de alta'],
+      habilita: [],
+      auto: [],
+      reportes: ['Estado de tickets (exclusivo de Facturación)', 'Por reporte (también lo da Ventas)'],
+      nota: 'Sin esto, el alta de clientes genera un identificador interno (SINFISCAL-...) en vez de pedir RFC real — y el portal de clientes no tiene nada útil que mostrar.',
+    },
+    ventas_habilitado: {
+      propio: ['Vista <b>Ventas</b>: registrar venta, corte del día, filtros, modo sin conexión', 'Botón "+ Registrar venta" en el encabezado de /admin'],
+      habilita: [
+        { texto: 'Cuentas por cobrar', requiere: 'Ventas' },
+        { texto: 'Ticket de impresión', requiere: 'Ventas' },
+        { texto: 'Pedidos', requiere: 'Ventas + Inventarios' },
+      ],
+      auto: ['Resumen financiero (o ya estaba activo por Gastos)'],
+      reportes: ['Cortes de ventas (exclusivo)', 'Por reporte (también lo da Facturación)', 'Eliminados (también lo da Gastos)'],
+    },
+    gastos_habilitado: {
+      propio: ['Vista <b>Gastos</b>: categorías y comprobantes'],
+      habilita: [],
+      auto: ['Resumen financiero (si Ventas no lo activó ya)', 'Proveedores (alimentado también por Inventarios)'],
+      reportes: ['Eliminados (también lo da Ventas)'],
+    },
+    inventarios_habilitado: {
+      propio: ['Vista <b>Inventarios</b>: catálogo, categorías, stock mínimo, fotos'],
+      habilita: [{ texto: 'Pedidos', requiere: 'Ventas + Inventarios' }],
+      auto: ['Proveedores (alimentado también por Gastos)', 'Aviso de expiración de productos (Configuraciones → Notificaciones)'],
+      reportes: ['Estado del inventario (exclusivo)'],
+    },
+    auditoria_habilitado: {
+      propio: ['Bitácora de cambios, por tenant, visible en /admin'],
+      habilita: [],
+      auto: [],
+      reportes: [],
+    },
+    portal_clientes_habilitado: {
+      propio: ['Acceso externo para el cliente final: login, dashboard, tickets, CSF'],
+      habilita: [],
+      auto: [],
+      reportes: [],
+      nota: 'Sin Gestión de facturas activa, el portal no tiene nada útil que mostrarle al cliente.',
+    },
+    sucursales_habilitado: {
+      propio: ['Switcher entre empresas relacionadas (grupo de sucursales)'],
+      habilita: [],
+      auto: [],
+      reportes: [],
+    },
+    marca_lookfeel_habilitado: {
+      propio: ['Logo, colores y tema personalizado del portal y los correos'],
+      habilita: [],
+      auto: [],
+      reportes: [],
+      nota: 'Independiente de "Ticket de impresión" (ese solo gobierna el logo del recibo impreso).',
+    },
+    promociones_habilitado: {
+      propio: ['Campana de promociones en el portal de clientes'],
+      habilita: [],
+      auto: [],
+      reportes: [],
+    },
+    crm_habilitado: {
+      propio: ['Vista <b>Clientes (CRM)</b>: ficha de contacto + métricas de cartera'],
+      habilita: [],
+      auto: [],
+      reportes: [],
+    },
+  };
+
+  const ICONO_DETALLE_PROPIO = '<path d="M20 6L9 17l-5-5"/>';
+  const ICONO_DETALLE_DEP = '<path d="M12 5v14M5 12h14"/>';
+  const ICONO_DETALLE_AUTO = '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>';
+
+  let moduloWizardDetalleActivo = null;
+
   // Las 4 pestañas reales de la vista "Reportes" en /admin
   // (frontend/admin.js, PESTANAS_REPORTES) — independientes entre sí y de
   // resumen_financiero_habilitado (confirmado explícitamente por el
@@ -3429,15 +3516,93 @@
     els.planesWizardModulos.innerHTML = MODULOS_WIZARD_DEF.map((def) => {
       const sel = planWizardState[def.campo] ? ' is-selected' : '';
       const check = planWizardState[def.campo] ? ICONO_CHECK_WIZARD : '';
-      return `<button type="button" class="planes-wizard-modulo-card${sel}" data-modulo="${def.campo}">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">${def.icono}</svg>
-        <div><div class="planes-wizard-modulo-titulo">${def.titulo}</div><div class="planes-wizard-modulo-desc">${def.desc}</div></div>
+      const infoActivo = moduloWizardDetalleActivo === def.campo ? ' is-activo' : '';
+      // data-modulo se queda en el div EXTERIOR a propósito — es el
+      // selector que ya usa e2e/tests/control-planes-wizard.spec.ts
+      // (`.planes-wizard-modulo-card[data-modulo="..."]`); el botón de
+      // alternar usa su propio atributo (data-toggle-modulo) para que el
+      // querySelectorAll('[data-modulo]') de abajo nunca lo enganche dos
+      // veces (una por el div, otra por el botón).
+      return `<div class="planes-wizard-modulo-card${sel}" data-modulo="${def.campo}">
+        <button type="button" class="planes-wizard-modulo-toggle" data-toggle-modulo="${def.campo}">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">${def.icono}</svg>
+          <div><div class="planes-wizard-modulo-titulo">${def.titulo}</div><div class="planes-wizard-modulo-desc">${def.desc}</div></div>
+        </button>
+        <button type="button" class="planes-wizard-modulo-info-btn${infoActivo}" data-modulo-info="${def.campo}" aria-label="Ver detalle de ${def.titulo}" aria-pressed="${moduloWizardDetalleActivo === def.campo}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+        </button>
         <span class="planes-wizard-modulo-check">${check}</span>
-      </button>`;
+      </div>`;
     }).join('');
-    els.planesWizardModulos.querySelectorAll('[data-modulo]').forEach((btn) => {
-      btn.addEventListener('click', () => alternarModuloWizard(btn.getAttribute('data-modulo')));
+    els.planesWizardModulos.querySelectorAll('[data-toggle-modulo]').forEach((btn) => {
+      btn.addEventListener('click', () => alternarModuloWizard(btn.getAttribute('data-toggle-modulo')));
     });
+    els.planesWizardModulos.querySelectorAll('[data-modulo-info]').forEach((btn) => {
+      btn.addEventListener('click', () => alternarDetalleModuloWizard(btn.getAttribute('data-modulo-info')));
+    });
+  }
+
+  // Alterna el panel lateral: clic de nuevo sobre el mismo módulo lo
+  // cierra (vuelve al estado vacío), clic sobre otro simplemente cambia
+  // el contenido mostrado — nunca hace falta un botón "cerrar" aparte.
+  function alternarDetalleModuloWizard(campo) {
+    moduloWizardDetalleActivo = moduloWizardDetalleActivo === campo ? null : campo;
+    renderPlanWizardModulos();
+    renderDetalleModuloWizard();
+  }
+
+  function filaDetalleModuloWizard(tipo, icono, html) {
+    return `<div class="planes-wizard-detalle-fila es-${tipo}"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">${icono}</svg><div>${html}</div></div>`;
+  }
+
+  function renderDetalleModuloWizard() {
+    const def = MODULOS_WIZARD_DEF.find((d) => d.campo === moduloWizardDetalleActivo);
+    if (!def) {
+      els.planesWizardDetalleVacio.hidden = false;
+      els.planesWizardDetalleContenido.hidden = true;
+      return;
+    }
+    const detalle = DETALLE_MODULO_WIZARD[def.campo] || { propio: [], habilita: [], auto: [], reportes: [] };
+    const secciones = [];
+
+    if (detalle.propio.length) {
+      secciones.push(`<div class="planes-wizard-detalle-seccion">
+        <div class="planes-wizard-detalle-seccion-titulo">Este módulo trae</div>
+        ${detalle.propio.map((t) => filaDetalleModuloWizard('propio', ICONO_DETALLE_PROPIO, t)).join('')}
+      </div>`);
+    }
+    if (detalle.habilita.length) {
+      secciones.push(`<div class="planes-wizard-detalle-seccion">
+        <div class="planes-wizard-detalle-seccion-titulo">Habilita si también activas</div>
+        ${detalle.habilita.map((h) => filaDetalleModuloWizard('dep', ICONO_DETALLE_DEP, `<b>${h.texto}</b><div class="planes-wizard-detalle-nota">requiere ${h.requiere}</div>`)).join('')}
+      </div>`);
+    }
+    if (detalle.auto.length) {
+      secciones.push(`<div class="planes-wizard-detalle-seccion">
+        <div class="planes-wizard-detalle-seccion-titulo">Activa automático</div>
+        ${detalle.auto.map((t) => filaDetalleModuloWizard('auto', ICONO_DETALLE_AUTO, t)).join('')}
+      </div>`);
+    }
+    if (detalle.reportes.length) {
+      secciones.push(`<div class="planes-wizard-detalle-seccion">
+        <div class="planes-wizard-detalle-seccion-titulo">Reportes que alimenta</div>
+        ${detalle.reportes.map((t) => filaDetalleModuloWizard('propio', '<path d="M3 3v18h18"/><path d="M7 16v-4M12 16V8M17 16v-7"/>', t)).join('')}
+      </div>`);
+    }
+    if (!secciones.length) {
+      secciones.push('<p class="planes-wizard-detalle-independiente">Este módulo no habilita nada más — funciona solo, sin depender de otros ni activar ninguno automáticamente.</p>');
+    }
+    if (detalle.nota) {
+      secciones.push(`<p class="planes-wizard-detalle-nota">${detalle.nota}</p>`);
+    }
+
+    els.planesWizardDetalleContenido.innerHTML = `<div class="planes-wizard-detalle-head">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">${def.icono}</svg>
+      <h4>${def.titulo}</h4>
+    </div>
+    <div class="planes-wizard-detalle-body">${secciones.join('')}</div>`;
+    els.planesWizardDetalleVacio.hidden = true;
+    els.planesWizardDetalleContenido.hidden = false;
   }
 
   function filaDependienteWizard({ etiqueta, desc, campo, deshabilitado, requiereTxt, modulos, auto }) {
@@ -3584,6 +3749,7 @@
     planWizardPaso = 1;
     planWizardTotalTenants = 0;
     planWizardState = planWizardStateVacio();
+    moduloWizardDetalleActivo = null;
     limpiarErroresPlanModal();
     els.planesModalTitle.textContent = id ? 'Editar plan' : 'Nuevo plan';
     els.planesNombre.value = '';

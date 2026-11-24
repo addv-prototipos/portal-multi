@@ -223,6 +223,30 @@ usado en todo este repo hasta hoy) cuenta como prueba de
 
 ## Gotchas operativos recurrentes (leer antes de tocar Docker/nginx/CSP/tests)
 
+- **Un `<button>` nunca puede anidar otro `<button>` — al agregarle una
+  2da acción a una tarjeta que YA es un `<button>` entero, hay que
+  reestructurar a un `<div>` contenedor con 2 `<button>` hermanos, y
+  conservar el atributo que ya usa un E2E existente en el elemento
+  correcto** (punto en curso, 2026-11-24, "Ver detalle" del asistente de
+  planes): `.planes-wizard-modulo-card` era un solo `<button
+  data-modulo="...">` — al agregarle el botón ⓘ de detalle, se cambió a
+  `<div class="planes-wizard-modulo-card" data-modulo="...">` con el
+  toggle real en un `<button data-toggle-modulo="...">` hijo (atributo
+  DISTINTO, nunca el mismo nombre, o el `querySelectorAll('[data-modulo]')`
+  que engancha el listener de alternar encontraría también el div
+  contenedor y dispararía dos veces). El atributo `data-modulo` se dejó
+  a propósito en el `<div>` exterior — `e2e/tests/control-planes-wizard.spec.ts`
+  ya lo usa (`.planes-wizard-modulo-card[data-modulo="..."]`) y
+  `tarjetaVentas.click()` sigue funcionando porque Playwright clickea el
+  punto central del elemento, que cae dentro del botón de alternar hijo.
+  Confirmado corriendo el E2E real (no asumido): el click de la tarjeta
+  y la cascada de Resumen financiero siguen funcionando idénticos a
+  antes. **Hallazgo aparte, sin relación con este cambio**: ese mismo
+  spec sigue esperando el título de paso "Dependientes" en el paso 3,
+  pero el wizard real ya se renombró a 5 pasos
+  ("Datos básicos/Módulos/**Reglas automáticas**/Reportes/Resumen") en
+  una sesión anterior — deuda de test preexistente, no tocada aquí (fuera
+  de alcance de este punto).
 - **Centro de conocimiento (`CONOCIMIENTO_CATEGORIAS`) es un 4to sitio que
   replica el AND de dependencia de un módulo — además de los 3 ya
   documentados (botón de sidebar, pestaña de Reportes, tarjetas del
