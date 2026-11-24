@@ -2817,12 +2817,13 @@
     return ['reportesPorReporteHabilitado', 'reportesCortesHabilitado', 'reportesEliminadosHabilitado', 'reportesEstadoInventarioHabilitado', 'reportesEstadoTicketsHabilitado', 'pedidosHabilitado']
       .some((campo) => tenantFuncionesPlan[campo]);
   }
-  // Proveedores: automático, sin bandera propia — visible si Inventarios
-  // O Gastos está activo (mismo criterio que proveedoresVisible() del
-  // asistente de planes en control.js).
+  // Proveedores: módulo aún no lanzado — kill switch temporal, oculto
+  // para todos los planes/tenants hasta que se apruebe su lanzamiento.
+  // Antes era automático (visible si Inventarios O Gastos activo, mismo
+  // criterio que proveedoresVisible() del asistente de planes en
+  // control.js) — restaurar esa lógica al lanzar el módulo.
   function proveedoresPlanVisible() {
-    if (!tenantFuncionesPlan) return true;
-    return Boolean(tenantFuncionesPlan.inventariosHabilitado || tenantFuncionesPlan.gastosHabilitado);
+    return false;
   }
   // Punto 444/446: evita que el alta/edición de usuarios asigne un perfil
   // cuyo módulo de trabajo no existe en el plan del tenant (ej. "ventas"
