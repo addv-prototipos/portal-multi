@@ -32213,3 +32213,74 @@ script con `--confirmar` es un PASO OBLIGATORIO del deploy, no opcional
 cambio de `ensureSchema()`. Sin este paso, cualquier tenant de producción
 que ya tuviera una suscripción activa antes del deploy seguiría cobrando
 sin IVA indefinidamente, aunque el código nuevo ya esté desplegado.
+
+## Punto 517 — Pedidos (kanban de pre-ventas/cotizaciones) exclusivo de CLARVO Crece/Domina + nueva dependencia Inventarios (23 nov 2026, CERRADO, trabajo local)
+
+Pedido explícito del usuario: la funcionalidad ya existente de Pedidos
+(punto 508) deja de ser "activa para todos" y pasa a ser exclusiva de
+**CLARVO Crece** y **CLARVO Domina** — se quita de Solicita, Controla y
+Plan Panadero (los 3 ya la traían prendida desde el backfill "activo para
+todos" del punto 508). El wizard de `/control` → Planes sigue teniendo el
+toggle completo, para armar planes futuros con o sin el módulo.
+
+**Nueva regla de dependencia (antes solo Ventas, ahora Ventas Y
+Inventarios a la vez)**, pedida explícita por el usuario — "se restringe
+que se requiere el inventario activo, colócalo como una restricción que
+deben ir juntos activos":
+- `control/utils/planes.js:validarReglasDependencia()` — guardar un plan.
+- `control/utils/tenantEdicion.js:validarReglasDependenciaTenant()` —
+  excepción puntual por tenant (este archivo nunca había tenido
+  `pedidosHabilitado` conectado desde el punto 508 original — gap
+  encontrado y cerrado en este punto: faltaba en los 6 sitios de
+  `resolverPlanYFunciones`, el `UPDATE`, y `CAMPOS_GOBIERNO_AMPLIADO`).
+- `backend/server.js` — las 7 rutas `requiereFeature('pedidosHabilitado')`
+  ahora encadenan también `requiereFeature('inventariosHabilitado')`
+  (AND por composición de middlewares, mismo patrón que CxC).
+
+**Las 4 superficies de frontend que ya hacían el AND con Ventas (patrón
+del punto 508, "nunca compartir ruta sin repetir el AND completo")
+ampliadas a Ventas+Inventarios** (`frontend/admin.js`):
+`pestanaReportesVisible('pedidos')`, `aplicarVisibilidadTarjetasDashboard()`,
+`categoriaConocimientoVisible('pedidos')` (Centro de conocimiento — un
+4to sitio que el punto 508 no había cubierto, mismo bug-shape), el gate
+del botón de sidebar (`permitidaPorConfig`), la carga de las 6 tarjetas
+de Pedidos en el dashboard, y las 2 entradas del checklist de onboarding
+("Prueba el kanban de Pedidos"/"Crea tu primer pedido"). `frontend/control.js`
+(wizard de planes): cascada nueva al apagar Inventarios, chip de
+dependencia "Inventarios" agregado junto a "Ventas", copy actualizado.
+
+**Datos reales corregidos en `control_tenants.planes`** (catálogo):
+`pedidos_habilitado = 0` en Solicita/Controla/Panadero, `= 1` en
+Crece/Domina — y sync de 2 capas a los 12 tenants ya aprovisionados cuyo
+valor divergía del de su plan (mismo mecanismo que el backfill de CRM del
+punto 515: `UPDATE tenants t JOIN planes p ... SET t.pedidos_habilitado =
+p.pedidos_habilitado WHERE t.pedidos_habilitado <> p.pedidos_habilitado`).
+No se agregó un backfill automático a `ensureSchema()` para esto — es una
+corrección de datos puntual pedida por el usuario, no una migración de
+esquema nueva; un fresh install sigue naciendo con `pedidos_habilitado
+DEFAULT 1` a nivel de columna (sin efecto real: todo tenant recibe su
+valor real al asignársele un plan vía `resolverPlanYFunciones`, nunca del
+default crudo de la columna).
+
+**`control/server.js`**: `GET /api/public/planes` (isla pública de
+precios) ya exponía `crm_habilitado` desde el punto anterior en esta
+misma sesión — este punto solo ajustó el catálogo de datos, el SELECT ya
+estaba listo. `clarvo-Site/PricingSection.astro` ya filtraba "Pedidos"
+por `ventas_habilitado`; se mantiene (Inventarios también siempre está
+activo junto con Ventas en los planes reales que SÍ traen Pedidos, así
+que no hizo falta tocar ese filtro de nuevo).
+
+**Verificado real con clicks en Docker local**: tenant `t1` (Plan
+Panadero) perdió "Pedidos" del sidebar y de Reportes tras invalidar su
+caché; reasignado temporalmente a Crece para confirmar que SÍ aparece, y
+revertido a su estado original al terminar. `/control` → Planes → Crece
+→ paso "Reglas automáticas" muestra el chip nuevo "Inventarios" junto a
+"Ventas" con el copy actualizado, checkbox encendido; mismo paso en
+Controla, checkbox apagado. Sitio público (`clarvo.mx` local, puerto
+4321) muestra "Pedidos (kanban de pre-ventas)" solo en las tarjetas de
+Crece/Domina, nunca en Solicita/Controla/Panadero.
+
+Backend: 72/72 suites, 1433/1433 tests (incluye 2 nuevos: candado de
+Inventarios en Pedidos, `backend/test/integration/pedidos.test.js`).
+Control: 39/39 suites, 633/633 tests (incluye 2 nuevos: regla de
+dependencia Ventas+Inventarios, `control/test/unit/planes.test.js`).

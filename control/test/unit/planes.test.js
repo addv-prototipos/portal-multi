@@ -168,16 +168,25 @@ describe('utils/planes.js (punto 347)', () => {
       test('punto 508: pedidos_habilitado sin ventas_habilitado: ErrorPlan validacion, sin tocar la BD', async () => {
         const db = mockDb();
         await expect(
-          crearPlan({ nombre: 'X', ventas_habilitado: false, pedidos_habilitado: true }, db)
+          crearPlan({ nombre: 'X', ventas_habilitado: false, inventarios_habilitado: true, pedidos_habilitado: true }, db)
         ).rejects.toMatchObject({ codigo: 'validacion' });
         expect(db.query).not.toHaveBeenCalled();
       });
 
-      test('punto 508: pedidos_habilitado con ventas_habilitado: se acepta', async () => {
+      // Punto 517: Pedidos ahora exige Ventas Y Inventarios a la vez.
+      test('punto 517: pedidos_habilitado con ventas_habilitado pero sin inventarios_habilitado: ErrorPlan validacion, sin tocar la BD', async () => {
+        const db = mockDb();
+        await expect(
+          crearPlan({ nombre: 'X', ventas_habilitado: true, inventarios_habilitado: false, pedidos_habilitado: true }, db)
+        ).rejects.toMatchObject({ codigo: 'validacion' });
+        expect(db.query).not.toHaveBeenCalled();
+      });
+
+      test('punto 517: pedidos_habilitado con ventas_habilitado E inventarios_habilitado: se acepta', async () => {
         const db = mockDb();
         db.query.mockResolvedValueOnce([{ insertId: 11 }]).mockResolvedValueOnce([[filaPlan({ id: 11 })]]);
         await expect(
-          crearPlan({ nombre: 'X', ventas_habilitado: true, pedidos_habilitado: true }, db)
+          crearPlan({ nombre: 'X', ventas_habilitado: true, inventarios_habilitado: true, pedidos_habilitado: true }, db)
         ).resolves.toMatchObject({ id: 11 });
       });
 

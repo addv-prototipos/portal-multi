@@ -134,9 +134,12 @@ function validarReglasDependencia(estado) {
   if (activo('cxc_habilitado') && !activo('ventas_habilitado')) {
     throw new ErrorPlan('Cuentas por cobrar requiere Ventas activo en este plan.', 'validacion');
   }
-  // Punto 508: "Pedidos" — mismo criterio exacto que Cuentas por cobrar.
-  if (activo('pedidos_habilitado') && !activo('ventas_habilitado')) {
-    throw new ErrorPlan('Pedidos requiere Ventas activo en este plan.', 'validacion');
+  // Punto 517: "Pedidos" ahora exige Ventas Y Inventarios activos a la vez
+  // (antes solo Ventas, punto 508) — decisión explícita del usuario:
+  // Pedidos gestiona productos de catálogo, no tiene sentido sin
+  // Inventarios activo en el mismo plan.
+  if (activo('pedidos_habilitado') && (!activo('ventas_habilitado') || !activo('inventarios_habilitado'))) {
+    throw new ErrorPlan('Pedidos requiere Ventas e Inventarios activos en este plan.', 'validacion');
   }
   if (activo('resumen_financiero_habilitado') && !activo('ventas_habilitado') && !activo('gastos_habilitado')) {
     throw new ErrorPlan('Resumen financiero requiere Ventas o Gastos activo en este plan.', 'validacion');

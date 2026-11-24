@@ -3347,7 +3347,7 @@
       }
     }
 
-    // Punto 516: Pedidos ahora exige Ventas Y Inventarios a la vez —
+    // Punto 517: Pedidos ahora exige Ventas Y Inventarios a la vez —
     // mismo criterio de cascada que ya aplica para Ventas arriba.
     if (campo === 'inventarios_habilitado' && !encendiendo && planWizardState.pedidos_habilitado) {
       planWizardState.pedidos_habilitado = false;

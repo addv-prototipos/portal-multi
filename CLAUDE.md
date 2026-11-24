@@ -223,6 +223,31 @@ usado en todo este repo hasta hoy) cuenta como prueba de
 
 ## Gotchas operativos recurrentes (leer antes de tocar Docker/nginx/CSP/tests)
 
+- **Centro de conocimiento (`CONOCIMIENTO_CATEGORIAS`) es un 4to sitio que
+  replica el AND de dependencia de un módulo — además de los 3 ya
+  documentados (botón de sidebar, pestaña de Reportes, tarjetas del
+  dashboard)** (punto 517, 2026-11-23): al ampliar la dependencia de
+  Pedidos de solo Ventas a Ventas+Inventarios, `categoriaConocimientoVisible()`
+  tenía su PROPIA copia del mismo `if (catKey === 'pedidos' && ...)` que
+  las otras 3 superficies — un cuarto sitio que el punto 508 original
+  nunca había cubierto en su momento. Antes de dar por "ya replicado en
+  todos lados" el AND de un módulo con dependencia declarada, grepear
+  también `CONOCIMIENTO_CATEGORIAS`/`categoriaConocimientoVisible` en
+  `frontend/admin.js`, no solo los 3 sitios ya conocidos.
+- **Una regla de dependencia "requiere A" que pasa a "requiere A Y B":
+  tocar los 2 archivos que la validan (catálogo de planes Y excepción por
+  tenant), no solo uno** (punto 517): `control/utils/planes.js` y
+  `control/utils/tenantEdicion.js` llevan SIEMPRE una copia espejo de cada
+  regla de `validarReglasDependencia()` (nombres snake_case vs camelCase,
+  mismo criterio). Al tocar este punto se descubrió que
+  `pedidosHabilitado` nunca se había conectado en `tenantEdicion.js` desde
+  que existe Pedidos (punto 508) — faltaba en los 3 snapshots
+  (`base`/plan nuevo/excepción explícita), el `UPDATE` y
+  `CAMPOS_GOBIERNO_AMPLIADO`, los mismos 6 sitios que cualquier flag de
+  gobierno nuevo necesita en ese archivo. Un flag que vive en
+  `planes.js` pero no en `tenantEdicion.js` nunca se puede fijar como
+  excepción puntual por tenant vía API, aunque el toggle del wizard
+  funcione perfecto para el catálogo.
 - **`backend/scripts/provisionar-tenant.js` está desactualizado desde el
   Segmento 9b y NUNCA debe correrse tal cual en este entorno local**
   (punto 508, cierre, 2026-11-23): el script conecta como root a UN SOLO

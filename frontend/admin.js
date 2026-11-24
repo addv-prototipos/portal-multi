@@ -6849,7 +6849,7 @@
   function pestanaReportesVisible(clave) {
     const def = PESTANAS_REPORTES[clave];
     if (clave !== 'estado-tickets' && perfilActual === 'fiscal') return false;
-    // Pedidos depende de Ventas E Inventarios (punto 516, mismo criterio
+    // Pedidos depende de Ventas E Inventarios (punto 517, mismo criterio
     // que #btn-vista-pedidos) — un plan viejo con pedidos_habilitado=1
     // heredado del backfill del punto 508 pero ventas_habilitado=0 o
     // inventarios_habilitado=0 no debe mostrar esta pestaña, aunque el
@@ -15724,7 +15724,7 @@
       if (!t.flag) return;
       const el = els.resumenFinTablero && els.resumenFinTablero.querySelector(`[data-dashboard-id="${t.id}"]`);
       // Mismo criterio que pestanaReportesVisible('pedidos'): este flag
-      // también depende de Ventas E Inventarios (punto 516), nunca solo
+      // también depende de Ventas E Inventarios (punto 517), nunca solo
       // de sí mismo.
       const visible = planPermite(t.flag) &&
         (t.flag !== 'pedidosHabilitado' || (planPermite('ventasHabilitado') && planPermite('inventariosHabilitado')));
@@ -25090,7 +25090,7 @@
     if (!datos || !datos.flag) return true;
     // Mismo criterio que pestanaReportesVisible('pedidos')/
     // aplicarVisibilidadTarjetasDashboard: Pedidos depende de Ventas E
-    // Inventarios (punto 516), nunca solo de su propio flag.
+    // Inventarios (punto 517), nunca solo de su propio flag.
     if (catKey === 'pedidos' && (!planPermite('ventasHabilitado') || !planPermite('inventariosHabilitado'))) return false;
     const flags = Array.isArray(datos.flag) ? datos.flag : [datos.flag];
     return flags.some((f) => planPermite(f));

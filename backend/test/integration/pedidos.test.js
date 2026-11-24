@@ -487,8 +487,15 @@ describe('Pedidos — candado por plan (pedidosHabilitado)', () => {
     expect(res.status).toBe(404);
   });
 
-  test('tenant con ambos flags activos: GET /api/admin/pedidos pasa el gate y llega a la lógica real', async () => {
-    poolControl.query.mockResolvedValueOnce([[tenantFila({ ventas_habilitado: 1, pedidos_habilitado: 1 })]]);
+  // Punto 517: Pedidos ahora exige Ventas Y Inventarios activos a la vez.
+  test('tenant con inventarios_habilitado=0 (aunque ventas y pedidos sean 1): GET /api/admin/pedidos responde 404 — Pedidos depende de Inventarios', async () => {
+    poolControl.query.mockResolvedValueOnce([[tenantFila({ ventas_habilitado: 1, inventarios_habilitado: 0, pedidos_habilitado: 1 })]]);
+    const res = await request(app).get('/api/admin/pedidos').set('X-Tenant-Slug', 'norte').auth('admin', 'admin');
+    expect(res.status).toBe(404);
+  });
+
+  test('tenant con los 3 flags activos: GET /api/admin/pedidos pasa el gate y llega a la lógica real', async () => {
+    poolControl.query.mockResolvedValueOnce([[tenantFila({ ventas_habilitado: 1, inventarios_habilitado: 1, pedidos_habilitado: 1 })]]);
     pool.query.mockResolvedValueOnce([[]]);
     const res = await request(app).get('/api/admin/pedidos').set('X-Tenant-Slug', 'norte').auth('admin', 'admin');
     expect(res.status).toBe(200);
