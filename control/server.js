@@ -319,8 +319,19 @@ app.use(express.json({ limit: '30mb', verify: (req, res, buf) => { req.rawBody =
 // onboarding es público por diseño y vive solo bajo
 // /api/public/onboarding/*, nunca bajo /api/control/* — nunca ensanchar
 // ALLOWED_ORIGIN para esto.
-const ONBOARDING_CORS_ORIGIN = process.env.ONBOARDING_CORS_ORIGIN || 'https://clarvo.mx';
-const onboardingCors = cors({ origin: ONBOARDING_CORS_ORIGIN, credentials: false });
+// Lista separada por comas (ej. "http://localhost:4321,http://127.0.0.1:8090")
+// -- en local, clarvo-Site puede verse tanto por `astro dev` (4321) como por
+// su propio contenedor Docker (8090, ver clarvo-Site/docker-compose.prod.yml)
+// y localhost/127.0.0.1 son orígenes distintos para CORS aunque sea la misma
+// máquina. En producción sigue siendo un solo valor (https://clarvo.mx).
+const ONBOARDING_CORS_ORIGIN = (process.env.ONBOARDING_CORS_ORIGIN || 'https://clarvo.mx')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+const onboardingCors = cors({
+  origin: ONBOARDING_CORS_ORIGIN.length <= 1 ? ONBOARDING_CORS_ORIGIN[0] : ONBOARDING_CORS_ORIGIN,
+  credentials: false,
+});
 
 app.use((req, res, next) => {
   res.set('Cache-Control', 'no-store');
@@ -484,7 +495,7 @@ app.get(
               sucursales_habilitado, marca_lookfeel_habilitado, promociones_habilitado,
               reportes_por_reporte_habilitado, reportes_cortes_habilitado,
               reportes_eliminados_habilitado, reportes_estado_inventario_habilitado,
-              reportes_estado_tickets_habilitado
+              reportes_estado_tickets_habilitado, pedidos_habilitado, crm_habilitado
          FROM planes WHERE publicado_sitio = 1 AND activo = 1
          ORDER BY (precio_mensual IS NULL), precio_mensual ASC`
     );
