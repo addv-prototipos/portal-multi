@@ -195,10 +195,10 @@
     reportesPedidosStatConversionSub: document.getElementById('reportes-pedidos-stat-conversion-sub'),
     reportesPedidosStatCiclo: document.getElementById('reportes-pedidos-stat-ciclo'),
     reportesPedidosStatPerdido: document.getElementById('reportes-pedidos-stat-perdido'),
+    reportesPedidosHeroFrase: document.getElementById('reportes-pedidos-hero-frase'),
     reportesPedidosEmbudo: document.getElementById('reportes-pedidos-embudo'),
     reportesPedidosCargaVendedor: document.getElementById('reportes-pedidos-carga-vendedor'),
-    reportesPedidosMotivos: document.getElementById('reportes-pedidos-motivos'),
-    reportesPedidosClientesCancel: document.getElementById('reportes-pedidos-clientes-cancel'),
+    reportesPedidosRiesgo: document.getElementById('reportes-pedidos-riesgo'),
     reportesPedidosTicket: document.getElementById('reportes-pedidos-ticket'),
     reportesPedidosSaldo: document.getElementById('reportes-pedidos-saldo'),
     reportesPedidosTiempoEtapa: document.getElementById('reportes-pedidos-tiempo-etapa'),
@@ -21226,19 +21226,78 @@
     return `<div class="pedidos-reporte-fila"><span>${escapeHtml(label)}</span><strong>${valor}</strong>${pct !== undefined ? `<span class="pedidos-reporte-pct">${pct}</span>` : ''}</div>`;
   }
 
+  // Fila de barra real para el Embudo — único bloque de esta vista que sí
+  // se vuelve gráfico (propuesta 2, "resumen ejecutivo primero": el resto
+  // se queda como filas compactas a propósito, para no competir
+  // visualmente con la frase de arriba).
+  function filaBarraEmbudo(label, valor, totalBase, modificador, pct) {
+    const anchoPct = totalBase > 0 ? Math.round((valor / totalBase) * 100) : 0;
+    return `<div class="rp2-bar-row">
+      <span class="rp2-bar-label">${escapeHtml(label)}</span>
+      <div class="rp2-bar-track"><div class="rp2-bar-fill${modificador ? ` ${modificador}` : ''}" style="width:${anchoPct}%"></div></div>
+      <span class="rp2-bar-val">${valor}${pct !== undefined ? `<span class="pedidos-reporte-pct">${pct}</span>` : ''}</span>
+    </div>`;
+  }
+
   const ETAPA_LABEL_REPORTE = { pedido: 'Pedido', progreso: 'En progreso', confirmar: 'Por confirmar' };
+
+  // La única frase que arma la lectura completa del periodo — nunca
+  // inventa una tendencia que no esté en los datos reales (sin
+  // comparación contra periodo anterior, solo lo que ya calcula el
+  // backend). Los números van en <strong> reales (no texto de usuario,
+  // es formatearMoneda()/porcentajes calculados — sin riesgo de XSS).
+  function construirFraseResumenPedidos(f, e) {
+    if (e.embudo.creados === 0) {
+      return 'Todavía no has creado ningún pedido en este periodo — en cuanto registres el primero, vas a ver aquí el resumen completo.';
+    }
+    let frase = `De <strong>$${formatearMoneda(f.pipeline)}</strong> cotizados`;
+    frase += e.tasaConversion === null
+      ? ' todavía no hay suficiente historial para calcular tu conversión'
+      : ` llevas <strong>${e.tasaConversion}%</strong> de conversión`;
+    frase += ` y <strong>$${formatearMoneda(f.valorPerdidoCancelacion)}</strong> perdido por cancelaciones`;
+    frase += e.cicloPromedioHoras === null
+      ? '.'
+      : ` — tu ciclo de cierre promedio es de <strong>${Math.round((e.cicloPromedioHoras / 24) * 10) / 10} días</strong>.`;
+    return frase;
+  }
+
+  // "Motivos de cancelación" y "Clientes con más cancelaciones" se
+  // consolidan en una sola tarjeta ("Riesgo y cancelaciones") — con las
+  // 2 vacías a la vez (0 cancelaciones del periodo) se muestra un único
+  // estado positivo en vez de 2 cajas grises repitiendo lo mismo.
+  function renderRiesgoPedidos(op, cliente) {
+    const motivosVacio = op.motivosCancelacion.length === 0;
+    const clientesVacio = cliente.masCancelaciones.length === 0;
+    if (motivosVacio && clientesVacio) {
+      return `<div class="admin-empty-rica is-positive">
+        <svg class="admin-empty-icono" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <p class="admin-empty-titulo">Cero cancelaciones este periodo</p>
+        <p>Buena señal — en cuanto se cancele un pedido, su motivo y el cliente aparecen aquí agrupados.</p>
+      </div>`;
+    }
+    let html = '<div class="rp2-subhead">Motivos de cancelación</div>';
+    html += motivosVacio
+      ? '<p class="admin-empty">Sin motivo capturado en las cancelaciones de este periodo.</p>'
+      : op.motivosCancelacion.map((m) => filaReportePedidos(m.motivo, m.n)).join('');
+    html += '<div class="rp2-subhead rp2-subhead-mt">Clientes con más cancelaciones</div>';
+    html += clientesVacio
+      ? '<p class="admin-empty">Sin datos todavía.</p>'
+      : cliente.masCancelaciones.map((c) => filaReportePedidos(c.cliente, c.n)).join('');
+    return html;
+  }
 
   function renderReportePedidos(data) {
     const f = data.financiero;
     const e = data.estadistico;
     const op = data.operativo;
 
+    els.reportesPedidosHeroFrase.innerHTML = construirFraseResumenPedidos(f, e);
     els.reportesPedidosStatPipeline.textContent = `$${formatearMoneda(f.pipeline)}`;
-    els.reportesPedidosStatPipelineSub.textContent = `${e.embudo.abiertos} pedido${e.embudo.abiertos === 1 ? '' : 's'} abierto${e.embudo.abiertos === 1 ? '' : 's'}`;
+    els.reportesPedidosStatPipelineSub.textContent = `Pipeline cotizado · ${e.embudo.abiertos} pedido${e.embudo.abiertos === 1 ? '' : 's'} abierto${e.embudo.abiertos === 1 ? '' : 's'}`;
     els.reportesPedidosStatConversion.textContent = e.tasaConversion === null ? '—' : `${e.tasaConversion}%`;
     els.reportesPedidosStatConversionSub.textContent = f.ingresoProyectado === null
-      ? 'Sin historial suficiente para proyectar'
-      : `Ingreso esperado: $${formatearMoneda(f.ingresoProyectado)} (estimación)`;
+      ? 'Sin historial suficiente'
+      : `$${formatearMoneda(f.ingresoProyectado)} (estimación)`;
     els.reportesPedidosStatCiclo.textContent = e.cicloPromedioHoras === null ? '—' : `${Math.round((e.cicloPromedioHoras / 24) * 10) / 10} días`;
     els.reportesPedidosStatPerdido.textContent = `$${formatearMoneda(f.valorPerdidoCancelacion)}`;
 
@@ -21246,23 +21305,17 @@
     els.reportesPedidosEmbudo.innerHTML = e.embudo.creados === 0
       ? '<p class="admin-empty">Sin pedidos todavía.</p>'
       : [
-          filaReportePedidos('Creados', e.embudo.creados),
-          filaReportePedidos('Entregados', e.embudo.entregados, `${Math.round((e.embudo.entregados / totalEmbudo) * 100)}%`),
-          filaReportePedidos('Cancelados', e.embudo.cancelados, `${Math.round((e.embudo.cancelados / totalEmbudo) * 100)}%`),
-          filaReportePedidos('Siguen abiertos', e.embudo.abiertos, `${Math.round((e.embudo.abiertos / totalEmbudo) * 100)}%`),
+          filaBarraEmbudo('Creados', e.embudo.creados, totalEmbudo),
+          filaBarraEmbudo('Entregados', e.embudo.entregados, totalEmbudo, 'is-entregados', `${Math.round((e.embudo.entregados / totalEmbudo) * 100)}%`),
+          filaBarraEmbudo('Abiertos', e.embudo.abiertos, totalEmbudo, 'is-abiertos', `${Math.round((e.embudo.abiertos / totalEmbudo) * 100)}%`),
+          filaBarraEmbudo('Cancelados', e.embudo.cancelados, totalEmbudo, 'is-cancelados', `${Math.round((e.embudo.cancelados / totalEmbudo) * 100)}%`),
         ].join('');
 
     els.reportesPedidosCargaVendedor.innerHTML = op.cargaPorVendedor.length === 0
       ? '<p class="admin-empty">Nadie tiene pedidos abiertos ahora mismo.</p>'
       : op.cargaPorVendedor.map((v) => filaReportePedidos(v.vendedor, v.n)).join('');
 
-    els.reportesPedidosMotivos.innerHTML = op.motivosCancelacion.length === 0
-      ? '<p class="admin-empty">Sin pedidos cancelados todavía.</p>'
-      : op.motivosCancelacion.map((m) => filaReportePedidos(m.motivo, m.n)).join('');
-
-    els.reportesPedidosClientesCancel.innerHTML = data.cliente.masCancelaciones.length === 0
-      ? '<p class="admin-empty">Sin datos todavía.</p>'
-      : data.cliente.masCancelaciones.map((c) => filaReportePedidos(c.cliente, c.n)).join('');
+    els.reportesPedidosRiesgo.innerHTML = renderRiesgoPedidos(op, data.cliente);
 
     els.reportesPedidosTicket.innerHTML = e.ticketCotizadoPromedio === null
       ? '<p class="admin-empty">Todavía no hay pedidos convertidos en venta.</p>'

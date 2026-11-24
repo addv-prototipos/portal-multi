@@ -4414,41 +4414,53 @@
         <!-- Punto 508, Segmento 3: único consumidor real de pedidos/
              pedido_historial — un solo flag (pedidosHabilitado) basta,
              ver PESTANAS_REPORTES en admin.js. -->
+        <!-- Rediseño "resumen ejecutivo primero" (punto en curso): una
+             frase arriba arma la lectura completa del periodo antes de
+             bajar al detalle operativo — el detalle nunca desaparece,
+             solo baja de prioridad visual. Elegido por el usuario entre
+             5 propuestas (Artifact). -->
         <div id="reportes-vista-pedidos" hidden>
           <p class="field-error" id="reportes-pedidos-error" role="alert"></p>
-          <div class="inicio-stats-grid" id="reportes-pedidos-stats-grid">
-            <div class="inicio-stat-card">
-              <div class="inicio-stat-header">
-                <span class="inicio-stat-titulo">Pipeline (cotizado, no es ingreso)</span>
-              </div>
-              <p class="inicio-stat-numero" id="reportes-pedidos-stat-pipeline">$0.00</p>
-              <p class="inicio-stat-tendencia" id="reportes-pedidos-stat-pipeline-sub"></p>
+
+          <div class="rp2-hero" id="reportes-pedidos-resumen">
+            <div class="rp2-hero-text">
+              <div class="rp2-eyebrow">Lectura del periodo</div>
+              <h2 id="reportes-pedidos-hero-frase"></h2>
             </div>
-            <div class="inicio-stat-card">
-              <div class="inicio-stat-header">
-                <span class="inicio-stat-titulo">Tasa de conversión</span>
-              </div>
-              <p class="inicio-stat-numero" id="reportes-pedidos-stat-conversion">—</p>
-              <p class="inicio-stat-tendencia" id="reportes-pedidos-stat-conversion-sub"></p>
-            </div>
-            <div class="inicio-stat-card">
-              <div class="inicio-stat-header">
-                <span class="inicio-stat-titulo">Ciclo promedio de cierre</span>
-              </div>
-              <p class="inicio-stat-numero" id="reportes-pedidos-stat-ciclo">—</p>
-            </div>
-            <div class="inicio-stat-card">
-              <div class="inicio-stat-header">
-                <span class="inicio-stat-titulo">Valor perdido por cancelación</span>
-              </div>
-              <p class="inicio-stat-numero" id="reportes-pedidos-stat-perdido">$0.00</p>
+            <div class="rp2-hero-number">
+              <p class="rp2-hero-value" id="reportes-pedidos-stat-pipeline">$0.00</p>
+              <p class="rp2-hero-label" id="reportes-pedidos-stat-pipeline-sub"></p>
             </div>
           </div>
 
-          <div class="inicio-main-grid">
+          <div class="rp2-strip">
+            <div class="rp2-strip-item">
+              <span class="rp2-strip-label">Tasa de conversión</span>
+              <span class="rp2-strip-value" id="reportes-pedidos-stat-conversion">—</span>
+            </div>
+            <div class="rp2-strip-item">
+              <span class="rp2-strip-label">Ingreso esperado</span>
+              <span class="rp2-strip-value" id="reportes-pedidos-stat-conversion-sub">—</span>
+            </div>
+            <div class="rp2-strip-item">
+              <span class="rp2-strip-label">Ciclo de cierre</span>
+              <span class="rp2-strip-value" id="reportes-pedidos-stat-ciclo">—</span>
+            </div>
+            <div class="rp2-strip-item">
+              <span class="rp2-strip-label">Perdido por cancelación</span>
+              <span class="rp2-strip-value" id="reportes-pedidos-stat-perdido">$0.00</span>
+            </div>
+          </div>
+
+          <section class="inicio-recientes-card rp2-section">
+            <div class="inicio-card-header"><h2>Embudo de conversión</h2></div>
+            <div id="reportes-pedidos-embudo"></div>
+          </section>
+
+          <div class="inicio-main-grid rp2-section">
             <section class="inicio-recientes-card">
-              <div class="inicio-card-header"><h2>Embudo de conversión</h2></div>
-              <div id="reportes-pedidos-embudo"></div>
+              <div class="inicio-card-header"><h2>Riesgo y cancelaciones</h2></div>
+              <div id="reportes-pedidos-riesgo"></div>
             </section>
             <section class="inicio-recientes-card">
               <div class="inicio-card-header"><h2>Carga por vendedor (pedidos abiertos)</h2></div>
@@ -4456,18 +4468,7 @@
             </section>
           </div>
 
-          <div class="inicio-main-grid">
-            <section class="inicio-recientes-card">
-              <div class="inicio-card-header"><h2>Motivos de cancelación</h2></div>
-              <div id="reportes-pedidos-motivos"></div>
-            </section>
-            <section class="inicio-recientes-card">
-              <div class="inicio-card-header"><h2>Clientes con más cancelaciones</h2></div>
-              <div id="reportes-pedidos-clientes-cancel"></div>
-            </section>
-          </div>
-
-          <div class="inicio-main-grid">
+          <div class="inicio-main-grid rp2-section">
             <section class="inicio-recientes-card">
               <div class="inicio-card-header"><h2>Ticket cotizado vs vendido</h2></div>
               <div id="reportes-pedidos-ticket"></div>
@@ -4478,7 +4479,7 @@
             </section>
           </div>
 
-          <section class="inicio-recientes-card">
+          <section class="inicio-recientes-card rp2-section">
             <div class="inicio-card-header"><h2>Tiempo promedio por etapa (pedidos que ya la abandonaron)</h2></div>
             <div id="reportes-pedidos-tiempo-etapa"></div>
           </section>

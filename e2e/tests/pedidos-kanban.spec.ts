@@ -250,7 +250,7 @@ test.describe('Pedidos — tenant "panes" (ventas + pedidos activos)', () => {
     await page.click('#btn-sidebar-reportes-pedidos');
     await expect(page.locator('#reportes-vista-pedidos')).toBeVisible();
     await expect(page.locator('#reportes-pedidos-error')).toBeEmpty();
-    await expect(page.locator('#reportes-pedidos-stats-grid')).toBeVisible();
+    await expect(page.locator('#reportes-pedidos-resumen')).toBeVisible();
   });
 
   test('resumen financiero: al menos una tarjeta de Pedidos visible', async ({ page }) => {

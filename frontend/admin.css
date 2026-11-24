@@ -7927,22 +7927,71 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 }
 .planes-wizard-banner svg { flex-shrink: 0; margin-top: 1px; }
 
-.planes-wizard-modulos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.planes-wizard-modulos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: start; }
 @media (max-width: 640px) { .planes-wizard-modulos { grid-template-columns: 1fr; } }
+/* El card ya NO es un <button> único (punto en curso): ahora contiene 2
+   acciones independientes — alternar el módulo (.planes-wizard-modulo-toggle)
+   y ver su detalle (.planes-wizard-modulo-info-btn) — un <button> no puede
+   anidar otro <button>, de ahí el cambio de estructura. */
 .planes-wizard-modulo-card {
-  display: flex; align-items: flex-start; gap: 11px; padding: 13px 14px; border-radius: var(--radius-md);
-  border: 1.5px solid var(--color-border); background: var(--color-surface); cursor: pointer; text-align: left; width: 100%;
+  display: flex; align-items: flex-start; border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-border); background: var(--color-surface); width: 100%;
 }
 .planes-wizard-modulo-card:hover { border-color: var(--color-accent); }
 .planes-wizard-modulo-card.is-selected { border-color: var(--color-accent); background: var(--color-accent-soft); }
-.planes-wizard-modulo-card svg { flex-shrink: 0; color: var(--color-accent); margin-top: 2px; }
+.planes-wizard-modulo-toggle {
+  flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 11px;
+  padding: 13px 0 13px 14px; background: none; border: none; cursor: pointer; text-align: left;
+  font: inherit; color: inherit;
+}
+.planes-wizard-modulo-toggle svg { flex-shrink: 0; color: var(--color-accent); margin-top: 2px; }
 .planes-wizard-modulo-titulo { font-size: 13.5px; font-weight: 600; }
 .planes-wizard-modulo-desc { font-size: 12px; color: var(--color-ink-soft); margin-top: 2px; }
 .planes-wizard-modulo-check {
-  margin-left: auto; flex-shrink: 0; width: 18px; height: 18px; border-radius: 5px;
+  margin: 13px 14px 0 8px; flex-shrink: 0; width: 18px; height: 18px; border-radius: 5px;
   border: 1.5px solid var(--color-border); display: flex; align-items: center; justify-content: center; color: #fff;
 }
 .planes-wizard-modulo-card.is-selected .planes-wizard-modulo-check { background: var(--color-accent); border-color: var(--color-accent); }
+
+/* "Ver detalle" — panel lateral fijo (propuesta 2, punto en curso): la
+   cuadrícula de módulos nunca cambia de alto al abrir un detalle, el
+   panel vive a la derecha y siempre ocupa el mismo espacio. */
+.planes-wizard-modulos-layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
+@media (max-width: 760px) { .planes-wizard-modulos-layout { grid-template-columns: 1fr; } }
+
+.planes-wizard-modulo-info-btn {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--color-border);
+  background: var(--color-surface); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--color-ink-soft); padding: 0; margin: 13px 0 0 6px;
+}
+.planes-wizard-modulo-info-btn:hover,
+.planes-wizard-modulo-info-btn.is-activo { color: var(--color-accent); border-color: var(--color-accent); background: var(--color-accent-soft); }
+.planes-wizard-modulo-info-btn svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2.2; }
+
+.planes-wizard-detalle-panel {
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card); overflow: hidden; position: sticky; top: 16px;
+}
+.planes-wizard-detalle-vacio {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  padding: 46px 20px; text-align: center; color: var(--color-ink-soft); font-size: 12.5px; min-height: 220px;
+}
+.planes-wizard-detalle-vacio svg { width: 26px; height: 26px; opacity: .5; }
+.planes-wizard-detalle-head { padding: 16px 17px 12px; border-bottom: 1px solid var(--color-border); display: flex; align-items: center; gap: 10px; }
+.planes-wizard-detalle-head svg { width: 19px; height: 19px; stroke: var(--color-accent); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.planes-wizard-detalle-head h4 { font-size: 14px; font-weight: 700; margin: 0; }
+.planes-wizard-detalle-body { padding: 14px 17px 17px; max-height: 420px; overflow-y: auto; }
+.planes-wizard-detalle-seccion { margin-bottom: 16px; }
+.planes-wizard-detalle-seccion:last-child { margin-bottom: 0; }
+.planes-wizard-detalle-seccion-titulo { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--color-ink-soft); margin-bottom: 7px; }
+.planes-wizard-detalle-fila { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; padding: 5px 0; line-height: 1.45; }
+.planes-wizard-detalle-fila svg { width: 13px; height: 13px; flex: none; margin-top: 2px; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.planes-wizard-detalle-fila.es-propio svg { stroke: var(--color-accent); }
+.planes-wizard-detalle-fila.es-auto svg { stroke: #157A4A; }
+.planes-wizard-detalle-fila.es-dep svg { stroke: var(--color-warn); }
+.planes-wizard-detalle-fila b { color: var(--color-ink); font-weight: 600; }
+.planes-wizard-detalle-nota { font-size: 11px; color: var(--color-ink-soft); margin-top: 2px; }
+.planes-wizard-detalle-independiente { font-size: 12px; color: var(--color-ink-soft); padding: 4px 0; }
 
 /* Chips de categoría — de qué módulo cuelga cada funcionalidad dependiente,
    color fijo por módulo en todo el asistente (ver stitch/NOTAS.md). */
@@ -10414,6 +10463,93 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   padding: 2px 8px;
   flex: 0 0 auto;
 }
+
+/* ---------- Reportes de Pedidos — "resumen ejecutivo primero" (punto en
+   curso, propuesta 2 elegida por el usuario entre 5 del Artifact): una
+   frase arma la lectura completa del periodo antes del detalle. ---------- */
+.rp2-hero {
+  background: linear-gradient(135deg, var(--color-accent-dark), var(--color-accent));
+  color: #fff;
+  border-radius: 16px;
+  padding: 26px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.rp2-hero-text { max-width: 580px; }
+.rp2-eyebrow {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #05DBF2;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.rp2-hero-text h2 {
+  font-size: 19px;
+  line-height: 1.45;
+  margin: 0;
+  font-weight: 500;
+}
+.rp2-hero-text h2 strong { color: #05DBF2; font-weight: 800; }
+.rp2-hero-number { text-align: right; }
+.rp2-hero-value {
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 1;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.rp2-hero-label { font-size: 12.5px; color: rgba(255, 255, 255, .68); margin: 6px 0 0; }
+@media (max-width: 720px) {
+  .rp2-hero { flex-direction: column; align-items: flex-start; }
+  .rp2-hero-number { text-align: left; }
+}
+
+.rp2-strip {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 20px;
+  background: #fff;
+  flex-wrap: wrap;
+}
+.rp2-strip-item {
+  flex: 1 1 160px;
+  padding: 13px 18px;
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rp2-strip-item:last-child { border-right: none; }
+.rp2-strip-label { font-size: 11.5px; color: var(--color-ink-soft); font-weight: 600; }
+.rp2-strip-value { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.rp2-section { margin-bottom: 20px; }
+
+.rp2-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+.rp2-bar-row:last-child { margin-bottom: 0; }
+.rp2-bar-label { width: 90px; flex-shrink: 0; font-size: 12.5px; color: var(--color-ink-soft); font-weight: 600; }
+.rp2-bar-track { flex: 1; height: 10px; background: var(--color-accent-soft); border-radius: 999px; overflow: hidden; }
+.rp2-bar-fill { height: 100%; border-radius: 999px; background: var(--color-accent); }
+.rp2-bar-fill.is-entregados { background: #1FAE6B; }
+.rp2-bar-fill.is-abiertos { background: #9CA3AF; }
+.rp2-bar-fill.is-cancelados { background: var(--color-error); }
+.rp2-bar-row .rp2-bar-val { width: 70px; text-align: right; font-size: 13px; font-weight: 700; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.rp2-bar-row .pedidos-reporte-pct { margin-left: 4px; }
+
+.rp2-subhead { font-size: 12.5px; font-weight: 700; color: var(--color-ink); margin-bottom: 4px; }
+.rp2-subhead-mt { margin-top: 16px; }
+
+/* Variante "buena noticia" del estado vacío rico ya existente — mismo
+   layout de .admin-empty-rica, solo cambia el tono del ícono (verde en
+   vez del navy neutro por default) para no leerse como "falta algo". */
+.admin-empty-rica.is-positive .admin-empty-icono { color: #1FAE6B; }
 
 /* ---------- Modal "Nuevo pedido" — panel dividido (Punto 508, rediseño
    elegido por el usuario entre 4 propuestas): el modal crece a lo ancho
