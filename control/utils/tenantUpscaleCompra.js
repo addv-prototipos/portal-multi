@@ -28,6 +28,21 @@
 const { obtenerPool } = require('../db');
 const { notificarInvalidacionCache } = require('./notificarBackend');
 const { getDiscoTopeTenantMb } = require('./ajustesGlobales');
+// Solo la constante (nunca obtenerStripe/montoCentavos aquí arriba —
+// esos se siguen lazy-requiriendo dentro de cada función que de verdad
+// toca Stripe, como ya hacía este archivo) — cero riesgo de ciclo, es un
+// número, no una función que dispare nada al cargar el módulo.
+const { PORCENTAJE_IVA_CLARVO } = require('./stripePagos');
+
+// Preview de "cuánto se te va a cobrar hoy" ANTES de llegar a Stripe —
+// el Tax Rate real (ver stripePagos.js:obtenerTaxRateIva) es quien de
+// verdad calcula el cobro, esto es solo para que el modal de
+// confirmación no le enseñe al tenant un monto distinto al que Stripe le
+// va a cobrar un segundo después.
+function conIva(monto) {
+  const iva = Math.round(Number(monto) * (PORCENTAJE_IVA_CLARVO / 100) * 100) / 100;
+  return { iva, montoConIva: Math.round((Number(monto) + iva) * 100) / 100 };
+}
 
 const DIAS_UMBRAL_COBRO_INMEDIATO = 20;
 const ZONA_NEGOCIO_CONTROL = 'America/Mexico_City';
@@ -133,13 +148,15 @@ function calcularResumenCompra(tipo, tenant, funcionalidad, cantidad) {
   const diasRestantes = expiraEn ? diasEntre(hoyYYYYMMDD(), expiraEn) : null;
   const cobroInmediato = diasRestantes === null ? true : diasRestantes > DIAS_UMBRAL_COBRO_INMEDIATO;
 
+  const montoNeto = Number(precioUnitario) * cantidad;
   return {
     tipo,
     funcionalidadId: funcionalidad.id,
     funcionalidadNombre: funcionalidad.nombre,
     cantidad,
     cantidadOtorgada: Number(funcionalidad[recurso.columnaCatalogo]) * cantidad,
-    monto: Number(precioUnitario) * cantidad,
+    monto: montoNeto,
+    ...conIva(montoNeto),
     ciclo,
     diasRestantes,
     cobroInmediato,
@@ -242,7 +259,7 @@ async function cobrarUpscaleRecurrenteViaSubscription(tipo, tenant, funcionalida
       'validacion'
     );
   }
-  const { obtenerStripe, montoCentavos } = require('./stripePagos');
+  const { obtenerStripe, montoCentavos, obtenerTaxRateIva } = require('./stripePagos');
   const stripe = await obtenerStripe();
   const intervaloStripe = resumen.ciclo === 'anual' ? 'year' : 'month';
 
@@ -250,12 +267,17 @@ async function cobrarUpscaleRecurrenteViaSubscription(tipo, tenant, funcionalida
   let item;
   if (existente) {
     const nuevaCantidad = existente.cantidad + resumen.cantidad;
+    // Sin price_data aquí — Stripe conserva el tax_rate ya fijado en el
+    // Subscription Item desde que se creó, no hace falta repetirlo.
     item = await stripe.subscriptionItems.update(existente.stripe_subscription_item_id, {
       quantity: nuevaCantidad,
       proration_behavior: 'create_prorations',
     });
   } else {
     const productId = await obtenerOCrearProductoStripe(funcionalidad, stripe, db);
+    // Precio del catálogo de upscale = NETO, sin IVA (mismo criterio que
+    // el plan base) — el Tax Rate suma el 16% real.
+    const taxRateId = await obtenerTaxRateIva(stripe);
     item = await stripe.subscriptionItems.create({
       subscription: tenant.stripe_subscription_id,
       price_data: {
@@ -266,6 +288,7 @@ async function cobrarUpscaleRecurrenteViaSubscription(tipo, tenant, funcionalida
         recurring: { interval: intervaloStripe },
         product: productId,
       },
+      tax_rates: [taxRateId],
       quantity: resumen.cantidad,
       proration_behavior: 'create_prorations',
     });
@@ -306,8 +329,9 @@ async function confirmarCompraUpscale(slug, tipo = 'disco', cantidad = 1, { succ
     if (!successUrl || !cancelUrl) {
       throw new ErrorUpscaleCompra('successUrl y cancelUrl son obligatorios para una compra de cobro único.', 'validacion');
     }
-    const { obtenerStripe, montoCentavos } = require('./stripePagos');
+    const { obtenerStripe, montoCentavos, obtenerTaxRateIva } = require('./stripePagos');
     const stripe = await obtenerStripe();
+    const taxRateId = await obtenerTaxRateIva(stripe);
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [
@@ -317,6 +341,7 @@ async function confirmarCompraUpscale(slug, tipo = 'disco', cantidad = 1, { succ
             unit_amount: montoCentavos(resumen.monto),
             product_data: { name: `Clarvo — ${funcionalidad.nombre} (${resumen.cantidad}×)` },
           },
+          tax_rates: [taxRateId],
           quantity: 1,
         },
       ],
@@ -453,6 +478,7 @@ function calcularResumenExtra(tenant, funcionalidad) {
     funcionalidadId: funcionalidad.id,
     funcionalidadNombre: funcionalidad.nombre,
     monto: Number(precioUnitario),
+    ...conIva(Number(precioUnitario)),
     ciclo: funcionalidad.tipo_cobro === 'unico' ? null : ciclo,
     diasRestantes,
     cobroInmediato,
@@ -511,8 +537,9 @@ async function confirmarCompraExtra(slug, funcionalidadId, { successUrl, cancelU
     if (!successUrl || !cancelUrl) {
       throw new ErrorUpscaleCompra('successUrl y cancelUrl son obligatorios para una compra de cobro único.', 'validacion');
     }
-    const { obtenerStripe, montoCentavos } = require('./stripePagos');
+    const { obtenerStripe, montoCentavos, obtenerTaxRateIva } = require('./stripePagos');
     const stripe = await obtenerStripe();
+    const taxRateId = await obtenerTaxRateIva(stripe);
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [
@@ -522,6 +549,7 @@ async function confirmarCompraExtra(slug, funcionalidadId, { successUrl, cancelU
             unit_amount: montoCentavos(resumen.monto),
             product_data: { name: `Clarvo — ${funcionalidad.nombre}` },
           },
+          tax_rates: [taxRateId],
           quantity: 1,
         },
       ],

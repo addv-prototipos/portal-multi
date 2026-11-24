@@ -12,6 +12,7 @@ jest.mock('../../db', () => ({
 jest.mock('../../utils/stripePagos', () => ({
   obtenerStripe: jest.fn(),
   montoCentavos: jest.fn((precio) => Math.round(Number(precio) * 100)),
+  obtenerTaxRateIva: jest.fn().mockResolvedValue('txr_test_iva'),
   APP_BASE_URL: 'https://clarvo.mx',
 }));
 jest.mock('../../utils/tenantLifecycle', () => ({
@@ -157,6 +158,7 @@ describe('utils/reactivacionTenant.js', () => {
       expect(args.mode).toBe('subscription');
       expect(args.line_items[0].price_data.unit_amount).toBe(49900);
       expect(args.line_items[0].price_data.recurring.interval).toBe('month');
+      expect(args.line_items[0].tax_rates).toEqual(['txr_test_iva']);
       expect(args.metadata).toEqual({ tipo: 'reactivacion', tenantId: '7' });
       expect(args.subscription_data.metadata).toEqual({ tipo: 'reactivacion', tenantId: '7' });
       expect(args.success_url).toBe('https://clarvo.mx/cliente1/admin?reactivado=1');

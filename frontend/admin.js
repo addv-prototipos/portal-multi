@@ -3111,7 +3111,7 @@
         (vista !== 'tickets' || planPermite('facturacionHabilitada')) &&
         (vista !== 'constancias' || planPermite('facturacionHabilitada')) &&
         (vista !== 'ordenes' || (ventasHabilitadaGlobalmente && planPermite('ventasHabilitado'))) &&
-        (vista !== 'pedidos' || (ventasHabilitadaGlobalmente && planPermite('ventasHabilitado') && planPermite('pedidosHabilitado'))) &&
+        (vista !== 'pedidos' || (ventasHabilitadaGlobalmente && planPermite('ventasHabilitado') && inventarioActivoGlobalmente && planPermite('inventariosHabilitado') && planPermite('pedidosHabilitado'))) &&
         (vista !== 'crm' || planPermite('crmHabilitado')) &&
         (vista !== 'cxc' || planPermite('cxcHabilitado')) &&
         (vista !== 'gastos' || planPermite('gastosHabilitado')) &&
@@ -6849,11 +6849,12 @@
   function pestanaReportesVisible(clave) {
     const def = PESTANAS_REPORTES[clave];
     if (clave !== 'estado-tickets' && perfilActual === 'fiscal') return false;
-    // Pedidos depende de Ventas (mismo criterio que #btn-vista-pedidos) —
-    // un plan viejo con pedidos_habilitado=1 heredado del backfill del
-    // punto 508 pero ventas_habilitado=0 no debe mostrar esta pestaña,
-    // aunque el flag propio siga en 1.
-    if (clave === 'pedidos' && !planPermite('ventasHabilitado')) return false;
+    // Pedidos depende de Ventas E Inventarios (punto 516, mismo criterio
+    // que #btn-vista-pedidos) — un plan viejo con pedidos_habilitado=1
+    // heredado del backfill del punto 508 pero ventas_habilitado=0 o
+    // inventarios_habilitado=0 no debe mostrar esta pestaña, aunque el
+    // flag propio siga en 1.
+    if (clave === 'pedidos' && (!planPermite('ventasHabilitado') || !planPermite('inventariosHabilitado'))) return false;
     return planPermite(def.flag);
   }
 
@@ -9884,7 +9885,10 @@
           <div>${escapeHtml(factura.lineas[0]?.descripcion || 'Plan de suscripción')}</div>
           ${extras ? `<div class="facturacion-extras">${escapeHtml(extras)}</div>` : ''}
         </td>
-        <td class="facturacion-monto">$${formatearMoneda(factura.total)}</td>
+        <td class="facturacion-monto">
+          $${formatearMoneda(factura.total)}
+          ${factura.impuesto > 0.004 ? `<div class="facturacion-monto-nota">incl. IVA $${formatearMoneda(factura.impuesto)}</div>` : ''}
+        </td>
         <td><span class="pill ${pill.clase}">${pill.texto}</span></td>
         <td><button type="button" class="btn-link btn-ver-recibo-clarvo" data-indice="${indice}">Ver recibo</button></td>
       `;
@@ -9932,11 +9936,13 @@
     const TOL = 0.004; // tolerancia de centavo por redondeo de proporción
     els.facturacionReciboLineas.innerHTML = factura.lineas
       .map((l) => {
+        const tieneImpuesto = l.impuesto > TOL;
         const tieneDescuento = l.descuento > TOL;
         const tieneComision = l.comisionStripe > TOL;
         return `
           <div class="facturacion-recibo-grupo">
             <div class="facturacion-recibo-linea"><span>${escapeHtml(l.descripcion)}</span><span>$${formatearMoneda(l.monto)}</span></div>
+            ${tieneImpuesto ? `<div class="facturacion-recibo-linea facturacion-recibo-linea-impuesto"><span>IVA (16%)</span><span>+$${formatearMoneda(l.impuesto)}</span></div>` : ''}
             ${tieneDescuento ? `<div class="facturacion-recibo-linea facturacion-recibo-linea-descuento"><span>Descuento (cupón)</span><span>&minus;$${formatearMoneda(l.descuento)}</span></div>` : ''}
             ${tieneComision ? `<div class="facturacion-recibo-linea facturacion-recibo-linea-descuento"><span>Retenido por Stripe</span><span>&minus;$${formatearMoneda(l.comisionStripe)}</span></div>` : ''}
           </div>`;
@@ -10487,10 +10493,13 @@
   // SIEMPRE de inmediato vía Subscription Item real de Stripe — ya no
   // hay rama "se suma a tu próximo corte" ni redirect a Checkout.
   function pintarResumenUpscale(resumen) {
-    els.upscaleModalPaquete.textContent = `${resumen.funcionalidadNombre} (+${resumen.cantidadOtorgada} ${resumen.unidad}) — ${formatearMoneda(resumen.monto)} MXN`;
+    els.upscaleModalPaquete.textContent = `${resumen.funcionalidadNombre} (+${resumen.cantidadOtorgada} ${resumen.unidad}) — ${formatearMoneda(resumen.monto)} MXN + IVA`;
     els.upscaleBillingBox.classList.remove('es-pendiente');
-    els.upscaleBillingTitulo.textContent = `Se cobra hoy — ${formatearMoneda(resumen.monto)} MXN`;
-    els.upscaleBillingCuerpo.textContent = 'Cargo inmediato a tu suscripción real de Stripe, con la proración del periodo que ya llevas corriendo.';
+    // "Se cobra hoy" es el número REAL que Stripe va a cargar — nunca el
+    // neto de catálogo sin IVA (resumen.montoConIva ya incluye el 16%,
+    // mismo monto que calcula el Tax Rate real del lado de Stripe).
+    els.upscaleBillingTitulo.textContent = `Se cobra hoy — ${formatearMoneda(resumen.montoConIva)} MXN`;
+    els.upscaleBillingCuerpo.textContent = `Incluye $${formatearMoneda(resumen.monto)} + $${formatearMoneda(resumen.iva)} de IVA (16%). Cargo inmediato a tu suscripción real de Stripe, con la proración del periodo que ya llevas corriendo.`;
     els.btnUpscaleConfirmar.textContent = 'Confirmar compra';
   }
 
@@ -10555,7 +10564,7 @@
         card.innerHTML = `
           <div>
             <p class="upscale-plan-card-nombre">${opcion.nombre}${opcion.recomendado ? '<span class="upscale-plan-card-tag">Recomendado</span>' : ''}</p>
-            <p class="upscale-plan-card-precio">${precio == null ? 'Sin precio configurado' : `${formatearMoneda(precio)} MXN / ${data.ciclo === 'anual' ? 'año' : 'mes'}`}</p>
+            <p class="upscale-plan-card-precio">${precio == null ? 'Sin precio configurado' : `${formatearMoneda(precio)} MXN + IVA / ${data.ciclo === 'anual' ? 'año' : 'mes'}`}</p>
           </div>
           <button type="button" class="btn btn-primary" data-plan-id="${opcion.id}" ${precio == null ? 'disabled' : ''}>Subir</button>
         `;
@@ -10607,7 +10616,7 @@
       data.extras.forEach((extra) => {
         const precioTexto = extra.precio == null
           ? 'Sin precio configurado'
-          : `${formatearMoneda(extra.precio)} MXN${extra.ciclo ? ` / ${extra.ciclo === 'anual' ? 'año' : 'mes'}` : ''}`;
+          : `${formatearMoneda(extra.precio)} MXN + IVA${extra.ciclo ? ` / ${extra.ciclo === 'anual' ? 'año' : 'mes'}` : ''}`;
         const card = document.createElement('div');
         card.className = 'upscale-plan-card';
         card.innerHTML = `
@@ -10919,7 +10928,7 @@
     els.metodoPagoPlanNombre.textContent = s.planNombre || 'Sin plan asignado';
     const precio = s.ciclo === 'anual' ? s.precioAnual : s.precioMensual;
     els.metodoPagoPlanPrecio.textContent =
-      precio != null ? `${formatearMoneda(precio)} / ${s.ciclo === 'anual' ? 'año' : 'mes'}` : 'Sin definir';
+      precio != null ? `${formatearMoneda(precio)} + IVA / ${s.ciclo === 'anual' ? 'año' : 'mes'}` : 'Sin definir';
     els.metodoPagoProximoCobro.textContent = s.expiraEn ? formatearFechaSoloDiaSinTZ(s.expiraEn) : 'Sin definir';
   }
 
@@ -15715,8 +15724,10 @@
       if (!t.flag) return;
       const el = els.resumenFinTablero && els.resumenFinTablero.querySelector(`[data-dashboard-id="${t.id}"]`);
       // Mismo criterio que pestanaReportesVisible('pedidos'): este flag
-      // también depende de Ventas, nunca solo de sí mismo.
-      const visible = planPermite(t.flag) && (t.flag !== 'pedidosHabilitado' || planPermite('ventasHabilitado'));
+      // también depende de Ventas E Inventarios (punto 516), nunca solo
+      // de sí mismo.
+      const visible = planPermite(t.flag) &&
+        (t.flag !== 'pedidosHabilitado' || (planPermite('ventasHabilitado') && planPermite('inventariosHabilitado')));
       if (el) el.hidden = !visible;
     });
   }
@@ -16266,7 +16277,7 @@
       // Punto 508, Segmento 4: las 6 tarjetas de Pedidos solo se piden si
       // el plan las incluye — nunca un fetch de más para un tenant sin el
       // módulo (mismo criterio que el resto de este archivo).
-      if (planPermite('pedidosHabilitado')) {
+      if (planPermite('pedidosHabilitado') && planPermite('ventasHabilitado') && planPermite('inventariosHabilitado')) {
         await cargarTarjetasPedidosDashboard();
       }
       // Con todo el contenido ya renderizado (KPIs, donas, gráficas,
@@ -25078,9 +25089,9 @@
     const datos = CONOCIMIENTO_CATEGORIAS[catKey];
     if (!datos || !datos.flag) return true;
     // Mismo criterio que pestanaReportesVisible('pedidos')/
-    // aplicarVisibilidadTarjetasDashboard: Pedidos depende de Ventas,
-    // nunca solo de su propio flag.
-    if (catKey === 'pedidos' && !planPermite('ventasHabilitado')) return false;
+    // aplicarVisibilidadTarjetasDashboard: Pedidos depende de Ventas E
+    // Inventarios (punto 516), nunca solo de su propio flag.
+    if (catKey === 'pedidos' && (!planPermite('ventasHabilitado') || !planPermite('inventariosHabilitado'))) return false;
     const flags = Array.isArray(datos.flag) ? datos.flag : [datos.flag];
     return flags.some((f) => planPermite(f));
   }
@@ -25283,13 +25294,13 @@
         // Punto 508, Segmento 5: opcional, igual criterio que Inventarios
         // arriba — Pedidos es un módulo independiente/opt-out (como CxC),
         // nunca un paso obligatorio para considerar el onboarding "listo".
-        { texto: 'Prueba el kanban de Pedidos', vista: 'pedidos', hecho: pedidoHecho, opcional: true, disponible: planPermite('pedidosHabilitado') },
+        { texto: 'Prueba el kanban de Pedidos', vista: 'pedidos', hecho: pedidoHecho, opcional: true, disponible: planPermite('pedidosHabilitado') && planPermite('ventasHabilitado') && planPermite('inventariosHabilitado') },
       ],
       ventas: [
         { texto: 'Registra tu primera venta', vista: 'ordenes', hecho: ventaHecha },
         { texto: 'Revisa Cuentas por cobrar', vista: 'cxc', hecho: !!vistos.cxc },
         { texto: 'Registra tu primer gasto', vista: 'gastos', hecho: !!estado.gastoCreado },
-        { texto: 'Crea tu primer pedido (cotización)', vista: 'pedidos', hecho: pedidoHecho, opcional: true, disponible: planPermite('pedidosHabilitado') },
+        { texto: 'Crea tu primer pedido (cotización)', vista: 'pedidos', hecho: pedidoHecho, opcional: true, disponible: planPermite('pedidosHabilitado') && planPermite('ventasHabilitado') && planPermite('inventariosHabilitado') },
       ],
       // punto 321/recorrido inventario: "hecho" del paso 1 se lee de
       // estadoInventarioCache (la misma respuesta que ya carga su propio

@@ -1126,6 +1126,29 @@ solo la frase en español de la UI.
   siempre, 404 aunque la BD diga 1. Jest con mocks nunca lo atrapa, solo
   probar contra Docker real. Detalle completo + la QUINTA pieza (listener
   de clic del botón de sidebar) en `CLAUDE.md`.
+- **IVA (16%) real en la facturación de Clarvo a sus tenants** (punto
+  516, 23 nov 2026, trabajo local): faltaba por completo en los 7 cobros
+  reales de la suscripción (onboarding, reactivación, upscale, cambio de
+  plan) — cobraban el NETO de `planes.precio_mensual/anual` sin ningún
+  impuesto. Fix: Stripe Tax Rate real (`stripePagos.js:obtenerTaxRateIva`,
+  16%, lazy, cacheado en `ajustes_globales` con 2 claves por modo —
+  mismo criterio que `stripe_webhook_secret_actual_prueba/_produccion`
+  del punto 489), nunca un monto recalculado a mano. Gotcha aparte:
+  `invoice.subtotal - invoice.total` para inferir un descuento se rompe
+  con IVA de por medio (`total` puede terminar MAYOR que `subtotal`) —
+  comparar contra `invoice.total_excluding_tax` en su lugar. Detalle
+  completo en `CLAUDE.md`.
+- **Un Tax Rate nuevo solo afecta Subscription Items CREADOS/ACTUALIZADOS
+  después del cambio — las suscripciones YA activas siguen renovando SIN
+  el impuesto para siempre** (punto 516, addendum, hallazgo real con un
+  recibo viejo del usuario): `stripe.subscriptionItems.update(id,
+  {tax_rates:[...]})` sin `price_data` no cobra nada de inmediato
+  (confirmado real), solo corrige la SIGUIENTE factura. Backfill
+  obligatorio (una vez, idempotente):
+  `control/scripts/backfill-tax-rate-suscripciones.js --confirmar`. Regla
+  general: todo cambio de facturación que no sea solo "código nuevo"
+  necesita preguntarse si también debe aplicar retroactivo a lo ya
+  activo — si sí, hace falta un backfill real, nunca basta con el fix.
 
 ## Stack
 

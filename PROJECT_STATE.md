@@ -32087,3 +32087,129 @@ clic real en `/t1/admin` → "Clientes (CRM)" carga contactos reales
 specs referencia CRM).
 
 **Solo local, sin desplegar.**
+
+## Punto 516 — IVA (16%) real en la facturación de Clarvo a sus tenants: faltaba por completo (23 nov 2026, CERRADO, trabajo local)
+
+**Reporte del usuario, con capturas**: "Facturación de Clarvo" (Mi Cuenta
+del tenant) y la tarjeta "Plan de suscripción" mostraban $599.00/$799.00
+sin ningún +IVA — preguntó si el 16% se estaba aplicando en los cobros
+reales de Stripe.
+
+**Hallazgo real, grepeando los 3 flujos de cobro de la suscripción
+(onboarding, upscale, cambio de plan) + reactivación**: NINGUNO aplicaba
+IVA — los 7 `price_data`/`subscriptionItems` de
+`control/utils/stripePagos.js`/`tenantUpscaleCompra.js`/`upgradePlan.js`/
+`reactivacionTenant.js` usaban `unit_amount: montoCentavos(precio)`
+directo desde `planes.precio_mensual/anual`, sin `tax_rates` ni
+`automatic_tax`. Confirmado vía `AskUserQuestion`: `precio_mensual`
+**es el NETO, sin IVA** — Stripe debía cobrar ese monto + 16%, con
+desglose claro al cobrar y en el admin.
+
+**Implementado — Stripe Tax Rate real, nunca un monto recalculado a
+mano**: `stripePagos.js:obtenerTaxRateIva()` crea (lazy, una sola vez por
+modo) un Tax Rate real de Stripe (`display_name:'IVA'`,
+`percentage:16`, `inclusive:false`, `country:'MX'`, `tax_type:'vat'`),
+cacheado en `ajustes_globales` con 2 claves separadas
+(`stripe_tax_rate_id_iva_prueba`/`_produccion` — mismo criterio que
+`stripe_webhook_secret_actual_prueba/_produccion` del punto 489: prueba y
+producción son universos de Stripe completamente separados, un Tax Rate
+de uno no es válido en el otro). `tax_rates: [taxRateId]` agregado a los
+7 sitios reales de cobro: `stripePagos.js` (checkout del onboarding),
+`reactivacionTenant.js` (checkout de reactivación), `upgradePlan.js`
+(subscriptionItems.update de cambio de plan), `tenantUpscaleCompra.js`
+(subscriptionItems.create de disco/usuarios/extra recurrente + los 2
+checkout de pago único `tipo_cobro='unico'`, hoy sin uso real en el
+catálogo). Constante única `PORCENTAJE_IVA_CLARVO = 16` exportada de
+`stripePagos.js` — nunca repetida a mano en otro archivo.
+
+**Preview "se cobra hoy" ANTES de llegar a Stripe**: `calcularResumenCompra()`/
+`calcularResumenExtra()` (`tenantUpscaleCompra.js`) ganaron
+`iva`/`montoConIva` (helper `conIva()`, mismo 16% de la constante) — el
+modal de "Ampliar tu plan" mostraba el NETO como "Se cobra hoy" antes de
+este fix, un número DISTINTO al que Stripe iba a cobrar un segundo
+después; ahora muestra el total real con IVA.
+
+**Gotcha real encontrado arreglando el desglose de "Facturación de
+Clarvo" (`facturacionClarvo.js`)**: el cálculo viejo de `descuento`
+(`Math.max(0, subtotal - total)`) se rompe en cuanto hay IVA — con IVA,
+`total` puede terminar MAYOR que `subtotal` (en vez de menor, como
+asumía el cálculo pensado solo para cupones), la resta se iba a negativo
+y el `Math.max(0, ...)` ocultaba un descuento real si lo hubiera habido.
+Fix: comparar contra `invoice.total_excluding_tax` (campo real de
+Stripe, "subtotal menos descuentos, sin impuesto"), nunca contra
+`invoice.total`. El IVA en sí se lee de `linea.taxes[].amount` (desglose
+real de Stripe por línea, nunca prorrateado a mano como sí se hace con
+comisión/descuento).
+
+**UI actualizada** (3 apps): tabla "Facturación de Clarvo" (nota "incl.
+IVA $X" bajo el monto), modal "Ver recibo" (línea "IVA (16%) +$X",
+color neutro — nunca el ámbar de las deducciones, es una SUMA no una
+resta), modal "Ampliar tu plan" y catálogo de Extras ("+ IVA" en cada
+precio + desglose real en "Se cobra hoy"), "Actualizar método de pago"
+(precio + IVA), `/control` → Planes y Upscale (labels "sin IVA" en los
+inputs de precio + "+ IVA" en los listados).
+
+**Probado**: suite completa de `control` en verde (39/39 suites,
+632/632 tests — 626 existentes + 1 nuevo test de IVA real en
+`facturacionClarvo.test.js`, 2 tests de `reactivacionTenant.test.js`
+actualizados con el mock de `obtenerTaxRateIva`). Backend sin cambios,
+1432/1432 sin regresión. **Funcional real contra Docker/MySQL/Stripe test
+mode** (tenant `test-sa-de-cv`, Chrome DevTools MCP): modal "Ampliar tu
+plan" mostró "50.00 MXN + IVA" / "Se cobra hoy — 58.00 MXN" / "Incluye
+$50.00 + $8.00 de IVA" — compra real confirmada (proración real de
+Stripe, $7.79 + IVA $1.25 = $9.04), Tax Rate real creado y cacheado
+(`txr_...` en `ajustes_globales`, clave `_prueba`), "Facturación de
+Clarvo" mostró la fila nueva con "incl. IVA $1.25" y el recibo mostró
+"IVA (16%) +$1.25" correctamente separado de "Total $9.04". Invoice
+vieja (de antes de este punto, sin Tax Rate) se siguió mostrando igual
+que siempre, sin ningún impuesto inventado — confirma que el fix es
+retroactivamente seguro.
+
+**Solo local, sin desplegar.** El Tax Rate de modo `producción` nunca se
+ha creado (se crea solo, la primera vez que un cobro real lo necesite en
+ese modo) — ningún tenant de producción real ha sido cobrado con IVA
+todavía.
+
+### Addendum — Suscripciones YA ACTIVAS de antes de este punto NUNCA iban a cobrar IVA solas (mismo día, hallazgo del usuario con captura real)
+
+El usuario revisó un recibo viejo (`prueba-ga-test-19nov`, factura de
+ANTES de este punto) y preguntó por qué no traía IVA. Correcto que esa
+factura en particular es histórica y no debía cambiar — pero validar la
+pregunta completa expuso el problema real: **el Tax Rate solo se adjunta
+a un Subscription Item en el momento en que ese item se CREA o se
+ACTUALIZA** (checkout nuevo, upscale nuevo, cambio de plan). Un tenant
+con una suscripción YA ACTIVA antes de este punto, que simplemente
+renueva mes a mes sin tocar nada, **iba a seguir renovando SIN IVA para
+siempre** — Stripe no re-deriva el tax_rate de un item en cada
+renovación, lo conserva tal cual quedó.
+
+**Confirmado real contra Stripe test mode, antes de escribir nada**:
+`stripe.invoices.createPreview({subscription})` de `prueba-ga-test-19nov`
+mostraba `total === subtotal` (sin impuesto) en la ANTERIOR revisión de
+este mismo punto. `stripe.subscriptionItems.update(itemId,
+{tax_rates:[taxRateId]})` **sin** `price_data` no generó ningún cargo ni
+proración inmediata (confirmado: la lista de invoices del customer no
+ganó ninguna fila nueva) — solo cambia qué IVA calculará la SIGUIENTE
+factura. Con el item ya actualizado, el mismo preview pasó a mostrar
+`total = subtotal + 16%` correctamente.
+
+**Backfill nuevo**: `control/scripts/backfill-tax-rate-suscripciones.js`
+(dry-run por default, `--confirmar` para escribir, mismo patrón que
+`backfill-stripe-livemode-cupones.js`) — reusa
+`stripePagos.js:obtenerStripe/obtenerTaxRateIva` (nunca reimplementa la
+resolución de la llave ni el cálculo del Tax Rate), recorre TODOS los
+`tenants.stripe_subscription_id` no nulos, y agrega el Tax Rate a
+cualquier Subscription Item que no lo tenga ya (idempotente). Corrido
+real en local: 17 tenants, 23 items, 20 actualizados, 2 ya correctos (los
+2 que este mismo punto había tocado manualmente antes), 1 error real
+(`prueba-cancel-1`, suscripción de Stripe ya inexistente/cancelada para
+ese fixture de prueba vieja — no relacionado con el fix, el script lo
+reporta y sigue sin tronar). Verificado después: `panes` pasó de preview
+sin impuesto a `subtotal 950 + IVA 152 = total 1102`.
+
+**Regla nueva para cualquier deploy futuro de este punto**: correr este
+script con `--confirmar` es un PASO OBLIGATORIO del deploy, no opcional
+— mismo criterio que reinvocar `/internal/activar-tenant/:slug` tras un
+cambio de `ensureSchema()`. Sin este paso, cualquier tenant de producción
+que ya tuviera una suscripción activa antes del deploy seguiría cobrando
+sin IVA indefinidamente, aunque el código nuevo ya esté desplegado.

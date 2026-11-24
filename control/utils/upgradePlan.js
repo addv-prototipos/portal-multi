@@ -160,11 +160,14 @@ async function confirmarSubirPlan(slug, nuevoPlanId, { actor } = {}, db = obtene
     }
   }
 
-  const { obtenerStripe, montoCentavos } = require('./stripePagos');
+  const { obtenerStripe, montoCentavos, obtenerTaxRateIva } = require('./stripePagos');
   const stripe = await obtenerStripe();
   const itemPlan = await buscarItemDePlan(stripe, tenant, db);
   const productId = await obtenerOCrearProductoPlanStripe(stripe, db);
   const intervaloStripe = ciclo === 'anual' ? 'year' : 'month';
+  // precioNuevo = NETO de `planes.precio_mensual/anual`, sin IVA — el Tax
+  // Rate suma el 16% real (ver stripePagos.js:obtenerTaxRateIva).
+  const taxRateId = await obtenerTaxRateIva(stripe);
 
   await stripe.subscriptionItems.update(itemPlan.id, {
     price_data: {
@@ -173,6 +176,7 @@ async function confirmarSubirPlan(slug, nuevoPlanId, { actor } = {}, db = obtene
       recurring: { interval: intervaloStripe },
       product: productId,
     },
+    tax_rates: [taxRateId],
     proration_behavior: 'create_prorations',
   });
 

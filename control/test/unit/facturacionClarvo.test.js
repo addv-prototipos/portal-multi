@@ -186,7 +186,62 @@ describe('utils/facturacionClarvo.js', () => {
       expect(factura.comisionStripe).toBeNull();
       expect(factura.montoNeto).toBe(479.2); // sin comisión resoluble, se cae al total
       expect(factura.lineas).toEqual([
-        { descripcion: '1 × Clarvo - Crece', monto: 599, descuento: 119.8, comisionStripe: 0, montoNeto: 479.2 },
+        { descripcion: '1 × Clarvo - Crece', monto: 599, descuento: 119.8, impuesto: 0, comisionStripe: 0, montoNeto: 479.2 },
+      ]);
+    });
+
+    test('invoice pagada CON IVA real (16%, Tax Rate aplicado): impuesto se suma desde linea.taxes, descuento se calcula contra total_excluding_tax (nunca negativo por el IVA)', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[{ stripe_customer_id: 'cus_1' }]])
+        .mockResolvedValueOnce([[]]);
+
+      obtenerStripe.mockReturnValue({
+        invoices: {
+          list: jest.fn().mockResolvedValue({
+            data: [
+              {
+                id: 'in_iva',
+                number: 'F-010',
+                status: 'paid',
+                created: 1700000000,
+                subtotal: 59900,
+                total: 69484,
+                total_excluding_tax: 59900,
+                status_transitions: { paid_at: 1700000100 },
+                due_date: null,
+                hosted_invoice_url: 'https://stripe/hosted',
+                invoice_pdf: 'https://stripe/pdf',
+                lines: {
+                  data: [
+                    {
+                      amount: 59900,
+                      description: '1 × Clarvo - Crece (at $599.00 / month)',
+                      period: { start: 1700000000 },
+                      taxes: [{ amount: 9584 }],
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          // Sin .retrieve mockeado -> sin comisión resoluble, montoNeto
+          // se cae al bruto (total), mismo criterio ya probado arriba.
+        },
+      });
+
+      const [factura] = await listarFacturasTenant('panes', { db: pool });
+
+      expect(factura.subtotal).toBe(599);
+      expect(factura.impuesto).toBe(95.84);
+      expect(factura.total).toBe(694.84);
+      // Nunca negativo: con IVA, `total` (694.84) > `subtotal` (599), pero
+      // el descuento se mide contra `total_excluding_tax` (599), no contra
+      // `total` — el cálculo viejo (subtotal - total) se habría ido a
+      // negativo y ocultado un descuento real si lo hubiera habido.
+      expect(factura.descuento).toBe(0);
+      expect(factura.lineas).toEqual([
+        { descripcion: '1 × Clarvo - Crece', monto: 599, descuento: 0, impuesto: 95.84, comisionStripe: 0, montoNeto: 599 },
       ]);
     });
 
@@ -238,7 +293,7 @@ describe('utils/facturacionClarvo.js', () => {
       expect(factura.comisionStripe).toBe(17.97);
       expect(factura.montoNeto).toBe(181.03);
       expect(factura.lineas).toEqual([
-        { descripcion: '1 × Clarvo - Solicita', monto: 199, descuento: 0, comisionStripe: 17.97, montoNeto: 181.03 },
+        { descripcion: '1 × Clarvo - Solicita', monto: 199, descuento: 0, impuesto: 0, comisionStripe: 17.97, montoNeto: 181.03 },
       ]);
     });
   });

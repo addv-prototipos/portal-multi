@@ -74,20 +74,35 @@ async function obtenerComisionStripe(stripe, invoiceId, estadoInvoice) {
 // cupón se adjunta a la Subscription completa, la comisión es del cargo
 // completo) — se prorratean aquí proporcional al peso de cada línea en
 // el subtotal, nunca presentadas como un dato que Stripe calculó así.
+// IVA (16%, desde el punto en curso): `invoice.total_excluding_tax` ya
+// viene de Stripe como "subtotal menos descuentos, sin impuesto" — el
+// descuento real se calcula contra ESE campo, nunca contra
+// `invoice.total` (que con IVA de por medio puede terminar MAYOR que el
+// subtotal, no menor, y el cálculo viejo `subtotal - total` se iba a
+// negativo y el descuento desaparecía de la vista aunque el cupón sí
+// hubiera aplicado). El IVA en sí nunca se prorratea a mano: cada línea
+// ya trae su propio desglose real en `linea.taxes[]` (Stripe lo calcula
+// por línea cuando el Tax Rate vive en el Subscription Item/line item),
+// se suma tal cual.
 function lineasDeInvoice(invoice, comisionStripeTotal) {
   const data = Array.isArray(invoice.lines?.data) ? invoice.lines.data : [];
   const subtotalBruto = Number(invoice.subtotal || 0);
-  const descuentoTotalCentavos = Math.max(0, Number(invoice.subtotal || 0) - Number(invoice.total || 0));
+  const totalSinImpuesto = invoice.total_excluding_tax ?? invoice.total;
+  const descuentoTotalCentavos = Math.max(0, Number(invoice.subtotal || 0) - Number(totalSinImpuesto || 0));
   const comisionTotalCentavos = Math.max(0, Math.round((comisionStripeTotal || 0) * 100));
   return data.map((linea) => {
     const montoBruto = Number(linea.amount || 0) / 100;
     const pesoLinea = subtotalBruto > 0 ? Number(linea.amount || 0) / subtotalBruto : 0;
     const descuentoLinea = Math.round(pesoLinea * descuentoTotalCentavos) / 100;
     const comisionLinea = Math.round(pesoLinea * comisionTotalCentavos) / 100;
+    const impuestoLinea = Array.isArray(linea.taxes)
+      ? Math.round(linea.taxes.reduce((suma, t) => suma + Number(t.amount || 0), 0)) / 100
+      : 0;
     return {
       descripcion: limpiarDescripcionLinea(linea.description || 'Cargo de suscripción'),
       monto: montoBruto,
       descuento: descuentoLinea,
+      impuesto: impuestoLinea,
       comisionStripe: comisionLinea,
       montoNeto: Math.round((montoBruto - descuentoLinea - comisionLinea) * 100) / 100,
     };
@@ -120,21 +135,31 @@ async function listarFacturasTenant(slug, { limite = 12, db = obtenerPool() } = 
         const solicitud = solicitudesPorInvoice.get(invoice.id) || null;
         const subtotal = Number(invoice.subtotal || 0) / 100;
         const total = Number(invoice.total || 0) / 100;
+        const totalSinImpuesto = Number((invoice.total_excluding_tax ?? invoice.total) || 0) / 100;
         const comision = await obtenerComisionStripe(stripe, invoice.id, invoice.status);
         const comisionStripe = comision ? comision.fee : null;
         // Lo que de verdad llega a la cuenta de Clarvo — sin comisión
         // resoluble (edge case raro) se cae al bruto, nunca null, para
         // que la tabla siempre tenga un número que mostrar.
         const montoNeto = comision ? comision.net : total;
+        const lineas = lineasDeInvoice(invoice, comisionStripe);
+        // IVA real sumado desde las líneas (Stripe ya lo calculó por
+        // línea, nunca se recalcula a mano aquí) — 0 en cualquier
+        // invoice de antes de este punto, que nunca tuvo Tax Rate.
+        const impuesto = Math.round(lineas.reduce((suma, l) => suma + l.impuesto, 0) * 100) / 100;
         return {
           id: invoice.id,
           folio: invoice.number || invoice.id,
           periodoEtiqueta: etiquetaMes(periodoUnix),
           periodoOrden: periodoUnix,
           subtotal,
+          impuesto,
           total,
           // Math.max(0, ...): nunca negativo por redondeo de centavos.
-          descuento: Math.max(0, Math.round((subtotal - total) * 100) / 100),
+          // Contra `totalSinImpuesto` (subtotal - descuento, SIN IVA),
+          // nunca contra `total` — con IVA de por medio, `total` puede
+          // terminar MAYOR que `subtotal` y la resta se iría a negativo.
+          descuento: Math.max(0, Math.round((subtotal - totalSinImpuesto) * 100) / 100),
           comisionStripe,
           montoNeto,
           estado: estadoDeInvoice(invoice),
@@ -142,7 +167,7 @@ async function listarFacturasTenant(slug, { limite = 12, db = obtenerPool() } = 
             ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
             : null,
           fechaVencimiento: invoice.due_date ? new Date(invoice.due_date * 1000).toISOString() : null,
-          lineas: lineasDeInvoice(invoice, comisionStripe),
+          lineas,
           hostedUrl: invoice.hosted_invoice_url || null,
           pdfUrl: invoice.invoice_pdf || null,
           solicitudFactura: solicitud

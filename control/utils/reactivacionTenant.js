@@ -9,7 +9,7 @@
 
 const crypto = require('crypto');
 const { obtenerPool } = require('../db');
-const { obtenerStripe, montoCentavos, APP_BASE_URL } = require('./stripePagos');
+const { obtenerStripe, montoCentavos, obtenerTaxRateIva, APP_BASE_URL } = require('./stripePagos');
 const { reactivarTenant, darDeBajaTenant, MOTIVO_BAJA_TRIAL_VENCIDO } = require('./tenantLifecycle');
 const { enviarCorreoBase } = require('./notificarBackend');
 const { sumarCiclo } = require('./tenantSuscripcion');
@@ -113,6 +113,10 @@ async function crearCheckoutSessionReactivacion(tenantId, { db = obtenerPool() }
   // Mismo criterio ya documentado en el proyecto: el Price nunca vive en
   // el catálogo de Stripe, se arma al vuelo (price_data) con el precio
   // real resuelto arriba — el Product/Price que Stripe genera es efímero.
+  // `precio` es el NETO sin IVA — el Tax Rate real suma el 16% (ver
+  // stripePagos.js:obtenerTaxRateIva), nunca un monto recalculado aquí.
+  const taxRateId = await obtenerTaxRateIva(stripe);
+
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     allow_promotion_codes: true,
@@ -124,6 +128,7 @@ async function crearCheckoutSessionReactivacion(tenantId, { db = obtenerPool() }
           recurring: { interval: intervaloStripe },
           product_data: { name: `Clarvo — ${tenant.plan_nombre || 'tu plan'} (${intervaloNombre})` },
         },
+        tax_rates: [taxRateId],
         quantity: 1,
       },
     ],

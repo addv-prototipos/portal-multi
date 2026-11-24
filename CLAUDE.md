@@ -1319,6 +1319,61 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   en `ajustes_globales`, `asegurarTablaAjustesGlobales()` debe correr
   ANTES que la función que hace el backfill en `control/server.js:iniciar()`
   — verificar el orden real, no asumirlo.
+- **IVA (16%) real sobre la facturación de Clarvo a sus tenants: faltaba
+  por completo hasta el punto 516, 2026-11-23** — los 7 cobros reales de
+  la suscripción (onboarding, reactivación, upscale, cambio de plan)
+  cobraban el NETO de `planes.precio_mensual/anual` tal cual, sin ningún
+  impuesto. Fix: un Stripe Tax Rate real (`stripe.taxRates.create`,
+  16%, `inclusive:false`, `country:'MX'`), nunca un monto recalculado a
+  mano — se crea una sola vez por modo (lazy) y se cachea en
+  `ajustes_globales` con 2 claves separadas
+  (`stripe_tax_rate_id_iva_prueba`/`_produccion`, mismo criterio que
+  `stripe_webhook_secret_actual_prueba/_produccion` del punto 489: un
+  Tax Rate de modo prueba NO es válido contra la cuenta live). Helper
+  único `stripePagos.js:obtenerTaxRateIva(stripe)` + constante
+  `PORCENTAJE_IVA_CLARVO`, reusados en los 7 sitios — nunca un `16`
+  repetido a mano en otro archivo. Cualquier cobro NUEVO a la
+  suscripción de un tenant (otro tipo de upscale, otro flujo de pago)
+  debe pasar por este mismo helper, nunca cobrar `unit_amount` pelado.
+- **`invoice.subtotal - invoice.total` para calcular un descuento se
+  rompe en cuanto el invoice también tiene IVA** (punto 516): con IVA,
+  `total` puede terminar MAYOR que `subtotal` (antes solo un cupón podía
+  hacer que `total` fuera MENOR) — la resta se va a negativo y
+  `Math.max(0, ...)` oculta un descuento real si lo hubiera. Fix en
+  `facturacionClarvo.js`: comparar contra `invoice.total_excluding_tax`
+  (campo real de Stripe: subtotal menos descuentos, SIN impuesto), nunca
+  contra `invoice.total`. El IVA en sí se lee de `linea.taxes[].amount`
+  (desglose real de Stripe por línea), nunca se prorratea a mano como sí
+  se hace con descuento/comisión de Stripe (esos 2 sí son agregados a
+  nivel invoice sin desglose por línea en la API, el IVA no). Cualquier
+  cálculo futuro que reste `subtotal - total` de un invoice de Stripe
+  para inferir "cuánto se descontó" debe verificar primero si ese
+  invoice puede tener impuesto — si puede, usar `total_excluding_tax`.
+- **Agregar un Tax Rate a un flujo de cobro solo afecta a los
+  Subscription Items CREADOS o ACTUALIZADOS después de ese cambio —
+  cualquier suscripción YA ACTIVA sigue renovando SIN el impuesto para
+  siempre, Stripe no re-deriva el tax_rate de un item en cada
+  renovación** (punto 516, 23 nov 2026, encontrado por el usuario con un
+  recibo viejo real): el IVA del punto 516 solo se adjuntaba a un
+  Subscription Item en el momento de un checkout nuevo/upscale nuevo/
+  cambio de plan — un tenant con suscripción activa de ANTES de ese
+  cambio de código iba a renovar sin IVA indefinidamente si nadie tocaba
+  su item. Confirmado real con `stripe.invoices.createPreview({subscription})`
+  (muestra la SIGUIENTE factura sin generarla) antes/después de
+  `stripe.subscriptionItems.update(id, {tax_rates:[...]})` **sin**
+  `price_data` — ese update NO dispara ninguna proración/cargo inmediato
+  (confirmado: cero invoices nuevas), solo cambia el cálculo de la
+  factura futura. Backfill real:
+  `control/scripts/backfill-tax-rate-suscripciones.js` (dry-run por
+  default, `--confirmar` para escribir, idempotente — recorre TODOS los
+  `tenants.stripe_subscription_id`). **Regla general**: cualquier cambio
+  futuro que agregue/modifique un Tax Rate, un precio ad-hoc, o
+  cualquier otro atributo de facturación a un flujo de cobro, necesita
+  preguntarse explícitamente "¿esto también debe aplicar a las
+  suscripciones YA existentes?" — si sí, el fix del código nuevo
+  NUNCA alcanza solo, hace falta un backfill real corrido una vez
+  (mismo criterio que reinvocar `/internal/activar-tenant/:slug` tras un
+  cambio de `ensureSchema()`) como paso obligatorio del deploy.
 - **Insertar una columna nueva EN MEDIO de un `UPDATE ... SET` rompe
   cualquier test que indexe los parámetros por posición** (patrón ya
   usado en `tenantSuscripcion.js` antes del punto 417) — al agregar

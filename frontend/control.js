@@ -2978,13 +2978,19 @@
     return `$${Number(valor).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   }
 
+  // precio_mensual/anual es el NETO capturado en el formulario de abajo
+  // (sin IVA) — Stripe cobra ese monto + 16% real (ver
+  // control/utils/stripePagos.js:obtenerTaxRateIva). "+ IVA" aquí es
+  // solo la etiqueta, nunca un monto recalculado — el desglose real vive
+  // en Stripe (Checkout/Invoice) y en "Facturación de Clarvo" de Mi
+  // Cuenta del tenant.
   function formatPrecioPlan(plan) {
     const mensual = formatMoneda(plan.precio_mensual);
     const anual = formatMoneda(plan.precio_anual);
     if (!mensual && !anual) return 'A cotizar';
     const partes = [];
-    if (mensual) partes.push(`${mensual}/mes`);
-    if (anual) partes.push(`${anual}/año`);
+    if (mensual) partes.push(`${mensual}/mes + IVA`);
+    if (anual) partes.push(`${anual}/año + IVA`);
     return partes.join(' · ');
   }
 
@@ -3333,12 +3339,19 @@
       }
       if (campo === 'ventas_habilitado' && !encendiendo && planWizardState.pedidos_habilitado) {
         planWizardState.pedidos_habilitado = false;
-        showToast('Se desactivó Pedidos: depende de Ventas.');
+        showToast('Se desactivó Pedidos: depende de Ventas e Inventarios.');
       }
       if (campo === 'ventas_habilitado' && !encendiendo && planWizardState.ticket_impresion_habilitado) {
         planWizardState.ticket_impresion_habilitado = false;
         showToast('Se desactivó Ticket de impresión: depende de Ventas.');
       }
+    }
+
+    // Punto 516: Pedidos ahora exige Ventas Y Inventarios a la vez —
+    // mismo criterio de cascada que ya aplica para Ventas arriba.
+    if (campo === 'inventarios_habilitado' && !encendiendo && planWizardState.pedidos_habilitado) {
+      planWizardState.pedidos_habilitado = false;
+      showToast('Se desactivó Pedidos: depende de Ventas e Inventarios.');
     }
 
     if (campo === 'portal_clientes_habilitado' && encendiendo && !planWizardState.facturacion_habilitada) {
@@ -3471,11 +3484,11 @@
     });
     html += filaDependienteWizard({
       etiqueta: 'Pedidos',
-      desc: 'Opcional — kanban de pre-ventas/cotizaciones, no se activa solo aunque Ventas esté encendido',
+      desc: 'Opcional — kanban de pre-ventas/cotizaciones, requiere Ventas e Inventarios activos a la vez',
       campo: 'pedidos_habilitado',
-      deshabilitado: !planWizardState.ventas_habilitado,
-      requiereTxt: 'Ventas',
-      modulos: ['ventas'],
+      deshabilitado: !planWizardState.ventas_habilitado || !planWizardState.inventarios_habilitado,
+      requiereTxt: 'Ventas e Inventarios',
+      modulos: ['ventas', 'inventarios'],
     });
     html += filaDependienteWizard({
       etiqueta: 'Resumen financiero',
@@ -4080,10 +4093,10 @@
 
   function formatearPrecioUpscale(item) {
     const money = (n) => Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2 });
-    if (item.tipo_cobro === 'unico') return `$${money(item.precio_unico)} único`;
+    if (item.tipo_cobro === 'unico') return `$${money(item.precio_unico)} único + IVA`;
     const partes = [];
-    if (item.precio_mensual !== null) partes.push(`$${money(item.precio_mensual)}/mes`);
-    if (item.precio_anual !== null) partes.push(`$${money(item.precio_anual)}/año`);
+    if (item.precio_mensual !== null) partes.push(`$${money(item.precio_mensual)}/mes + IVA`);
+    if (item.precio_anual !== null) partes.push(`$${money(item.precio_anual)}/año + IVA`);
     return partes.join(' · ') || 'Sin precio';
   }
 

@@ -18,7 +18,8 @@
 
 const Stripe = require('stripe');
 const { obtenerPool } = require('../db');
-const { obtenerCredencialesActivas } = require('./stripeModo');
+const { obtenerCredencialesActivas, modoActivo } = require('./stripeModo');
+const { getValorTexto, setValorTexto } = require('./ajustesGlobales');
 const { obtenerBorradorInterno, ErrorOnboarding } = require('./onboardingBorrador');
 const { resolverPlanPorClave, convertirBorrador } = require('./onboardingConversion');
 
@@ -36,6 +37,47 @@ async function obtenerStripe() {
 // moneda, nunca el monto "humano" directo.
 function montoCentavos(precio) {
   return Math.round(Number(precio) * 100);
+}
+
+// Único sitio donde el 16% vive como número — cualquier preview de
+// "cuánto se te va a cobrar hoy" ANTES de llegar a Stripe (resumen de
+// upscale/extra, ver tenantUpscaleCompra.js) reusa esta constante, nunca
+// un 0.16/16 repetido a mano en otro archivo.
+const PORCENTAJE_IVA_CLARVO = 16;
+
+const CLAVE_TAX_RATE_IVA_PRUEBA = 'stripe_tax_rate_id_iva_prueba';
+const CLAVE_TAX_RATE_IVA_PRODUCCION = 'stripe_tax_rate_id_iva_produccion';
+
+// IVA México 16% sobre el precio de catálogo (decisión del usuario,
+// 23-nov-2026): `planes.precio_mensual/anual` y los precios de
+// funcionalidades_upscale son el NETO, Stripe debe cobrar ese monto MÁS
+// 16% — nunca un monto "con IVA ya metido" sin desglosar. Un Tax Rate de
+// Stripe (no un cálculo manual sumado a `unit_amount`) para que Checkout,
+// la Subscription y cada Invoice futura desglosen Subtotal/IVA/Total
+// solos, de forma nativa y consistente, sin reimplementar el redondeo de
+// Stripe en este código. Mismo criterio ya documentado para
+// `stripe_webhook_secret_actual_prueba/_produccion` (punto 489): prueba y
+// producción son universos de Stripe completamente separados, un Tax
+// Rate creado en un modo no existe ni es válido en el otro — por eso son
+// 2 claves, nunca una sola. Se crea una sola vez por modo (lazy, la
+// primera vez que un cobro real lo necesita) y se cachea en
+// `ajustes_globales`, mismo patrón que `obtenerOCrearProductoPlanStripe`/
+// `obtenerOCrearProductoStripe` salvo por el split de modo.
+async function obtenerTaxRateIva(stripe) {
+  const modo = await modoActivo();
+  const clave = modo === 'produccion' ? CLAVE_TAX_RATE_IVA_PRODUCCION : CLAVE_TAX_RATE_IVA_PRUEBA;
+  const existente = await getValorTexto(clave);
+  if (existente) return existente;
+  const taxRate = await stripe.taxRates.create({
+    display_name: 'IVA',
+    inclusive: false,
+    percentage: PORCENTAJE_IVA_CLARVO,
+    country: 'MX',
+    tax_type: 'vat',
+    description: 'IVA México 16% — Clarvo',
+  });
+  await setValorTexto(clave, taxRate.id);
+  return taxRate.id;
 }
 
 async function crearCheckoutSession(token, { db = obtenerPool() } = {}) {
@@ -73,6 +115,12 @@ async function crearCheckoutSession(token, { db = obtenerPool() } = {}) {
   // catálogo de plazos en /control sigue vivo para cuando se necesite en
   // algún cobro único (ej. upscale tipo_cobro='unico').
 
+  // precio = NETO de `planes.precio_mensual/anual` (sin IVA) — el Tax
+  // Rate de abajo es quien suma el 16% real, nunca un monto recalculado
+  // a mano aquí (Stripe desglosa Subtotal/IVA/Total solo, en Checkout y
+  // en cada Invoice futura).
+  const taxRateId = await obtenerTaxRateIva(stripe);
+
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     // Reporte de cupones (punto en curso): deja que el prospecto escriba
@@ -87,6 +135,7 @@ async function crearCheckoutSession(token, { db = obtenerPool() } = {}) {
           recurring: { interval: intervaloStripe },
           product_data: { name: `Clarvo — ${plan.nombre || borrador.plan_clave} (${intervaloNombre})` },
         },
+        tax_rates: [taxRateId],
         quantity: 1,
       },
     ],
@@ -277,5 +326,7 @@ module.exports = {
   // la conversión a centavos en un segundo archivo.
   obtenerStripe,
   montoCentavos,
+  obtenerTaxRateIva,
+  PORCENTAJE_IVA_CLARVO,
   APP_BASE_URL,
 };
