@@ -971,6 +971,18 @@ async function ensureSchema(db = pool) {
     await db.query(`ALTER TABLE ordenes_compra ADD UNIQUE KEY uq_ordenes_compra_folio_conciliacion (folio_conciliacion)`);
   }
 
+  // Punto 507: "Nombre del cliente" capturado a mano — para una venta sin
+  // correo (modalidad "Imprimir ticket"/"Sin ticket") que hoy queda sin
+  // ningún identificador ("Sin correo" en Cuentas por cobrar/Reportes).
+  // Nombre deliberadamente DISTINTO de `cliente_nombre` — ese es un alias
+  // calculado (`r.nombre AS cliente_nombre`, JOIN a `registros` por email,
+  // ver GET /api/admin/ordenes-compra) y nunca una columna real; llamar a
+  // esta columna igual chocaría con ese alias. Nullable y sin backfill:
+  // el dato nunca existió para ventas ya registradas.
+  if (!nombresOrdenProducto.includes('nombre_cliente_manual')) {
+    await db.query(`ALTER TABLE ordenes_compra ADD COLUMN nombre_cliente_manual VARCHAR(200) NULL`);
+  }
+
   // folios_conciliacion (punto 342): registro de TODOS los folios de
   // transferencia generados, se dispare o no la venta a la que iban a
   // asociarse — a propósito, porque sirven para conciliar contra el
@@ -1039,6 +1051,85 @@ async function ensureSchema(db = pool) {
       creado_por VARCHAR(200) NULL,
       creado_en DATETIME NOT NULL,
       KEY idx_abonos_orden (orden_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // pedidos (Punto 508, Segmento 1): kanban de pre-ventas/cotizaciones —
+  // NUNCA mezclado con `ordenes_compra` a propósito (análisis confirmado
+  // con el usuario): un pedido no es ingreso ni por cobrar, así que no
+  // puede tocar CxC/Resumen financiero/Auditoría mientras no sea una
+  // venta real. Solo al llegar a 'entregado' se genera una fila real en
+  // `ordenes_compra` (vía el mismo POST /api/admin/ordenes-compra de
+  // siempre, reutilizado sin cambios) y PUT /api/admin/pedidos/:id/convertir
+  // vincula ambos registros — `convertido_a_orden_id` apunta a esa venta.
+  // `cantidad` es el monto ESTIMADO de la cotización (mismo significado
+  // que ordenes_compra.cantidad: subtotal antes de IVA) — puede diferir
+  // del total real de la venta ya convertida, a propósito (negociación).
+  // Sin tabla de líneas múltiples en este segmento (a diferencia de
+  // orden_productos/Segmento A de Ventas) — un pedido admite como máximo
+  // UN producto de inventario opcional, igual que el ordenes_compra
+  // original antes de ese segmento; ampliar a varias líneas es trabajo
+  // futuro, no bloquea este segmento. Sin CONSTRAINT FOREIGN KEY, mismo
+  // motivo que orden_productos arriba (orden de creación de tablas).
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS pedidos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      numero_pedido VARCHAR(20) NOT NULL,
+      tipo ENUM('cotizacion','pedido') NOT NULL DEFAULT 'cotizacion',
+      concepto VARCHAR(255) NOT NULL,
+      cantidad DECIMAL(12,2) NOT NULL,
+      descuento_porcentaje DECIMAL(5,2) NULL,
+      email VARCHAR(200) NULL,
+      nombre_cliente_manual VARCHAR(200) NULL,
+      producto_id INT NULL,
+      producto_cantidad DECIMAL(12,3) NULL,
+      estado ENUM('pedido','progreso','confirmar','entregado','cancelado') NOT NULL DEFAULT 'pedido',
+      estado_actualizado_en DATETIME NOT NULL,
+      motivo_cancelacion VARCHAR(255) NULL,
+      convertido_a_orden_id INT NULL,
+      convertido_en DATETIME NULL,
+      eliminado_en DATETIME NULL,
+      creado_por VARCHAR(200) NULL,
+      creado_en DATETIME NOT NULL,
+      actualizado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_pedidos_numero (numero_pedido),
+      KEY idx_pedidos_estado (estado),
+      KEY idx_pedidos_eliminado_en (eliminado_en),
+      KEY idx_pedidos_convertido (convertido_a_orden_id),
+      CONSTRAINT chk_pedidos_cantidad CHECK (cantidad > 0)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Migración (punto en curso: rediseño del modal "Nuevo pedido", concepto
+  // "panel dividido" elegido por el usuario) — tenants ya aprovisionados
+  // antes de esta columna. Default 'cotizacion' para TODA fila ya
+  // existente: coincide con la filosofía original del módulo ("se trata
+  // como cotización" era el único texto que tenía el modal hasta ahora,
+  // ver el hint que seguía diciendo eso) — nunca reclasificar como
+  // 'pedido' algo creado antes de que el campo existiera.
+  const [colsPedidos] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pedidos'`
+  );
+  if (!colsPedidos.map((c) => c.COLUMN_NAME).includes('tipo')) {
+    await db.query("ALTER TABLE pedidos ADD COLUMN tipo ENUM('cotizacion','pedido') NOT NULL DEFAULT 'cotizacion'");
+  }
+
+  // pedido_historial (Punto 508, Segmento 3): bitácora de CADA cambio de
+  // etapa — sin esto, "tiempo promedio por etapa"/"ciclo promedio de
+  // cierre" (reportes aprobados) solo se podrían calcular sobre la etapa
+  // ACTUAL de cada pedido (una foto de hoy), nunca un promedio histórico
+  // real de cuánto tardó cada etapa ya completada. `estado_anterior` NULL
+  // = fila de creación (nace en 'pedido'). Sin CONSTRAINT FOREIGN KEY,
+  // mismo motivo que abonos/orden_productos (orden de creación de tablas).
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS pedido_historial (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      pedido_id INT NOT NULL,
+      estado_anterior ENUM('pedido','progreso','confirmar','entregado','cancelado') NULL,
+      estado_nuevo ENUM('pedido','progreso','confirmar','entregado','cancelado') NOT NULL,
+      creado_en DATETIME NOT NULL,
+      KEY idx_pedido_historial_pedido (pedido_id),
+      KEY idx_pedido_historial_creado_en (creado_en)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 

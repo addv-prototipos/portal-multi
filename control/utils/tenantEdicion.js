@@ -180,6 +180,7 @@ async function resolverPlanYFunciones(tenant, datos, db) {
     reportesEstadoInventarioHabilitado: tenant.reportes_estado_inventario_habilitado ? 1 : 0,
     reportesEstadoTicketsHabilitado: tenant.reportes_estado_tickets_habilitado ? 1 : 0,
     promocionesHabilitado: tenant.promociones_habilitado ? 1 : 0,
+    crmHabilitado: tenant.crm_habilitado ? 1 : 0,
     ticketImpresionHabilitado: tenant.ticket_impresion_habilitado ? 1 : 0,
   };
 
@@ -229,6 +230,7 @@ async function resolverPlanYFunciones(tenant, datos, db) {
       reportesEstadoInventarioHabilitado: plan.reportes_estado_inventario_habilitado ? 1 : 0,
       reportesEstadoTicketsHabilitado: plan.reportes_estado_tickets_habilitado ? 1 : 0,
       promocionesHabilitado: plan.promociones_habilitado ? 1 : 0,
+      crmHabilitado: plan.crm_habilitado ? 1 : 0,
       ticketImpresionHabilitado: plan.ticket_impresion_habilitado ? 1 : 0,
     };
   }
@@ -251,6 +253,7 @@ async function resolverPlanYFunciones(tenant, datos, db) {
   if (typeof datos.reportesEstadoInventarioHabilitado === 'boolean') base.reportesEstadoInventarioHabilitado = datos.reportesEstadoInventarioHabilitado ? 1 : 0;
   if (typeof datos.reportesEstadoTicketsHabilitado === 'boolean') base.reportesEstadoTicketsHabilitado = datos.reportesEstadoTicketsHabilitado ? 1 : 0;
   if (typeof datos.promocionesHabilitado === 'boolean') base.promocionesHabilitado = datos.promocionesHabilitado ? 1 : 0;
+  if (typeof datos.crmHabilitado === 'boolean') base.crmHabilitado = datos.crmHabilitado ? 1 : 0;
   if (typeof datos.ticketImpresionHabilitado === 'boolean') base.ticketImpresionHabilitado = datos.ticketImpresionHabilitado ? 1 : 0;
   if (datos.maxUsuarios !== undefined) {
     const r = normalizarMaxUsuarios(datos.maxUsuarios);
@@ -415,6 +418,7 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
        reportes_por_reporte_habilitado = ?, reportes_cortes_habilitado = ?,
        reportes_eliminados_habilitado = ?, reportes_estado_inventario_habilitado = ?,
        reportes_estado_tickets_habilitado = ?, promociones_habilitado = ?,
+       crm_habilitado = ?,
        ticket_impresion_habilitado = ?
      WHERE id = ?`,
     [
@@ -447,6 +451,7 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
       planFunciones.reportesEstadoInventarioHabilitado,
       planFunciones.reportesEstadoTicketsHabilitado,
       planFunciones.promocionesHabilitado,
+      planFunciones.crmHabilitado,
       planFunciones.ticketImpresionHabilitado,
       tenant.id,
     ]
@@ -490,6 +495,7 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
     ['reportesEstadoInventarioHabilitado', 'reportes_estado_inventario_habilitado'],
     ['reportesEstadoTicketsHabilitado', 'reportes_estado_tickets_habilitado'],
     ['promocionesHabilitado', 'promociones_habilitado'],
+    ['crmHabilitado', 'crm_habilitado'],
     ['ticketImpresionHabilitado', 'ticket_impresion_habilitado'],
   ];
   for (const [campoCamel, campoColumna] of CAMPOS_GOBIERNO_AMPLIADO) {

@@ -200,6 +200,7 @@ describe('scripts/ensureSchema.js', () => {
       const db = mockDb();
       db.query.mockImplementation((sql) => {
         if (/SELECT COUNT\(\*\) AS totalReal FROM planes/.test(sql)) return Promise.resolve([[{ totalReal: 0 }]]);
+        if (/SELECT COUNT\(\*\) AS total FROM ajustes_globales/.test(sql)) return Promise.resolve([[{ total: 0 }]]);
         if (/SELECT COUNT\(\*\) AS total FROM planes/.test(sql)) return Promise.resolve([[{ total: 0 }]]);
         if (/CREATE TABLE IF NOT EXISTS planes/.test(sql)) return Promise.resolve([{}]);
         if (/SELECT COLUMN_NAME FROM INFORMATION_SCHEMA\.COLUMNS[\s\S]*'planes'/.test(sql)) return Promise.resolve([COLUMNAS_PLANES_BASE]);
@@ -209,13 +210,16 @@ describe('scripts/ensureSchema.js', () => {
       await asegurarTablaPlanes(db);
 
       // 1 CREATE TABLE + 1 SELECT columnas + un ALTER por cada entrada de
-      // COLUMNAS_PLANES_NUEVAS (ninguna existía) + 2 UPDATE de backfill
-      // (ticket_impresion_habilitado y destacado, punto 461/462, ambas
-      // nacen en esta misma corrida) + 1 SELECT COUNT + 1 INSERT (semilla
-      // vieja Básico/Pro/Enterprise) + 1 SELECT COUNT totalReal + 1 INSERT
-      // (catálogo real de 4 planes, punto 391/392) — 2 pares SELECT+INSERT
-      // independientes, nunca un número a mano (N-02).
-      const totalEsperado = 2 + COLUMNAS_PLANES_NUEVAS_NOMBRES.length + 2 + 2 + 2;
+      // COLUMNAS_PLANES_NUEVAS (ninguna existía) + 3 UPDATE de backfill
+      // (ticket_impresion_habilitado, destacado y pedidos_habilitado —
+      // punto 461/462/508, las 3 nacen en esta misma corrida) + 1 SELECT +
+      // 1 UPDATE planes + 1 UPDATE tenants (modelo de 2 capas) + 1 INSERT
+      // del backfill de crm_habilitado (sentinel en ajustes_globales, sin
+      // aplicar todavía) + 1 SELECT COUNT + 1 INSERT (semilla vieja
+      // Básico/Pro/Enterprise) + 1 SELECT COUNT totalReal + 1 INSERT
+      // (catálogo real de 4 planes, punto 391/392) — pares independientes,
+      // nunca un número a mano (N-02).
+      const totalEsperado = 2 + COLUMNAS_PLANES_NUEVAS_NOMBRES.length + 3 + 4 + 2 + 2;
       expect(db.query).toHaveBeenCalledTimes(totalEsperado);
       expect(db.query.mock.calls[0][0]).toMatch(/CREATE TABLE IF NOT EXISTS planes/);
       expect(db.query.mock.calls[1][0]).toMatch(/SELECT COLUMN_NAME FROM INFORMATION_SCHEMA\.COLUMNS/);
@@ -226,7 +230,19 @@ describe('scripts/ensureSchema.js', () => {
       expect(db.query.mock.calls.some(([sql]) =>
         /UPDATE planes SET ticket_impresion_habilitado = marca_lookfeel_habilitado/.test(sql)
       )).toBe(true);
-      const idxCount = 2 + COLUMNAS_PLANES_NUEVAS_NOMBRES.length + 2;
+      expect(db.query.mock.calls.some(([sql]) =>
+        /UPDATE planes SET pedidos_habilitado = 1/.test(sql)
+      )).toBe(true);
+      expect(db.query.mock.calls.some(([sql]) =>
+        /UPDATE planes SET crm_habilitado = 1 WHERE nombre NOT LIKE '%Solicita%'/.test(sql)
+      )).toBe(true);
+      expect(db.query.mock.calls.some(([sql]) =>
+        /UPDATE tenants t\s+JOIN planes p ON t\.plan_id = p\.id\s+SET t\.crm_habilitado = p\.crm_habilitado/.test(sql)
+      )).toBe(true);
+      expect(db.query.mock.calls.some(([sql]) =>
+        /INSERT INTO ajustes_globales/.test(sql)
+      )).toBe(true);
+      const idxCount = 2 + COLUMNAS_PLANES_NUEVAS_NOMBRES.length + 3 + 4;
       expect(db.query.mock.calls[idxCount][0]).toMatch(/SELECT COUNT\(\*\) AS total FROM planes/);
       const [sqlInsert, params] = db.query.mock.calls[idxCount + 1];
       expect(sqlInsert).toMatch(/INSERT INTO planes/);
@@ -259,6 +275,9 @@ describe('scripts/ensureSchema.js', () => {
       );
       db.query.mockImplementation((sql) => {
         if (/SELECT COUNT\(\*\) AS totalReal FROM planes/.test(sql)) return Promise.resolve([[{ totalReal: 4 }]]);
+        // Sentinel ya aplicado en una corrida previa (instalación ya
+        // migrada) — el backfill de crm_habilitado no debe repetirse.
+        if (/SELECT COUNT\(\*\) AS total FROM ajustes_globales/.test(sql)) return Promise.resolve([[{ total: 1 }]]);
         if (/SELECT COUNT\(\*\) AS total FROM planes/.test(sql)) return Promise.resolve([[{ total: 2 }]]);
         if (/CREATE TABLE IF NOT EXISTS planes/.test(sql)) return Promise.resolve([{}]);
         if (/SELECT COLUMN_NAME FROM INFORMATION_SCHEMA\.COLUMNS[\s\S]*'planes'/.test(sql)) return Promise.resolve([columnasYaMigradas]);
@@ -268,11 +287,13 @@ describe('scripts/ensureSchema.js', () => {
       await asegurarTablaPlanes(db);
 
       // 1 CREATE TABLE + 1 SELECT columnas (todas ya existen, 0 ALTER) +
+      // 1 SELECT sentinel de ajustes_globales (ya aplicado, sin UPDATE/INSERT) +
       // 1 SELECT COUNT (total) + 1 SELECT COUNT (totalReal, catálogo real
-      // ya migrado) = 4. Sin ningún INSERT.
-      expect(db.query).toHaveBeenCalledTimes(4);
+      // ya migrado) = 5. Sin ningún INSERT ni el UPDATE de crm_habilitado.
+      expect(db.query).toHaveBeenCalledTimes(5);
       expect(db.query.mock.calls.some(([sql]) => /ALTER TABLE planes/.test(sql))).toBe(false);
       expect(db.query.mock.calls.some(([sql]) => /INSERT INTO planes/.test(sql))).toBe(false);
+      expect(db.query.mock.calls.some(([sql]) => /UPDATE planes SET crm_habilitado/.test(sql))).toBe(false);
     });
   });
 });

@@ -84,6 +84,13 @@ en el punto 347, Fase 0-1 — replicar exacto, nunca reinventar):
    advertencia) se documenta y valida con el mismo criterio que el
    catálogo ya diseñado en `stitch/gobierno-funcionalidades/NOTAS.md`.
 
+**Módulos nuevos ya mapeados con este patrón (23 nov 2026, trabajo
+local, sin desplegar)**: Pedidos (`pedidos_habilitado`, punto 508,
+dependiente de Ventas) y "Clientes (CRM)" (`crm_habilitado`, puntos
+514-515, sin dependencia, activo por default salvo plan Solicita). Ver
+gotchas de gobierno en la sección de abajo antes de tocar cualquiera de
+los dos.
+
 **Proveedores**: no es una superficie/app separada — vive dentro del
 mismo ecosistema admin/portal de clientes (confirmado por el usuario,
 2026-10-01). Si en el futuro gana una vía de acceso propia (tipo portal,
@@ -216,6 +223,52 @@ usado en todo este repo hasta hoy) cuenta como prueba de
 
 ## Gotchas operativos recurrentes (leer antes de tocar Docker/nginx/CSP/tests)
 
+- **`backend/scripts/provisionar-tenant.js` está desactualizado desde el
+  Segmento 9b y NUNCA debe correrse tal cual en este entorno local**
+  (punto 508, cierre, 2026-11-23): el script conecta como root a UN SOLO
+  `DB_HOST`/`DB_PORT` y asume que ahí viven TANTO `control_tenants` COMO
+  las bases `tenant_*` — cierto cuando se escribió, falso desde que
+  `mysql-control` se volvió su propio contenedor (hoy `mysql` solo tiene
+  `portal_facturacion`+`tenant_*`; `control_tenants` vive aparte en
+  `mysql-control`, confirmado con `SHOW DATABASES` en ambos). Correrlo
+  contra `DB_HOST=localhost:3306` crearía una `control_tenants` DUPLICADA
+  y desincronizada dentro de `mysql` — nunca la que de verdad lee
+  `backend`/`control`. **Para dar de alta un tenant de prueba en local
+  sin este script**, replicar el mecanismo real de onboarding a mano: (1)
+  `INSERT` directo en `control_tenants.tenants` (vía `mysql-control`) con
+  los flags que se necesiten; (2) `POST /internal/activar-tenant/<slug>`
+  (crea la BD física + esquema); (3) `POST /internal/crear-admin-inicial/<slug>`
+  (cuenta administradora, con `passwordHash` en formato real
+  `salt:hash` de `authUsuario.js:hashPassword` — nunca contraseña en
+  texto plano). Las 2 rutas `/internal/*` solo piden `X-Internal-Secret`
+  (`INTERNAL_CACHE_SECRET` del `.env`), igual que cualquier otra llamada
+  interna control→backend ya documentada. Si se necesita arreglar esto
+  de raíz algún día, el fix real es separar `provisionar-tenant.js` en 2
+  conexiones (una a `mysql-control`, otra a `mysql`) — no se hizo en este
+  punto por no ser parte del alcance pedido.
+- **Un módulo que depende de OTRO flag (ej. Pedidos depende de Ventas):
+  cada superficie nueva que lo expone debe repetir el AND completo, no
+  solo chequear su propio flag** (punto 508, Segmento 7, 2026-11-21):
+  `#btn-vista-pedidos` (sidebar) ya combinaba `ventasHabilitado &&
+  pedidosHabilitado` desde el Segmento 1 — pero al construir después la
+  pestaña de Reportes (`pestanaReportesVisible`), las 6 tarjetas
+  gateadas de Resumen financiero (`aplicarVisibilidadTarjetasDashboard`)
+  y la categoría del Centro de conocimiento
+  (`categoriaConocimientoVisible`), las 3 solo revisaban
+  `planPermite('pedidosHabilitado')`, copiando el patrón genérico de
+  flag único en vez del combinado del sidebar. Con un plan viejo que
+  tuviera el flag dependiente en 1 (heredado de un backfill
+  incondicional "activo para todos") y su dependencia en 0 — estado real
+  encontrado en `prueba-cancel-8`, no hipotético — las 3 superficies
+  mostraban un control que el backend ya rechazaba con 404
+  (`requiereFeature` sigue bien). Se detectó escribiendo el E2E del
+  candado negativo, no por inspección de código. Antes de dar por
+  "ya gateada" cualquier superficie nueva de un módulo con dependencia
+  declarada (`validarReglasDependencia()` en `control/utils/planes.js`),
+  grepear dónde más vive el flag propio (`planPermite('<flagDependiente>')`)
+  y confirmar que cada sitio nuevo replique el MISMO AND que el primer
+  punto de entrada (normalmente el botón del sidebar), nunca solo el
+  flag suelto.
 - **Todo correo automático nuevo DEBE usar el cascarón de marca
   `construirCorreoBase()`, nunca `cuerpo` de texto plano** (punto 491,
   2026-11-11): auditoría encontró 7 plantillas (5 archivos) mandando
@@ -908,6 +961,97 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   DOM. Al agregar un override mobile-only para una clase nueva, verificar
   que el `@media` quede DESPUÉS de la regla base en el archivo, o usar
   `grep -n` para confirmar el orden real antes de dar el CSS por bueno.
+- **Reusar un widget con `position: absolute` (dropdown de sugerencias,
+  tooltip, lo que sea) en un contenedor nuevo: el `position: relative`
+  del padre NO viaja solo, hay que copiar también la clase que lo da**
+  (punto 510, 2026-11-23): `.orden-inventario-sugerencias`
+  (`position:absolute; left:0; right:0; top:100%`, compartida por el
+  buscador de inventario de Ventas y de Pedidos) depende por completo de
+  que su contenedor directo tenga `position:relative` — en Ventas ese
+  contenedor lleva la clase `.orden-inventario-buscar-field` para eso.
+  Al construir el buscador de Pedidos (punto 508) el wrapper nuevo
+  (`#pedido-nuevo-producto-buscar-wrap`) se escribió sin esa clase —
+  **el dropdown SÍ tenía los resultados reales en el DOM
+  (`hidden:false`, 15 `<button>`), solo se dibujaba en el lugar
+  equivocado** (`getBoundingClientRect()` real:
+  `{top:831, left:0, width:1440}`, ancho completo de la página en vez de
+  los ~250px del campo) — desde el screenshot del usuario se veía
+  exactamente como "no cargó nada", aunque el bug real era 100% de
+  posicionamiento, cero de datos/red/JS roto. Antes de dar un
+  `position:absolute` reusado por "no me aparece" o "no carga", medir
+  `getBoundingClientRect()` del elemento real en vez de asumir que el
+  problema está en quien llena los datos — puede estar perfectamente
+  lleno y simplemente invisible fuera del viewport del contenedor.
+  **Mismo bug-shape, segunda vez en el mismo componente (punto 511,
+  misma sesión)**: `.orden-inventario-seleccionado` (tarjeta del producto
+  YA elegido) también se reusó en Pedidos sin copiar la estructura
+  interna real de Ventas — ahí nombre+detalle+botón van como 3 hijos
+  flex sueltos (`justify-content:space-between` compitiendo por espacio
+  en 250px) en vez de agrupar nombre+detalle en
+  `.orden-inventario-seleccionado-info` (como hace Ventas) y usar el
+  botón ÍCONO compacto (`.btn-icon`, X de 12px) en vez de un botón de
+  texto completo ("Quitar", ancho fijo). Resultado: texto envuelto a 3
+  líneas y botón encimado — visible a simple vista en captura del
+  usuario. Lección reforzada: copiar un componente de un contexto ANCHO
+  a uno angosto nunca es solo "pegar la clase CSS" — hay que leer el
+  HTML completo del original (anidamiento, tipo de botón) antes de
+  reescribirlo a mano, no re-derivarlo de memoria.
+- **`locator.dragTo()` de Playwright NUNCA dispara drag and drop HTML5
+  real (`draggable="true"` + `dragstart`/`dragover`/`drop`)** (punto 513,
+  2026-11-23): `dragTo()` simula `mousedown`→`mousemove`→`mouseup` —
+  funciona para implementaciones de "arrastre" hechas a mano con eventos
+  de mouse, pero el kanban de Pedidos usa la API nativa HTML5 Drag and
+  Drop (`draggable="true"` en la tarjeta, `dragstart` ahí,
+  `dragover`/`drop` en la columna destino) — con `dragTo()` el primer
+  intento de este punto no movía la tarjeta de columna, sin ningún error
+  ambiguo (falló limpio comparando el texto de la columna, no un
+  timeout). Fix real: disparar los 4 eventos a mano con
+  `page.evaluate()` y un `DataTransfer` real
+  (`new DragEvent('dragstart'/'dragover'/'drop'/'dragend', {
+  dataTransfer: dt, bubbles: true })`) — mismo mecanismo ya confirmado a
+  mano con Chrome DevTools MCP antes de escribir el test. Cualquier
+  drag-and-drop futuro en este sitio (otro kanban, reordenar una lista)
+  necesita este mismo patrón en su E2E, nunca `dragTo()` a secas.
+- **Desalinear una fila de 3 campos por labels de longitud distinta:
+  acortar el texto solo mueve el problema al siguiente label más largo,
+  nunca lo resuelve de raíz** (punto 512, 2026-11-23): en
+  `.pedido-nuevo-row3` (Cantidad/Monto/Descuento de "Nuevo pedido"), el
+  punto 511 acortó "Monto estimado (MXN)" → "Monto (MXN)" para que no
+  envolviera a 2 líneas y desalineara los inputs — funcionó hasta que el
+  punto 512 (homologar el stepper al círculo de 40px de Ventas) ensanchó
+  la primera columna y achicó la tercera lo suficiente para que
+  "Descuento (opcional)" empezara a envolver en su lugar, mismo bug,
+  columna distinta. Fix real: `.pedido-nuevo-row3 .field > label {
+  min-height: 34px; }` — reserva el mismo alto para los 3 labels sin
+  importar cuántas líneas use cada uno, los inputs quedan siempre a la
+  misma altura pase lo que pase con el ancho de columna en el futuro. Se
+  revirtió el acortamiento de copy (ya no hacía falta). Ante cualquier
+  fila de N campos con labels de longitud variable, usar `min-height` en
+  el label desde el día uno en vez de ir ajustando el texto cada vez que
+  cambie el layout — es la diferencia entre resolver la causa y
+  perseguir el síntoma.
+- **`.field-error` dentro de CUALQUIER `.modal` nunca se pintaba rojo —
+  bug sitewide, no de un formulario en particular** (punto 508, rediseño
+  "Nuevo pedido", 2026-11-23): `.modal p { color: var(--color-ink-soft);
+  font-size: 14px; }` (style.css) tiene especificidad (0,1,1) — un tipo +
+  una clase — que SIEMPRE le gana a `.field-error` (0,1,0, solo una
+  clase), sin importar el orden en el archivo ni que `.field-error` se
+  declare después. Cualquier `<p class="field-error">` anidado dentro de
+  `.modal` (prácticamente todos los mensajes de validación del sitio)
+  terminaba en gris, nunca en el rojo real (`--color-error`) — pasó
+  inadvertido porque el color de error nunca fue el único indicador (la
+  posición + el texto ya comunicaban el problema), hasta que un rediseño
+  pidió explícitamente un aviso rojo visible y se verificó el
+  `getComputedStyle` real en vez de confiar en el nombre de la clase.
+  Fix aplicado como regla global (`.modal p.field-error { color:
+  var(--color-error); font-size: 12.5px; }`, justo debajo de `.modal p`
+  en `style.css`) — cubre las 3 apps y cualquier modal existente o
+  futuro, no solo Pedidos. Lección replicable: con cualquier color/estilo
+  que "debería" aplicar por nombre de clase pero el elemento vive dentro
+  de un contenedor con su propio selector descendiente de tipo+clase,
+  verificar `getComputedStyle(el).color` real en el navegador antes de
+  dar el estilo por bueno — el nombre de la clase no garantiza que su
+  regla gane la cascada.
 - **Contraste WCAG en JS: nunca le quites el `#` al hex antes de medir
   luminancia** (punto 373, 2026-10-06): `luminancia(hex)` lee los canales
   con `hex.slice(1,3)/(3,5)/(5,7)` — asume el `#` en la posición 0 (mismo
@@ -1130,6 +1274,51 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   nunca bloquea — todo tenant existente antes de este punto tiene ese
   valor, bloquear ahí habría apagado la administración de cada cliente
   activo el día del despliegue.
+- **Un flag de tenant nuevo son 4 sitios, no 3 — el SELECT explícito de
+  `tenantContext.js` es el que nadie recuerda** (punto 514, 2026-11-23,
+  bug real encontrado probando en Docker, nunca por `node --check` ni
+  Jest): agregar la columna a `COLUMNAS_NUEVAS`
+  (`control/scripts/ensureSchema.js`) y exponerla en el objeto `req.tenant`
+  de `tenantContext.js` NO basta — `resolverTenantPorSlug()` arma esa fila
+  con una lista de columnas EXPLÍCITA en el propio `SELECT` (no
+  `SELECT *`), y si el nombre no está ahí también, `tenant.<flag>` llega
+  `undefined` para siempre sin importar lo que diga la BD — el candado
+  `requiereFeature()` responde 404 aunque la columna esté en 1. Los mocks
+  de Jest (que arman la fila completa a mano) nunca lo atrapan. Antes de
+  dar por "ya conectado" un flag nuevo, grepear su nombre snake_case
+  dentro de ese `SELECT` de `tenantContext.js` — y si el flag también debe
+  poder asignarse/editarse desde `/control`, revisar además
+  `control/utils/tenantEdicion.js` (tiene SU PROPIA copia del flag en 4
+  lugares: base del tenant, base del plan, excepción explícita por
+  tenant, y el `UPDATE tenants SET ...` con columna+placeholder+param —
+  más `CAMPOS_GOBIERNO_AMPLIADO` si quieres que aparezca en el log de
+  cambios). Y si el módulo tiene un botón de sidebar nuevo en `/admin`:
+  el listener de clic (`els.btnVistaX.addEventListener('click', ...)`,
+  alrededor de la línea 9690 de `admin.js`) es una QUINTA pieza aparte de
+  `mapaNavPorVista`/`GRUPOS_SIDEBAR_NAV`/`RESTRICCIONES_PERFIL` — sin él,
+  el botón se ve, se puede seleccionar por teclado/a11y, pero el clic no
+  hace nada y no hay ningún error en consola.
+- **Un flag de gobierno que pasa de "opt-in por plan" a "activo por
+  default salvo excepción" necesita backfill de 2 CAPAS, nunca solo el
+  catálogo** (punto 515, 2026-11-23): `UPDATE planes SET flag=1 WHERE ...`
+  (capa 1, catálogo — rige asignaciones futuras) NO alcanza a ningún
+  tenant YA aprovisionado, porque `resolverPlanYFunciones()`
+  (`control/utils/tenantEdicion.js`) solo copia el valor del plan a
+  `tenants.<flag>` al REASIGNAR/reaplicar un plan a mano, nunca solo.
+  Falta la capa 2: `UPDATE tenants t JOIN planes p ON t.plan_id=p.id SET
+  t.<flag>=p.<flag> WHERE t.<flag> <> p.<flag>` — sin ella, un tenant ya
+  existente se queda con 404 pese a que su plan ya dice `1` en el
+  catálogo (síntoma real reportado por el usuario: "que se vea en el
+  sitio también"). Ambos UPDATE corren detrás de un sentinel de una sola
+  vez en `ajustes_globales` (nunca incondicional, mismo criterio que
+  cualquier backfill de `ensureSchema()`) — si el sentinel ya se marcó
+  aplicado en una versión anterior del backfill (ej. se agregó la capa 2
+  después de que la capa 1 ya corrió), subir el nombre de la clave
+  (`_v1` → `_v2`), nunca reutilizar la misma — `control_app` no tiene
+  `DELETE` para borrarla a mano. Si el backfill lee/escribe el sentinel
+  en `ajustes_globales`, `asegurarTablaAjustesGlobales()` debe correr
+  ANTES que la función que hace el backfill en `control/server.js:iniciar()`
+  — verificar el orden real, no asumirlo.
 - **Insertar una columna nueva EN MEDIO de un `UPDATE ... SET` rompe
   cualquier test que indexe los parámetros por posición** (patrón ya
   usado en `tenantSuscripcion.js` antes del punto 417) — al agregar

@@ -10043,7 +10043,13 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 .resumen-fin-tablero > [data-dashboard-id="kpi-facturado"],
 .resumen-fin-tablero > [data-dashboard-id="kpi-gastos"],
 .resumen-fin-tablero > [data-dashboard-id="kpi-balance"],
-.resumen-fin-tablero > [data-dashboard-id="kpi-sin-facturar"] {
+.resumen-fin-tablero > [data-dashboard-id="kpi-sin-facturar"],
+.resumen-fin-tablero > [data-dashboard-id="pedidos-pipeline"],
+.resumen-fin-tablero > [data-dashboard-id="pedidos-ingreso-proyectado"],
+.resumen-fin-tablero > [data-dashboard-id="pedidos-tasa-conversion"],
+.resumen-fin-tablero > [data-dashboard-id="pedidos-ciclo-promedio"],
+.resumen-fin-tablero > [data-dashboard-id="pedidos-valor-perdido"],
+.resumen-fin-tablero > [data-dashboard-id="pedidos-saldo-cxc"] {
   grid-column: span 3;
 }
 .resumen-fin-tablero > [data-dashboard-id="utilidad"],
@@ -10225,6 +10231,304 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
     transition: none;
   }
 }
+
+/* ---------- Pedidos (punto 508, Segmento 2) — kanban de pre-ventas ---------- */
+.pedidos-kanban {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  align-items: flex-start;
+}
+.pedidos-col {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  width: 252px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pedidos-col-head {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+.pedidos-col-body {
+  padding: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 8px;
+  transition: background-color .12s ease, outline-color .12s ease;
+}
+/* Drag and drop (punto 513) — solo las 3 columnas laterales aceptan
+   drop (mismo criterio que requiereFeature/validación real del backend:
+   Entregado/Cancelado exigen datos extra — venta real o motivo — nunca
+   un simple arrastre). */
+.pedidos-col-body.is-dragover {
+  background: var(--color-accent-soft);
+  outline: 2px dashed var(--color-accent);
+  outline-offset: -4px;
+}
+.pedidos-col-vacio {
+  color: var(--color-ink-soft);
+  font-size: 12px;
+  text-align: center;
+  padding: 14px 6px;
+  margin: 0;
+}
+.pedidos-card {
+  position: relative;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 11px;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+}
+.pedidos-card[draggable="true"] { cursor: grab; }
+.pedidos-card[draggable="true"]:active { cursor: grabbing; }
+.pedidos-card.is-dragging { opacity: .45; }
+.pedidos-card:hover {
+  border-color: var(--color-accent);
+}
+.pedidos-sla-bar {
+  height: 3px;
+  border-radius: 2px;
+  margin: -10px -11px 8px;
+}
+.pedidos-sla-bar.is-ok { background: #1FAE6B; }
+.pedidos-sla-bar.is-mid { background: var(--color-warn); }
+.pedidos-sla-bar.is-late { background: var(--color-error); }
+.pedidos-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.pedidos-card-folio {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  letter-spacing: 0.02em;
+}
+.pedidos-card-cliente {
+  font-weight: 700;
+  font-size: 13.5px;
+  margin-top: 3px;
+}
+.pedidos-card-concepto {
+  color: var(--color-ink-soft);
+  font-size: 11.5px;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pedidos-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 7px;
+  font-size: 12.5px;
+}
+.pedidos-card-total { font-weight: 700; }
+.pedidos-card-dias { color: var(--color-ink-soft); font-size: 11.5px; }
+.pedidos-card-vendedor {
+  color: var(--color-ink-soft);
+  font-size: 11.5px;
+  margin-top: 7px;
+}
+.pedidos-card-mover {
+  width: 100%;
+  margin-top: 8px;
+  font-size: 11.5px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  background: var(--color-surface);
+  color: inherit;
+}
+.pedidos-card-pie {
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 4px 7px;
+}
+.pedidos-card-pie.is-entregado { background: #DCEFE3; color: #1FAE6B; }
+.pedidos-card-pie.is-cancelado { background: var(--color-error-soft); color: var(--color-error); font-weight: 500; }
+.pedidos-menu {
+  position: fixed;
+  z-index: 40;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-card);
+  min-width: 180px;
+  padding: 4px;
+  font-size: 12.5px;
+}
+.pedidos-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 7px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.pedidos-menu button:hover { background: var(--color-accent-soft); }
+.pedidos-menu-peligro { color: var(--color-error); }
+
+@media (max-width: 900px) {
+  .pedidos-col { width: 220px; }
+}
+
+/* ---------- Reportes de Pedidos (Segmento 3) ---------- */
+.pedidos-reporte-fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--color-border);
+  font-size: 13px;
+}
+.pedidos-reporte-fila:last-child { border-bottom: none; }
+.pedidos-reporte-fila span:first-child { flex: 1; color: var(--color-ink-soft); }
+.pedidos-reporte-fila strong { font-variant-numeric: tabular-nums; }
+.pedidos-reporte-pct {
+  font-size: 11.5px;
+  color: var(--color-ink-soft);
+  background: var(--color-accent-soft);
+  border-radius: 999px;
+  padding: 2px 8px;
+  flex: 0 0 auto;
+}
+
+/* ---------- Modal "Nuevo pedido" — panel dividido (Punto 508, rediseño
+   elegido por el usuario entre 4 propuestas): el modal crece a lo ancho
+   en vez de apilar todo en una sola columna angosta — izquierda:
+   clasificación (Tipo) + producto del catálogo; derecha: concepto,
+   importe (con Cantidad SIEMPRE visible, nunca escondida hasta elegir
+   producto) y datos de contacto. Reusa `.gastos-modal-grid` ya existente
+   para el par Nombre/Correo — nunca un cuarto sistema de grid de 2
+   columnas. ---------- */
+.pedido-nuevo-modal-ancho {
+  max-width: 760px;
+  width: 94vw;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+/* Punto 513: el detalle pasó de solo-lectura a formulario editable
+   (Tipo + Cantidad con stepper + Monto/Descuento/Nombre/Correo) — la
+   base .modal (380px) se quedaba corta, mismo riesgo de apretujar ya
+   corregido en el punto 511/512 para "Nuevo pedido". */
+.pedido-detalle-modal-ancho {
+  max-width: 460px;
+  width: 94vw;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+.pedido-nuevo-grid {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  gap: 0 24px;
+}
+@media (max-width: 640px) {
+  .pedido-nuevo-grid { grid-template-columns: 1fr; }
+}
+.pedido-nuevo-row3 {
+  display: grid;
+  grid-template-columns: 170px 1fr 1fr;
+  gap: 0 14px;
+}
+/* Labels de esta fila a veces envuelven a 2 líneas ("Monto estimado
+   (MXN)", "Descuento (opcional)") y a veces no ("Cantidad") — reservar
+   el mismo alto para los 3 evita que el input de abajo quede más arriba
+   o más abajo según cuál etiqueta se envolvió (bug real, punto 511: pasó
+   primero con Monto, acortar su copy solo lo movió a Descuento). Fix
+   robusto de una vez: alto fijo en vez de perseguir el texto más largo
+   cada vez que cambia. */
+.pedido-nuevo-row3 .field > label { min-height: 34px; }
+@media (max-width: 480px) {
+  .pedido-nuevo-row3 { grid-template-columns: 1fr 1fr; }
+  .pedido-nuevo-row3 .field:first-child { grid-column: 1 / -1; max-width: 170px; }
+}
+
+/* Tipo de registro: Pedido/Cotización — segmentado con ícono + 2 líneas
+   de texto, mismo criterio visual que el resto del sitio (SVG feather,
+   cero emojis). "Pedido" usa el verde ya usado en el resto del panel
+   para "ya es compromiso real" (ver .pedidos-card-pie.is-entregado) —
+   --color-positive no es variable real del proyecto (ver CLAUDE.md), por
+   eso el hex #1FAE6B va con fallback explícito y nunca solo la var. */
+.pedido-tipo-seg {
+  display: flex;
+  gap: 8px;
+}
+.pedido-tipo-opt {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: var(--color-surface);
+  cursor: pointer;
+  font-family: var(--font-body);
+  color: var(--color-ink);
+}
+.pedido-tipo-opt svg { flex: none; color: var(--color-ink-soft); }
+.pedido-tipo-opt .t { display: block; font-size: 13px; font-weight: 700; }
+.pedido-tipo-opt .d { display: block; font-size: 11px; color: var(--color-ink-soft); margin-top: 1px; }
+.pedido-tipo-opt.is-active { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.pedido-tipo-opt.is-active svg { color: var(--color-accent); }
+.pedido-tipo-opt.is-active[data-tipo="pedido"] { border-color: var(--color-positive, #1FAE6B); background: var(--color-positive-soft, #E4F6ED); }
+.pedido-tipo-opt.is-active[data-tipo="pedido"] svg { color: var(--color-positive, #1FAE6B); }
+.pedido-tipo-opt:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* Cantidad: reusa tal cual el stepper circular de Ventas
+   (.stepper-cantidad/.stepper-cantidad-btn, ya definido arriba en este
+   mismo archivo) — homologado a
+   pedido del usuario tras encontrar 2 estilos de stepper distintos en la
+   misma app. El `<input>` sigue siendo type="text" (no type="number"
+   como en Ventas) — gotcha ya documentado: un <input type="number">
+   sanea valores intermedios inválidos sin tecleo real; las reglas de
+   `.stepper-cantidad input` aplican igual sobre un input de texto. */
+
+/* Leyenda roja de "sin resultados" debajo del buscador de producto —
+   pedido explícito del usuario, mismo mecanismo de búsqueda que
+   Ventas/Compras pero ese nunca tuvo este aviso (antes era un dead-end
+   silencioso: 0 resultados = dropdown vacío sin ningún mensaje). Clase
+   `.field-error` ya existente (rojo real del sitio), nunca un color
+   nuevo. */
+#pedido-nuevo-producto-sin-resultados { margin-top: 6px; }
+
+/* Insignia de Tipo en la tarjeta real del kanban — mismo lenguaje de
+   color que el toggle de arriba. */
+.pedidos-card-tipo {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-bottom: 4px;
+}
+.pedidos-card-tipo.es-cotizacion { background: var(--color-accent-soft); color: var(--color-accent); }
+.pedidos-card-tipo.es-pedido { background: var(--color-positive-soft, #E4F6ED); color: var(--color-positive, #1FAE6B); }
 
 /* ---------- Cuentas por cobrar — restyle fiel a stitch/ (2026-09-09) ----------
    Banner de riesgo + antigüedad de saldos, homologados con el mockup pero
@@ -11623,3 +11927,94 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 .asistente-facturacion-nombre { font-size: 0.74rem; font-weight: 700; color: var(--color-ink-soft); letter-spacing: .02em; }
 .asistente-facturacion-botones { flex-direction: column; gap: 9px; margin-top: 18px; }
 .asistente-facturacion-botones .btn { width: 100%; }
+
+/* ---------- CRM (punto en curso): panel dividido + resumen 360 ----------
+   Mismo switch de vistas que las sub-pestañas de Reportes, pero como par
+   de botones dentro de la barra del toolbar (dos vistas, no cinco) —
+   reusa .admin-table/.admin-table-wrap para la tabla de "Métricas", y
+   tokens reales del tema (--color-accent, --color-border, --color-bg,
+   --color-ink-soft) ya definidos en .admin-body arriba. Los colores de
+   segmento ('activo'/'recurrente') son hex directo a propósito: no existe
+   --color-success/--color-positive en esta hoja (ver CLAUDE.md). */
+.crm-view-switch {
+  display: flex; gap: 2px; background: var(--color-bg); border: 1px solid var(--color-border);
+  border-radius: 10px; padding: 3px;
+}
+.crm-view-btn {
+  appearance: none; border: none; background: transparent; color: var(--color-ink-soft);
+  font-family: inherit; font-size: 13px; font-weight: 700; padding: 7px 14px; border-radius: 8px; cursor: pointer;
+}
+.crm-view-btn[aria-pressed="true"] { background: var(--color-surface); color: var(--color-accent); box-shadow: var(--shadow-card); }
+
+.crm-vacio { color: var(--color-ink-soft); font-size: 13.5px; padding: 24px 4px; text-align: center; }
+
+.crm-split {
+  display: grid; grid-template-columns: 280px 1fr; min-height: 420px;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card); overflow: hidden;
+}
+@media (max-width: 860px) { .crm-split { grid-template-columns: 1fr; } }
+.crm-split-list { border-right: 1px solid var(--color-border); overflow-y: auto; max-height: 560px; }
+@media (max-width: 860px) { .crm-split-list { border-right: none; border-bottom: 1px solid var(--color-border); max-height: 320px; } }
+.crm-split-search { padding: 12px; border-bottom: 1px solid var(--color-border); }
+.crm-split-search input {
+  width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px 11px;
+  font-size: 13.5px; font-family: inherit; background: var(--color-bg); color: var(--color-ink);
+}
+.crm-split-search input:focus { outline: none; border-color: var(--color-accent); background: var(--color-surface); }
+.crm-split-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; background: none;
+  padding: 11px 14px; border-bottom: 1px solid var(--color-border); cursor: pointer; font-family: inherit;
+}
+.crm-split-item:hover { background: var(--color-accent-soft); }
+.crm-split-item.is-active { background: var(--color-accent-soft); box-shadow: inset 3px 0 0 var(--color-accent); }
+.crm-split-item-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.crm-split-item-nombre { font-weight: 700; font-size: 13.5px; color: var(--color-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crm-split-item-sub { font-size: 11.5px; color: var(--color-ink-soft); }
+
+.crm-avatar {
+  width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 800; font-size: 12.5px; flex: none;
+}
+.crm-avatar-lg { width: 48px; height: 48px; font-size: 16px; border-radius: 12px; }
+
+.crm-split-detail { padding: 22px 24px; overflow-y: auto; max-height: 560px; }
+.crm-detalle-top { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.crm-detalle-nombre { flex: 1; min-width: 160px; }
+.crm-detalle-nombre h3 { margin: 0; font-size: 18px; }
+.crm-detalle-meta { margin: 3px 0 0; font-size: 12.5px; color: var(--color-ink-soft); }
+.crm-detalle-contacto { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 14px; font-size: 13.5px; color: var(--color-ink-soft); }
+.crm-detalle-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 20px; }
+@media (max-width: 560px) { .crm-detalle-stats { grid-template-columns: repeat(2, 1fr); } }
+.crm-stat { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }
+.crm-stat .v { font-size: 17px; font-weight: 800; color: var(--color-ink); }
+.crm-stat .l { font-size: 11px; color: var(--color-ink-soft); }
+.crm-detalle-nota { margin: 18px 0 0; font-size: 12.5px; color: var(--color-ink-soft); }
+
+.crm-badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+.crm-seg-activo { background: rgba(31, 174, 107, .12); color: #1FAE6B; }
+.crm-seg-recurrente { background: rgba(46, 111, 224, .12); color: #2E6FE0; }
+.crm-seg-nuevo { background: var(--color-accent-soft); color: var(--color-accent); }
+.crm-seg-en_riesgo { background: var(--color-warn-soft); color: var(--color-warn); }
+.crm-seg-inactivo { background: var(--color-bg); color: var(--color-ink-soft); border: 1px solid var(--color-border); }
+
+.crm-kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
+@media (max-width: 760px) { .crm-kpi-row { grid-template-columns: repeat(2, 1fr); } }
+.crm-kpi-card {
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; position: relative;
+}
+.crm-kpi-card .l { font-size: 12px; color: var(--color-ink-soft); font-weight: 600; }
+.crm-kpi-card .v { font-size: 21px; font-weight: 800; color: var(--color-ink); }
+.crm-kpi-alerta { font-size: 11px; font-weight: 700; color: var(--color-warn); margin-top: 2px; }
+
+.crm-dash-grid { display: grid; grid-template-columns: 230px 1fr; gap: 14px; align-items: start; }
+@media (max-width: 860px) { .crm-dash-grid { grid-template-columns: 1fr; } }
+.crm-donut-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 18px; }
+.crm-donut-card h4 { margin: 0 0 14px; font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--color-ink-soft); }
+.crm-donut { width: 120px; height: 120px; border-radius: 50%; margin: 0 auto; }
+.crm-donut-legend { display: flex; flex-direction: column; gap: 7px; margin-top: 16px; }
+.crm-dl-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.crm-dl-row .dot { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.crm-dl-row .n { flex: 1; color: var(--color-ink-soft); }
+.crm-dl-row .v { font-weight: 700; color: var(--color-ink); }

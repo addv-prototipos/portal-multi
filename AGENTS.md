@@ -71,6 +71,11 @@ en el punto 347, Fase 0-1 — replicar exacto, nunca reinventar):
    criterio que el catálogo ya diseñado en
    `stitch/gobierno-funcionalidades/NOTAS.md`.
 
+**Módulos nuevos ya mapeados con este patrón (23 nov 2026, local, sin
+desplegar)**: Pedidos (`pedidos_habilitado`, dependiente de Ventas) y
+"Clientes (CRM)" (`crm_habilitado`, sin dependencia, activo por default
+salvo plan Solicita). Detalle completo en `CLAUDE.md`.
+
 **Alcance: retroactivo y obligatorio, no solo hacia adelante.** Cubre
 TAMBIÉN los módulos ya existentes, no solo los nuevos — ver histórico en
 `PROJECT_STATE.md` punto 348.
@@ -1065,6 +1070,62 @@ solo la frase en español de la UI.
   + backtick, o Astro evalúa esa expresión como string y la descarta.
   Bug real nunca detectado hasta activar GTM real en producción. GA4/GTM
   (`GTM-MWPWGKQ5`) ya está en producción. Detalle completo en `CLAUDE.md`.
+
+- **Pedidos (kanban de pre-ventas) — Segmento 0, gobernanza base en
+  /control** (puntos 508-513, 20-23 nov 2026, trabajo local sin
+  desplegar): módulo nuevo `pedidos_habilitado`, dependiente de
+  `ventasHabilitado` — cualquier superficie nueva que lo exponga debe
+  repetir el AND completo (`ventasHabilitado && pedidosHabilitado`), no
+  solo su propio flag (mismo bug-shape ya documentado para Pedidos vs.
+  Reportes/Resumen financiero, ver más abajo). Ícono del sidebar pasó de
+  kanban a carrito de compras (`shopping-cart`, punto 515 — comunica
+  mejor "pedido" a usuarios sin vocabulario técnico).
+- **`locator.dragTo()` de Playwright NUNCA dispara drag-and-drop HTML5
+  real** (punto 513, 23 nov 2026): el kanban de Pedidos usa
+  `draggable="true"` nativo (`dragstart`/`dragover`/`drop`) — `dragTo()`
+  solo simula mouse down/move/up, no mueve la tarjeta sin ningún error
+  claro. Fix: disparar los 4 eventos a mano vía `page.evaluate()` con un
+  `DataTransfer` real. Replicar en cualquier drag-and-drop futuro.
+- **Un widget `position:absolute` reusado (dropdown de sugerencias,
+  tarjeta de seleccionado) en un contenedor NUEVO pierde su
+  `position:relative` si no se copia también la clase que lo da, y
+  perder la estructura interna completa (no solo la clase CSS) produce
+  texto envuelto/botones encimados** (punto 510-511, 23 nov 2026,
+  buscador de inventario y tarjeta de producto en "Nuevo pedido",
+  copiados de Ventas sin el wrapper/anidamiento real) — medir
+  `getBoundingClientRect()` del elemento real antes de asumir "no carga
+  nada" cuando puede estar lleno pero mal posicionado. Ver detalle
+  completo en `CLAUDE.md`.
+- **`.field-error` dentro de CUALQUIER `.modal` nunca se pintaba rojo —
+  bug sitewide** (punto 508, 23 nov 2026): `.modal p { color:
+  var(--color-ink-soft) }` (0,1,1) le gana a `.field-error` (0,1,0) sin
+  importar el orden en el archivo. Fix global:
+  `.modal p.field-error { color: var(--color-error) }` en `style.css`,
+  cubre las 3 apps. Verificar `getComputedStyle` real, no el nombre de
+  la clase, ante cualquier color que "debería" aplicar.
+- **Fila de N campos con labels de longitud variable: acortar texto solo
+  mueve el bug al siguiente label largo** (punto 512, 23 nov 2026) —
+  usar `min-height` en el label desde el día uno (reserva el mismo alto
+  sin importar cuántas líneas use cada uno), nunca ir ajustando copy
+  cada vez que cambia el layout.
+- **CRM (ficha de contacto + métricas de cartera) — Fase 1 solo lectura**
+  (puntos 514-515, 23 nov 2026, trabajo local sin desplegar): nuevo flag
+  `crm_habilitado`, sin dependencia de otro módulo. Cruza `usuarios`
+  (`perfil='cliente'`) con `pedidos`/`ordenes_compra` por `LOWER(email)`
+  — `segmento` (inactivo/nuevo/en_riesgo/recurrente/activo) es heurística
+  de primera pasada, no regla de negocio validada. UI: "Clientes (CRM)"
+  en el sidebar (nunca "CRM" a secas — claridad de copy, punto 515).
+  **Decisión de gobierno 515: CRM activo por default en TODOS los planes
+  salvo CLARVO Solicita** — ver gotcha de backfill de 2 capas en
+  `CLAUDE.md` (catálogo `planes` + espejo `tenants`, nunca solo uno).
+- **Un flag de tenant nuevo son 4 sitios, no 3 — el SELECT explícito de
+  `tenantContext.js` es el que nadie recuerda** (punto 514): agregar la
+  columna a `COLUMNAS_NUEVAS` + exponerla en `req.tenant` NO basta si no
+  está también en la lista explícita del `SELECT` de
+  `resolverTenantPorSlug()` — `tenant.<flag>` llega `undefined` para
+  siempre, 404 aunque la BD diga 1. Jest con mocks nunca lo atrapa, solo
+  probar contra Docker real. Detalle completo + la QUINTA pieza (listener
+  de clic del botón de sidebar) en `CLAUDE.md`.
 
 ## Stack
 

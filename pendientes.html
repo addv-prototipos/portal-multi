@@ -1220,6 +1220,53 @@
     </div>
   </section>
 
+  <section>
+    <h2>Pedidos / Clientes (CRM) <span class="count">5 pendientes</span></h2>
+    <p class="section-note">Dos módulos nuevos construidos y probados 100% en local (puntos 508-515, 20-23 nov 2026) — <strong>nada de esto se ha desplegado a producción</strong>, requiere confirmación explícita nueva del usuario antes de subir a <code>clarvo.mx</code>. No confundir "Clientes (CRM)" (ficha interna de contacto de clientes de Clarvo, ya implementada) con "Integración CRM externo" de la sección de arriba (Clarvo consumiendo las APIs de un producto CRM externo — pospuesto a Versión 1.1.0, sigue sin empezar, es un concepto completamente distinto).</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr data-app="admin,control" data-id="pedcrm-deploy-pedidos">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="pedcrm-deploy-pedidos" aria-label="Marcar completado"></td>
+            <td class="col-punto">508</td>
+            <td class="col-item">Desplegar "Pedidos" a producción</td>
+            <td class="col-detalle">8 segmentos implementados y verificados funcionalmente contra Docker/MySQL real (kanban, reportes, tarjetas de Resumen financiero, Centro de conocimiento, E2E). Trabajado 100% en local por instrucción explícita del usuario ("hasta que digas explícitamente que se despliega").</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado y probado local — falta desplegar (requiere confirmación explícita)</span></td>
+          </tr>
+          <tr data-app="admin,control" data-id="pedcrm-deploy-crm">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="pedcrm-deploy-crm" aria-label="Marcar completado"></td>
+            <td class="col-punto">514-515</td>
+            <td class="col-item">Desplegar "Clientes (CRM)" a producción</td>
+            <td class="col-detalle">Fase 1 (solo lectura) implementada, probada con 44 tests + verificación funcional real en Docker, y gobernanza de plan activa por default salvo Solicita. Mismo criterio que Pedidos: nada sube sin confirmación explícita nueva.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado y probado local — falta desplegar (requiere confirmación explícita)</span></td>
+          </tr>
+          <tr data-app="admin" data-id="pedcrm-crm-v2-contacto">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="pedcrm-crm-v2-contacto" aria-label="Marcar completado"></td>
+            <td class="col-punto">514</td>
+            <td class="col-item">CRM v2 — alta/edición/archivado de contacto desde el módulo</td>
+            <td class="col-detalle">Alcance recortado a propósito en v1 (solo lectura). Los 4 íconos de acción del mock original (editar/vincular/pausar/archivar) no se construyeron — requiere definir primero la semántica de "archivar un cliente", nunca discutida con el usuario.</td>
+            <td class="col-estado"><span class="pill pill-amber">Mapeado, sin empezar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="pedcrm-pedido-multilinea">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="pedcrm-pedido-multilinea" aria-label="Marcar completado"></td>
+            <td class="col-punto">508</td>
+            <td class="col-item">Pedidos — varias líneas de producto por pedido</td>
+            <td class="col-detalle">Hoy un pedido admite máximo UN producto de inventario opcional (igual que <code>ordenes_compra</code> antes del Segmento A de Ventas). Ampliar a varias líneas queda para después, no bloquea el uso actual.</td>
+            <td class="col-estado"><span class="pill pill-amber">Mapeado, sin empezar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="pedcrm-segmentos-validar">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="pedcrm-segmentos-validar" aria-label="Marcar completado"></td>
+            <td class="col-punto">514</td>
+            <td class="col-item">Validar umbrales de segmentación de clientes como regla de negocio</td>
+            <td class="col-detalle">"En riesgo" (30+ días sin actividad) y "recurrente" (10+ operaciones) son una heurística de primera pasada del CRM, documentada como tal — no una decisión de negocio confirmada por el usuario.</td>
+            <td class="col-estado"><span class="pill pill-gray">Falta validar con el usuario</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   </div><!-- /tab-listado -->
 
   <div id="tab-mapa" class="tab-panel" role="tabpanel" aria-labelledby="tab-mapa-btn">

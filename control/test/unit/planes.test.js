@@ -121,16 +121,17 @@ describe('utils/planes.js (punto 347)', () => {
       expect(plan.id).toBe(7);
       const [sqlInsert, params] = db.query.mock.calls[0];
       expect(sqlInsert).toMatch(/INSERT INTO planes/);
-      // 24 "?" (campos normales, incluidos ticket_impresion_habilitado y
-      // publicado_sitio) + 1 literal + 3 "?" (orden/creado_en/actualizado_en).
-      expect(sqlInsert).toMatch(/VALUES \((?:\?, ){23}\?, 1, \?, \?, \?\)/);
-      expect(params).toHaveLength(27);
+      // 26 "?" (campos normales, incluidos pedidos_habilitado,
+      // crm_habilitado, ticket_impresion_habilitado y publicado_sitio) +
+      // 1 literal + 3 "?" (orden/creado_en/actualizado_en).
+      expect(sqlInsert).toMatch(/VALUES \((?:\?, ){25}\?, 1, \?, \?, \?\)/);
+      expect(params).toHaveLength(29);
       expect(params[0]).toBe('Pro');
       expect(params[4]).toBe(15); // max_usuarios
       expect(params[6]).toBe(1); // facturacion_habilitada normalizado a 1
     });
 
-    test('campos booleanos ausentes se normalizan a 0 (apagado por default en un plan nuevo, incluidas las 11 columnas de gobierno de funcionalidades)', async () => {
+    test('campos booleanos ausentes se normalizan a 0 (apagado por default en un plan nuevo, incluidas las 12 columnas de gobierno de funcionalidades)', async () => {
       const db = mockDb();
       db.query.mockResolvedValueOnce([{ insertId: 8 }]).mockResolvedValueOnce([[filaPlan({ id: 8 })]]);
 
@@ -141,7 +142,7 @@ describe('utils/planes.js (punto 347)', () => {
       // sucursales_habilitado, facturacion_habilitada, portal_clientes_habilitado,
       // marca_lookfeel_habilitado, disco_cuota_mb,
       // ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado,
-      // cxc_habilitado, resumen_financiero_habilitado,
+      // cxc_habilitado, pedidos_habilitado, resumen_financiero_habilitado,
       // reportes_por_reporte_habilitado, reportes_cortes_habilitado,
       // reportes_eliminados_habilitado, reportes_estado_inventario_habilitado,
       // reportes_estado_tickets_habilitado,
@@ -150,7 +151,7 @@ describe('utils/planes.js (punto 347)', () => {
       expect(params[6]).toBe(0); // facturacion_habilitada
       expect(params[7]).toBe(0); // portal_clientes_habilitado
       expect(params[8]).toBe(0); // marca_lookfeel_habilitado
-      for (let i = 10; i <= 20; i++) {
+      for (let i = 10; i <= 21; i++) {
         expect(params[i]).toBe(0);
       }
     });
@@ -162,6 +163,22 @@ describe('utils/planes.js (punto 347)', () => {
           crearPlan({ nombre: 'X', ventas_habilitado: false, cxc_habilitado: true }, db)
         ).rejects.toMatchObject({ codigo: 'validacion' });
         expect(db.query).not.toHaveBeenCalled();
+      });
+
+      test('punto 508: pedidos_habilitado sin ventas_habilitado: ErrorPlan validacion, sin tocar la BD', async () => {
+        const db = mockDb();
+        await expect(
+          crearPlan({ nombre: 'X', ventas_habilitado: false, pedidos_habilitado: true }, db)
+        ).rejects.toMatchObject({ codigo: 'validacion' });
+        expect(db.query).not.toHaveBeenCalled();
+      });
+
+      test('punto 508: pedidos_habilitado con ventas_habilitado: se acepta', async () => {
+        const db = mockDb();
+        db.query.mockResolvedValueOnce([{ insertId: 11 }]).mockResolvedValueOnce([[filaPlan({ id: 11 })]]);
+        await expect(
+          crearPlan({ nombre: 'X', ventas_habilitado: true, pedidos_habilitado: true }, db)
+        ).resolves.toMatchObject({ id: 11 });
       });
 
       test('resumen_financiero_habilitado sin ventas ni gastos: ErrorPlan validacion', async () => {

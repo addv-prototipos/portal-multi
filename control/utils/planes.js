@@ -86,7 +86,10 @@ function normalizarDatosPlan(datos = {}, { parcial = false } = {}) {
     // dependencia). Las reglas en sí se validan en validarReglasDependencia,
     // no aquí — este bloque solo normaliza el booleano de cada campo.
     'ventas_habilitado', 'gastos_habilitado', 'inventarios_habilitado', 'auditoria_habilitado',
-    'cxc_habilitado', 'resumen_financiero_habilitado',
+    // Punto 508: "Pedidos" — mismo criterio que cxc_habilitado (opcional/
+    // independiente, nunca se activa sola aunque Ventas esté encendido;
+    // la regla de dependencia real vive en validarReglasDependencia).
+    'cxc_habilitado', 'pedidos_habilitado', 'resumen_financiero_habilitado',
     'reportes_por_reporte_habilitado', 'reportes_cortes_habilitado',
     'reportes_eliminados_habilitado', 'reportes_estado_inventario_habilitado',
     'reportes_estado_tickets_habilitado',
@@ -94,6 +97,10 @@ function normalizarDatosPlan(datos = {}, { parcial = false } = {}) {
     // prerrequisito (igual que sucursales_habilitado/marca_lookfeel_habilitado
     // arriba, nunca entra en validarReglasDependencia).
     'promociones_habilitado',
+    // CRM — mismo criterio que promociones_habilitado: independiente, sin
+    // prerrequisito, nunca entra en validarReglasDependencia (lee la base
+    // de clientes directo de `usuarios`, no depende de Ventas/Pedidos).
+    'crm_habilitado',
     // Ticket de impresión (logo + plantilla del recibo) — separado de
     // marca_lookfeel_habilitado (punto en curso, 2026-10-10). SÍ entra en
     // validarReglasDependencia (regla 13: requiere ventas_habilitado).
@@ -126,6 +133,10 @@ function validarReglasDependencia(estado) {
 
   if (activo('cxc_habilitado') && !activo('ventas_habilitado')) {
     throw new ErrorPlan('Cuentas por cobrar requiere Ventas activo en este plan.', 'validacion');
+  }
+  // Punto 508: "Pedidos" — mismo criterio exacto que Cuentas por cobrar.
+  if (activo('pedidos_habilitado') && !activo('ventas_habilitado')) {
+    throw new ErrorPlan('Pedidos requiere Ventas activo en este plan.', 'validacion');
   }
   if (activo('resumen_financiero_habilitado') && !activo('ventas_habilitado') && !activo('gastos_habilitado')) {
     throw new ErrorPlan('Resumen financiero requiere Ventas o Gastos activo en este plan.', 'validacion');
@@ -169,6 +180,7 @@ function mapearFila(fila) {
     inventarios_habilitado: Boolean(fila.inventarios_habilitado),
     auditoria_habilitado: Boolean(fila.auditoria_habilitado),
     cxc_habilitado: Boolean(fila.cxc_habilitado),
+    pedidos_habilitado: Boolean(fila.pedidos_habilitado),
     resumen_financiero_habilitado: Boolean(fila.resumen_financiero_habilitado),
     reportes_por_reporte_habilitado: Boolean(fila.reportes_por_reporte_habilitado),
     reportes_cortes_habilitado: Boolean(fila.reportes_cortes_habilitado),
@@ -176,6 +188,7 @@ function mapearFila(fila) {
     reportes_estado_inventario_habilitado: Boolean(fila.reportes_estado_inventario_habilitado),
     reportes_estado_tickets_habilitado: Boolean(fila.reportes_estado_tickets_habilitado),
     promociones_habilitado: Boolean(fila.promociones_habilitado),
+    crm_habilitado: Boolean(fila.crm_habilitado),
     ticket_impresion_habilitado: Boolean(fila.ticket_impresion_habilitado),
     publicado_sitio: Boolean(fila.publicado_sitio),
     destacado: Boolean(fila.destacado),
@@ -224,13 +237,14 @@ async function crearPlan(datos = {}, db = obtenerPool()) {
         sucursales_habilitado, facturacion_habilitada, portal_clientes_habilitado,
         marca_lookfeel_habilitado, disco_cuota_mb,
         ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado,
-        cxc_habilitado, resumen_financiero_habilitado,
+        cxc_habilitado, pedidos_habilitado, resumen_financiero_habilitado,
         reportes_por_reporte_habilitado, reportes_cortes_habilitado,
         reportes_eliminados_habilitado, reportes_estado_inventario_habilitado,
         reportes_estado_tickets_habilitado, promociones_habilitado,
+        crm_habilitado,
         ticket_impresion_habilitado, publicado_sitio,
         activo, orden, creado_en, actualizado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
     [
       normalizado.nombre,
       normalizado.descripcion,
@@ -247,6 +261,7 @@ async function crearPlan(datos = {}, db = obtenerPool()) {
       normalizado.inventarios_habilitado,
       normalizado.auditoria_habilitado,
       normalizado.cxc_habilitado,
+      normalizado.pedidos_habilitado,
       normalizado.resumen_financiero_habilitado,
       normalizado.reportes_por_reporte_habilitado,
       normalizado.reportes_cortes_habilitado,
@@ -254,6 +269,7 @@ async function crearPlan(datos = {}, db = obtenerPool()) {
       normalizado.reportes_estado_inventario_habilitado,
       normalizado.reportes_estado_tickets_habilitado,
       normalizado.promociones_habilitado,
+      normalizado.crm_habilitado,
       normalizado.ticket_impresion_habilitado,
       normalizado.publicado_sitio,
       normalizado.orden,

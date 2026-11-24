@@ -1680,3 +1680,131 @@ ciegas), redeploy, verificado real (longitud de variable, endpoint 200,
 modo intacto, stack sano). Regla nueva: SIEMPRE diffear un `.env` local
 contra el real del servidor antes de subirlo — nunca asumir que la copia
 local es completa.
+
+C140 13-nov ● P497: "Ingreso atribuido a cupones" (/control) sumaba
+redenciones de Stripe en modo PRUEBA como ingreso real — `stripe_livemode`
+(nuevo, `onboarding_borradores`) llenado desde `session.livemode` real al
+confirmar pago, nunca desde el toggle de plataforma. `reporteCupones.js`
+exige `stripe_livemode=1`. Backfill clasificó las 4 filas viejas contra
+Stripe real (las 4 PRUEBA). Desplegado y validado en producción.
+
+C141 13-nov ● P498: dashboard del tenant demo "Mas Cómputo" en $0 —
+siembra del punto 495 no cubrió el mes en curso. Fix en
+`sembrar-mas-computo.js`: `SEED_INCLUIR_MES_ACTUAL=1` + nueva
+`sembrarSenalesRiesgoInventario()` (agotado, bajo mínimo, mermas, por
+vencer, sin movimiento) ancladas al reloj real, no a la línea simulada.
+
+C142 13-nov ◆ P499: editor de Términos y Condiciones migrado de HTML a
+Markdown seguro (`renderizarMarkdownSeguro()`, nunca `innerHTML`),
+vista previa + comparación de cambios. Cerrado en local, pendiente de
+validación con clics reales y de desplegar.
+
+C143 13-nov ⚠ P500: INCIDENTE real en producción — `WWW-Authenticate:
+Basic` en 401 de sesión Bearer disparaba el diálogo nativo del
+navegador y deslogueaba al usuario a mitad de uso (tenant demo
+`mas-computo`). Fix: las 6 ramas Bearer de `requireAdminAuth()`
+(backend+control) ya no mandan ese header — solo el camino Basic real
+lo manda. Corregido y desplegado el mismo día.
+
+C144 13-nov ✓ P501: Inventarios — miniatura/preview/lupa pasan de
+cuadrado+cover a rectangular+contain (sin recorte), barra de progreso
+real de subida (XHR en vez de fetch) y palomita animada en vez de
+toast genérico al guardar. Propuesta B elegida por el usuario.
+Desplegado y validado en producción.
+
+C145 13-nov ◆ P502: portal de cliente, Gestión de crédito — descripción
+real del producto/servicio + "Ver detalle" (mismo ticket digital del
+correo) por crédito; campana de notificaciones ahora también avisa
+cargo nuevo (antes solo pagos), con auto-refresh de la página de
+Crédito. Desplegado el 20-nov junto con P504 (ver P505).
+
+C146 14-nov ● P503: 2 bugs reales atrapados corriendo el smoke-test de
+onboarding de punta a punta — (1) selector de Stripe Checkout
+desactualizado, el formulario real vive dentro de un iframe propio
+("Guacamole"/Payment Element), nunca en la página top-level; (2)
+dependencia circular en `tenantLifecycle.js` (3 saltos vía
+`stripePagos.js`/`onboardingConversion.js`) rompía el aprovisionamiento
+automático de tenants. Nueva regla durable: cada deploy pasa Stripe +
+reCAPTCHA a modo prueba antes de probar, regresa a producción al
+terminar, sin pedirlo cada vez.
+
+C147 19-nov ◆ P504: Asistente de Facturación — pregunta única
+pre-onboarding ("¿vas a facturar a tus clientes?") a la cuenta
+administradora de cualquier tenant cuyo plan incluya Facturación (no
+Solicita); si dice que no, apaga el módulo y muestra tutorial de
+reactivación con capturas reales, modal bloqueante (no se puede
+ignorar, mismo mecanismo que el gate de T&C). Elegido entre 8 conceptos
+visuales. Desplegado el 20-nov (ver P505).
+
+C148 20-nov 🎯 P505: deploy real a Vultr de P502 (ticket digital/
+crédito) + P504 (Asistente de Facturación), ambos en el mismo árbol
+HEAD. Runbook completo (backup real, checksums MD5, modo mantenimiento,
+rebuild backend+frontend) — verificado 200 en `/login` y `/api/health`.
+
+C149 20-nov ● P506: bug real del smoke-test de onboarding — no era
+Stripe, era una carrera con `window.history.replaceState()` del propio
+`OnboardingModal.tsx` (limpia el `?onboarding=<token>` de la URL antes
+de que Playwright alcance a leerlo). Diagnosticado leyendo el código
+fuente real de `clarvo-Site`, no asumiendo un cambio de UI externo.
+
+C150 20-nov ◆ P507: "Nombre del cliente" (opcional) siempre visible en
+"Registrar venta", para quien no da correo ni sube ticket — columna
+nueva `ordenes_compra.nombre_cliente_manual` (no confundir con
+`cliente_nombre`, alias calculado del `LEFT JOIN` con `registros`).
+`COALESCE(r.nombre, o.nombre_cliente_manual)` en el SELECT de CxC.
+
+C151 20-23nov 🎯 P508: "Pedidos" — kanban de pre-ventas/cotizaciones,
+nuevo segmento completo en 8 fases (0-7), todo en LOCAL por instrucción
+explícita del usuario. Flag `pedidos_habilitado` (activo retroactivo
+para tenants existentes, dependiente de `ventasHabilitado`). 5 columnas
+(semáforo de SLA), alta desde catálogo o manual, "Marcar como
+Entregado" reutiliza el modal real de Ventas sin duplicar lógica,
+reportes completos (embudo, pipeline, SLA, ciclo de cierre), 6 tarjetas
+nuevas en Resumen financiero (gating individual construido desde cero),
+onboarding/tour, categoría en Centro de conocimiento, E2E
+(`pedidos-kanban.spec.ts`). 3 huecos reales de gating (reportes/
+dashboard/conocimiento solo chequeaban su flag propio, no el AND con
+Ventas) encontrados y corregidos escribiendo el candado negativo.
+De paso: recreado el tenant fijo `t1` (perdido en un reset de Docker)
+para desatascar `admin-plan-gating.spec.ts`. Backend 71/71 suites,
+1420/1420 tests. Nada desplegado.
+
+C152 23-nov ↻ P509: rediseño del modal "Nuevo pedido" — panel dividido
++ selector Tipo (producto/servicio) + control de Cantidad, antes de
+seguir iterando el módulo.
+
+C153 23-nov ● P510-511: 2 bugs reales de UI en "Nuevo pedido" — buscador
+de inventario se dibujaba fuera del contenedor por faltar la clase que
+da `position:relative` al wrapper (copiado de Ventas sin la estructura
+completa); tarjeta de producto ya elegido con texto envuelto/botón
+encimado por el mismo motivo. Fix: medir `getBoundingClientRect()` real
+en vez de asumir "no carga nada". De paso, bug sitewide encontrado:
+`.field-error` dentro de CUALQUIER `.modal` nunca se pintaba rojo
+(`.modal p` le ganaba por especificidad) — fix global en `style.css`.
+
+C154 23-nov ✓ P512: stepper de Cantidad homologado al círculo de 40px
+de Ventas; fix robusto de alineación de la fila de 3 campos —
+`min-height` en el label en vez de seguir acortando copy cada vez que
+cambia el layout.
+
+C155 23-nov ◆ P513: editar un pedido inline desde su modal de detalle +
+drag-and-drop real entre columnas del kanban (HTML5 nativo,
+`dragstart`/`dragover`/`drop` — `locator.dragTo()` de Playwright no lo
+dispara, hubo que simularlo a mano con `page.evaluate()`). Punto 508
+queda CERRADO con esto.
+
+C156 23-nov 🎯 P514-515: CRM — ficha de contacto de clientes + métricas
+de cartera, Fase 1 solo lectura. Cruza `usuarios` (perfil cliente) con
+pedidos/ventas por correo; segmento calculado en servidor (inactivo/
+nuevo/en_riesgo/recurrente/activo), RFC sintético nunca expuesto. Gotcha
+real: un flag de tenant nuevo son 4 sitios, no 3 — el SELECT explícito
+de `tenantContext.js` también necesita la columna, o `undefined` para
+siempre aunque la BD diga 1 (atrapado solo probando en Docker real, Jest
+nunca lo vio). Decisión de gobierno del mismo día (515): "Clientes
+(CRM)" (renombrado por claridad, antes "CRM" a secas) + ícono carrito de
+compras, y CRM pasa a activo por default en TODOS los planes salvo
+CLARVO Solicita — backfill de 2 capas (catálogo `planes` + espejo
+`tenants`, nunca solo uno) con sentinel versionado (`_v1`→`_v2`) en
+`ajustes_globales`. 44 tests nuevos/tocados, control 631/631. Nada
+desplegado.
+

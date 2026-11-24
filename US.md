@@ -1683,3 +1683,52 @@ despliegue nunca se vea como el sitio caído.
   propio despliegue que está monitoreando.
 - El healthcheck del contenedor nunca se marca "unhealthy" solo por estar en mantenimiento (ruta
   propia, fuera del gate).
+
+## 30. Pedidos y Clientes (CRM) — 20-23 nov 2026, trabajo local sin desplegar
+
+### US-129 — Kanban de Pedidos (pre-ventas/cotizaciones) *(IMPLEMENTADA — punto 508)*
+Como **administrador/vendedor**, quiero llevar una cotización en progreso antes de que se convierta
+en venta real, con un tablero visual de etapas, para no mezclar pipeline comercial con ventas ya
+cerradas ni tener que anotarlo aparte.
+
+**Criterios de aceptación:**
+- 5 columnas (Pedido → En progreso → Por confirmar → Entregado → Cancelado), tarjeta con
+  folio (`PED-000001`), cliente, monto, vendedor y barra de SLA por días en la etapa actual.
+- Mover entre columnas por selector o arrastrando la tarjeta (drag-and-drop HTML5 real).
+- Alta desde el catálogo de Inventarios (si el módulo está activo) o concepto+monto libre — sin
+  reserva de stock hasta que se entrega.
+- "Marcar como Entregado" reutiliza el modal/endpoint "Registrar venta" ya existente (precarga
+  los datos, vincula ambos registros al guardar) — cero lógica de Ventas duplicada.
+- Cancelar pide motivo opcional, nunca borra el pedido.
+- Gateado por `pedidosHabilitado`, dependiente de `ventasHabilitado` (candado AND en las 4
+  superficies que lo exponen: sidebar, pestaña de Reportes, tarjetas de Resumen financiero,
+  Centro de conocimiento).
+
+### US-130 — Reportes y tarjetas de Resumen financiero de Pedidos *(IMPLEMENTADA — punto 508)*
+Como **administrador**, quiero ver el pipeline comercial y su conversión a ventas reales sin tener
+que calcularlo a mano, para decidir con datos reales si el proceso de cotización está funcionando.
+
+**Criterios de aceptación:**
+- Sub-pestaña "Pedidos" dentro de Reportes: embudo de conversión, pipeline, ingreso proyectado,
+  SLA, carga por vendedor, motivos de cancelación, ticket cotizado vs. vendido, ciclo promedio de
+  cierre y tiempo promedio por etapa.
+- Sin datos suficientes, los promedios se muestran vacíos — nunca un cero disfrazado de dato real.
+- 6 tarjetas nuevas y gateadas individualmente en el tablero de Resumen financiero (Pipeline,
+  Ingreso proyectado, Tasa de conversión, Ciclo promedio de cierre, Valor perdido por cancelación,
+  Saldo CxC originado en Pedidos) — desaparecen limpio, sin huecos, si el módulo está apagado.
+
+### US-131 — "Clientes (CRM)": ficha de contacto + métricas de cartera *(IMPLEMENTADA — puntos 514-515)*
+Como **administrador/vendedor**, quiero ver de un vistazo quién es cada cliente (datos de contacto,
+historial, qué tan activo está) sin tener que cruzar a mano las tablas de ventas y pedidos, para dar
+seguimiento comercial real a la cartera.
+
+**Criterios de aceptación:**
+- Dos vistas en el mismo segmento: "Contactos" (ficha individual con estadísticas e historial de
+  operaciones) y "Métricas" (KPIs de cartera, donut por segmento, tabla de mayor valor).
+- Segmento de cliente calculado en servidor: inactivo / nuevo / en riesgo (30+ días sin actividad) /
+  recurrente (10+ operaciones) / activo — heurística de primera pasada, documentada como tal.
+- El identificador fiscal sintético (`SINFISCAL-*`) nunca se muestra como RFC real en la ficha.
+- Solo lectura en esta fase — sin alta/edición/archivado de contacto desde este módulo.
+- Gateado por `crmHabilitado`, sin dependencia de otro módulo, **activo por default en todos los
+  planes salvo CLARVO Solicita** (decisión de gobierno del usuario, punto 515) — un tenant ya
+  aprovisionado hereda el valor de su plan sin necesidad de reasignarlo a mano.

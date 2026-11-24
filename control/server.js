@@ -3042,8 +3042,11 @@ async function iniciar() {
   await asegurarTablasSucursales(obtenerPool());
   await asegurarColumnasCicloVidaTenant(obtenerPool());
   await asegurarTablaApiCredenciales(obtenerPool());
-  await asegurarTablaPlanes(obtenerPool());
+  // asegurarTablaAjustesGlobales() debe correr ANTES de asegurarTablaPlanes():
+  // el backfill de "CRM activo por default salvo Solicita" dentro de esta
+  // última lee/escribe un sentinel en ajustes_globales (ver comentario ahí).
   await asegurarTablaAjustesGlobales(obtenerPool());
+  await asegurarTablaPlanes(obtenerPool());
   await asegurarTablaOnboardingBorradores(obtenerPool());
   await asegurarTablaStripeEventos(obtenerPool());
   await asegurarTablaUpscale(obtenerPool());

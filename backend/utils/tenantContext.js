@@ -66,7 +66,7 @@ async function resolverTenantPorSlug(slug) {
   }
 
   const [filas] = await obtenerPoolControl().query(
-    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, facturacion_pausada, portal_clientes_habilitado, portal_clientes_pausado, sucursales_habilitado, disco_cuota_mb, disco_bytes_usados_cache, disco_cache_actualizado_en, ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado, cxc_habilitado, resumen_financiero_habilitado, reportes_por_reporte_habilitado, reportes_cortes_habilitado, reportes_eliminados_habilitado, reportes_estado_inventario_habilitado, reportes_estado_tickets_habilitado, promociones_habilitado, ticket_impresion_habilitado, suscripcion_estatus, suscripcion_expira_en
+    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, facturacion_pausada, portal_clientes_habilitado, portal_clientes_pausado, sucursales_habilitado, disco_cuota_mb, disco_bytes_usados_cache, disco_cache_actualizado_en, ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado, cxc_habilitado, pedidos_habilitado, resumen_financiero_habilitado, reportes_por_reporte_habilitado, reportes_cortes_habilitado, reportes_eliminados_habilitado, reportes_estado_inventario_habilitado, reportes_estado_tickets_habilitado, promociones_habilitado, crm_habilitado, ticket_impresion_habilitado, suscripcion_estatus, suscripcion_expira_en
      FROM tenants WHERE slug = ? AND estado = 'activo' LIMIT 1`,
     [slug]
   );
@@ -224,6 +224,11 @@ async function resolverTenantMiddleware(req, res, next) {
       // aunque Ventas esté encendido (decisión del usuario) — por eso es
       // su propia bandera, no un derivado de ventasHabilitado.
       cxcHabilitado: tenant.cxc_habilitado !== 0 && tenant.cxc_habilitado !== false,
+      // Punto 508: "Pedidos" — mismo criterio que cxcHabilitado (opcional/
+      // independiente de ventasHabilitado, nunca se activa ni desactiva
+      // sola por el estado de Ventas; la regla de dependencia real vive en
+      // control/utils/planes.js:validarReglasDependencia).
+      pedidosHabilitado: tenant.pedidos_habilitado !== 0 && tenant.pedidos_habilitado !== false,
       resumenFinancieroHabilitado: tenant.resumen_financiero_habilitado !== 0 && tenant.resumen_financiero_habilitado !== false,
       // Las 4 pestañas reales de "Reportes" — independientes entre sí y
       // de resumenFinancieroHabilitado (confirmado explícitamente por el
@@ -240,6 +245,10 @@ async function resolverTenantMiddleware(req, res, next) {
       // ausente/no migrado debe leerse como apagado, nunca encendido —
       // mismo criterio explícito que sucursalesHabilitado.
       promocionesHabilitado: tenant.promociones_habilitado === 1 || tenant.promociones_habilitado === true,
+      // CRM (punto en curso): ficha de contacto de clientes + métricas de
+      // cartera. DEFAULT 0 igual que promocionesHabilitado — nunca existió
+      // antes, nace apagado hasta que /control lo active por tenant/plan.
+      crmHabilitado: tenant.crm_habilitado === 1 || tenant.crm_habilitado === true,
       // Ticket de impresión (logo + plantilla del recibo), separado de
       // marcaLookfeelHabilitado (punto en curso, 2026-10-10) — DEFAULT 0
       // igual que promocionesHabilitado/sucursalesHabilitado arriba.

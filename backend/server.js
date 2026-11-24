@@ -3981,6 +3981,7 @@ app.get('/api/admin/login', adminLoginLimiter, tenantAggregateAuthLimiter, requi
           inventariosHabilitado: req.tenant.inventariosHabilitado,
           auditoriaHabilitado: req.tenant.auditoriaHabilitado,
           cxcHabilitado: req.tenant.cxcHabilitado,
+          pedidosHabilitado: req.tenant.pedidosHabilitado,
           resumenFinancieroHabilitado: req.tenant.resumenFinancieroHabilitado,
           reportesPorReporteHabilitado: req.tenant.reportesPorReporteHabilitado,
           reportesCortesHabilitado: req.tenant.reportesCortesHabilitado,
@@ -8105,6 +8106,10 @@ app.get(
 // (dato validado contra la CSF real); si el cliente aún no la sube, se cae
 // al nombre que el propio cliente capturó en "Mi cuenta" y el RFC queda en
 // blanco — eso no bloquea registrar la venta, solo informa de menos.
+// `telefono` (punto en curso): reusado tal cual por el buscador de
+// cliente de "Nuevo pedido" (nombre/correo/teléfono, caída a texto
+// manual si no hay match) — mismo criterio de "una sola fuente real de
+// clientes" que ya aplicaba a Ventas, nunca un segundo endpoint.
 app.get(
   '/api/admin/correos-registrados',
   adminApiLimiter,
@@ -8113,6 +8118,7 @@ app.get(
   asyncHandler(async (req, res) => {
     const [filas] = await pool.query(
       `SELECT u.email AS email,
+              u.telefono AS telefono,
               CASE WHEN r.rfc IS NOT NULL THEN r.rfc ELSE NULL END AS rfc,
               r.regimen_fiscal AS regimen_fiscal,
               COALESCE(r.nombre, u.nombre) AS nombre
@@ -8374,6 +8380,13 @@ app.post(
       }
     }
 
+    // Punto 507: "Nombre del cliente" capturado a mano — siempre opcional
+    // en este segmento (no se exige ni siquiera cuando no hay correo;
+    // endurecer esa regla es una decisión aparte, ver PROJECT_STATE.md).
+    // Independiente de es_cliente_nuevo/metodo de entrega: es solo una
+    // etiqueta libre para identificar la venta en Ventas/CxC/búsqueda.
+    const nombreClienteManual = sanitizeText(body.nombre_cliente_manual, 200) || null;
+
     const configGlobal = await getConfiguracionGlobal();
     const ivaPorcentaje = configGlobal.iva_porcentaje;
     // Redondeo a 2 decimales (centavos), como cualquier monto en pesos.
@@ -8396,9 +8409,9 @@ app.post(
     const creadoPor = resolverCreadoPorVenta(req);
     const [resultado] = await pool.query(
       `INSERT INTO ordenes_compra
-        (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, descuento_porcentaje, descuento_monto, email, estado_pago, fecha_vencimiento, monto_cobrado, fecha_cobro, notas_cobro, producto_id, producto_cantidad, metodo_pago, folio_conciliacion, creado_por, creado_en, actualizado_en)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ['TEMP', ahora, concepto, cantidadNeta, ivaPorcentaje, total, descuentoPorcentaje, descuentoMonto, email, estadoPago, fechaVencimiento, montoCobradoInicial, fechaCobroInicial, notasCobro, productoId, productoCantidad, metodoPago, folioConciliacionFila ? folioConciliacionFila.folio : null, creadoPor, ahora, ahora]
+        (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, descuento_porcentaje, descuento_monto, email, estado_pago, fecha_vencimiento, monto_cobrado, fecha_cobro, notas_cobro, producto_id, producto_cantidad, metodo_pago, folio_conciliacion, nombre_cliente_manual, creado_por, creado_en, actualizado_en)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['TEMP', ahora, concepto, cantidadNeta, ivaPorcentaje, total, descuentoPorcentaje, descuentoMonto, email, estadoPago, fechaVencimiento, montoCobradoInicial, fechaCobroInicial, notasCobro, productoId, productoCantidad, metodoPago, folioConciliacionFila ? folioConciliacionFila.folio : null, nombreClienteManual, creadoPor, ahora, ahora]
     );
 
     const numeroCompra = generarNumeroCompra(resultado.insertId);
@@ -8608,6 +8621,7 @@ app.post(
       producto_cantidad: productoCantidad,
       metodo_pago: metodoPago,
       folio_conciliacion: folioConciliacionFila ? folioConciliacionFila.folio : null,
+      nombre_cliente_manual: nombreClienteManual,
       productos_inventario: lineasInventario.map((l) => ({
         producto_id: l.productoId,
         cantidad: l.cantidad,
@@ -8666,8 +8680,8 @@ app.get(
     const busqueda = typeof req.query.busqueda === 'string' ? req.query.busqueda.trim() : '';
     if (busqueda) {
       const patron = `%${busqueda}%`;
-      condiciones.push('(o.numero_compra LIKE ? OR o.email LIKE ? OR o.concepto LIKE ? OR o.notas_cobro LIKE ? OR r.nombre LIKE ? OR r.rfc LIKE ?)');
-      params.push(patron, patron, patron, patron, patron, patron);
+      condiciones.push('(o.numero_compra LIKE ? OR o.email LIKE ? OR o.concepto LIKE ? OR o.notas_cobro LIKE ? OR r.nombre LIKE ? OR r.rfc LIKE ? OR o.nombre_cliente_manual LIKE ?)');
+      params.push(patron, patron, patron, patron, patron, patron, patron);
     }
 
     if (req.query.fecha_desde && /^\d{4}-\d{2}-\d{2}$/.test(req.query.fecha_desde)) {
@@ -8724,11 +8738,11 @@ app.get(
 
     const [ordenes] = await pool.query(
       `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.iva_porcentaje, o.total, o.descuento_porcentaje, o.descuento_monto, o.email, o.estado_pago, o.fecha_vencimiento, o.monto_cobrado, o.fecha_cobro, o.notas_cobro, o.creado_en,
-        o.metodo_pago, o.folio_conciliacion,
+        o.metodo_pago, o.folio_conciliacion, o.nombre_cliente_manual,
         o.producto_id, o.producto_cantidad, p.sku AS producto_sku, p.nombre AS producto_nombre,
         o.archivado_en, o.periodo_archivado,
         (o.facturado_en IS NOT NULL) AS facturado,
-        r.nombre AS cliente_nombre, r.rfc AS cliente_rfc
+        COALESCE(r.nombre, o.nombre_cliente_manual) AS cliente_nombre, r.rfc AS cliente_rfc
        ${joins}
        LEFT JOIN productos p ON p.id = o.producto_id
        WHERE ${where}
@@ -9480,6 +9494,16 @@ const VISTAS_DASHBOARD = {
       'proyeccion',
       'proveedores',
       'cobranza',
+      // Punto 508, Segmento 4: 6 tarjetas nuevas, gateadas por
+      // pedidosHabilitado del lado del cliente (ver DASHBOARD_TARJETAS en
+      // admin.js) — esta whitelist solo valida FORMA de un layout
+      // guardado, nunca decide visibilidad por plan.
+      'pedidos-pipeline',
+      'pedidos-ingreso-proyectado',
+      'pedidos-tasa-conversion',
+      'pedidos-ciclo-promedio',
+      'pedidos-valor-perdido',
+      'pedidos-saldo-cxc',
     ],
     spanMin: 3,
     spanMax: 12,
@@ -9825,6 +9849,608 @@ app.delete(
         : `Venta ${orden.numero_compra} eliminada. El reporte se guardó, pero no hay un correo de reportes configurado — nada se envió.`,
       correoEnviado: resultadoReporte.correoEnviado,
       correoDestino: resultadoReporte.correoDestino,
+    });
+  })
+);
+
+// ---------- Pedidos (kanban de pre-ventas/cotizaciones — Punto 508) ----------
+// Un pedido NUNCA es ingreso ni por cobrar: vive en su propia tabla,
+// nunca toca ordenes_compra/CxC/Resumen financiero/Auditoría mientras no
+// llegue a 'entregado'. Ahí se vuelve una venta real a través del mismo
+// POST /api/admin/ordenes-compra de siempre (el frontend lo llama
+// directo, sin pasar por aquí, para reutilizar 100% de esa lógica ya
+// probada) — PUT /api/admin/pedidos/:id/convertir solo vincula los 2
+// registros DESPUÉS de que esa venta ya existe, mismo patrón que
+// folios_conciliacion.orden_compra_id (se rellena después, nunca antes).
+// Gate: Pedidos depende de Ventas (igual que CxC) — AND por composición
+// normal de 2 requiereFeature(), siempre antes de requireAdminAuth.
+
+const ESTADOS_PEDIDO_LATERALES = ['pedido', 'progreso', 'confirmar'];
+
+function generarNumeroPedido(id) {
+  return `PED-${String(id).padStart(6, '0')}`;
+}
+
+// Punto 508, Segmento 3: registra CADA cambio de etapa — es lo único que
+// permite calcular después un promedio REAL de tiempo por etapa/ciclo
+// completo (ver GET /api/admin/pedidos/reportes/resumen), en vez de solo
+// una foto de la etapa actual.
+async function registrarHistorialPedido(pedidoId, estadoAnterior, estadoNuevo, fecha) {
+  await pool.query(
+    'INSERT INTO pedido_historial (pedido_id, estado_anterior, estado_nuevo, creado_en) VALUES (?, ?, ?, ?)',
+    [pedidoId, estadoAnterior, estadoNuevo, fecha]
+  );
+}
+
+// A diferencia de ordenes_compra (donde creado_por NUNCA se expone, punto
+// 320/322 — ahí es solo para reportes/aclaraciones), aquí SÍ se expone
+// como "vendedor": el kanban de Pedidos necesita mostrar carga de trabajo
+// por persona a propósito (uno de los reportes aprobados).
+function filaPedidoPublica(p) {
+  return {
+    id: p.id,
+    numero_pedido: p.numero_pedido,
+    tipo: p.tipo,
+    concepto: p.concepto,
+    cantidad: p.cantidad,
+    descuento_porcentaje: p.descuento_porcentaje,
+    email: p.email,
+    nombre_cliente_manual: p.nombre_cliente_manual,
+    producto_id: p.producto_id,
+    producto_cantidad: p.producto_cantidad,
+    producto_sku: p.producto_sku,
+    producto_nombre: p.producto_nombre,
+    estado: p.estado,
+    estado_actualizado_en: p.estado_actualizado_en,
+    motivo_cancelacion: p.motivo_cancelacion,
+    convertido_a_orden_id: p.convertido_a_orden_id,
+    convertido_en: p.convertido_en,
+    vendedor: p.creado_por,
+    creado_en: p.creado_en,
+  };
+}
+
+// Validación compartida por POST (crear) y PUT (editar) — mismo criterio
+// que las validaciones de ordenes_compra, pero sin exigir correo/nombre
+// (mismo criterio diferido del punto 507: no se endurece aquí una regla
+// que tampoco se endureció en Ventas). Sin inventario: un pedido no
+// aparta stock (decisión de alcance, punto 508) — producto_id es solo
+// descriptivo, para precargar la venta real al convertir.
+async function validarDatosPedido(body) {
+  // Punto 508, rediseño "panel dividido": clasificación explícita, nunca
+  // obligatoria del lado del cliente (clientes viejos que no la manden
+  // siguen cayendo en 'cotizacion', mismo default que la columna en BD —
+  // coincide con la filosofía original del módulo, "se trata como
+  // cotización").
+  let tipo = 'cotizacion';
+  if (body.tipo !== undefined && body.tipo !== null && body.tipo !== '') {
+    if (body.tipo !== 'cotizacion' && body.tipo !== 'pedido') {
+      return { error: 'Tipo de registro inválido.' };
+    }
+    tipo = body.tipo;
+  }
+  const concepto = sanitizeText(body.concepto, 255);
+  if (!concepto) {
+    return { error: 'El concepto del pedido es obligatorio.' };
+  }
+  const cantidad = Number(body.cantidad);
+  if (!Number.isFinite(cantidad) || cantidad <= 0) {
+    return { error: 'El monto estimado debe ser un número mayor a cero.' };
+  }
+  let descuentoPorcentaje = null;
+  if (body.descuento_porcentaje !== undefined && body.descuento_porcentaje !== null && body.descuento_porcentaje !== '') {
+    const pct = Number(body.descuento_porcentaje);
+    if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) {
+      return { error: 'El descuento debe ser un porcentaje mayor a 0 y menor a 100.' };
+    }
+    descuentoPorcentaje = pct;
+  }
+  const emailCapturado = sanitizeText(body.email, 200).toLowerCase();
+  let email = null;
+  if (emailCapturado) {
+    if (!isValidEmail(emailCapturado)) {
+      return { error: 'Captura un correo electrónico válido.' };
+    }
+    email = emailCapturado;
+  }
+  const nombreClienteManual = sanitizeText(body.nombre_cliente_manual, 200) || null;
+  // Cantidad (punto 508, rediseño "panel dividido"): antes solo existía
+  // ligada a un producto del catálogo ("Cantidad estimada", escondida
+  // hasta elegir uno) — ahora es un campo general, siempre presente,
+  // para el alta manual también (menos clics, pedido explícito del
+  // usuario). Default 1 si no se manda; sigue viviendo en la misma
+  // columna `producto_cantidad`, ya no exclusiva de cuando hay producto.
+  let productoCantidad = 1;
+  if (body.producto_cantidad !== undefined && body.producto_cantidad !== null && body.producto_cantidad !== '') {
+    const unidades = Number(body.producto_cantidad);
+    if (!Number.isFinite(unidades) || unidades <= 0) {
+      return { error: 'La cantidad debe ser un número mayor a cero.' };
+    }
+    productoCantidad = unidades;
+  }
+  let productoId = null;
+  if (body.producto_id !== undefined && body.producto_id !== null && body.producto_id !== '') {
+    const idCandidato = Number(body.producto_id);
+    if (!Number.isInteger(idCandidato)) {
+      return { error: 'Producto inválido.' };
+    }
+    const producto = await obtenerProductoPorId(idCandidato);
+    if (!producto) {
+      return { error: 'El producto seleccionado ya no existe.' };
+    }
+    productoId = producto.id;
+  }
+  return { tipo, concepto, cantidad, descuentoPorcentaje, email, nombreClienteManual, productoId, productoCantidad };
+}
+
+// Crea un pedido — siempre nace en la columna "Pedido".
+app.post(
+  '/api/admin/pedidos',
+  adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
+  requiereFeature('pedidosHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador', 'ventas'),
+  asyncHandler(async (req, res) => {
+    const datos = await validarDatosPedido(req.body || {});
+    if (datos.error) return res.status(400).json({ error: datos.error });
+
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    const creadoPor = resolverCreadoPorVenta(req);
+    const [resultado] = await pool.query(
+      `INSERT INTO pedidos
+        (numero_pedido, tipo, concepto, cantidad, descuento_porcentaje, email, nombre_cliente_manual, producto_id, producto_cantidad, estado, estado_actualizado_en, creado_por, creado_en, actualizado_en)
+       VALUES ('TEMP', ?, ?, ?, ?, ?, ?, ?, ?, 'pedido', ?, ?, ?, ?)`,
+      [datos.tipo, datos.concepto, datos.cantidad, datos.descuentoPorcentaje, datos.email, datos.nombreClienteManual, datos.productoId, datos.productoCantidad, ahora, creadoPor, ahora, ahora]
+    );
+    const numeroPedido = generarNumeroPedido(resultado.insertId);
+    await pool.query('UPDATE pedidos SET numero_pedido = ? WHERE id = ?', [numeroPedido, resultado.insertId]);
+    await registrarHistorialPedido(resultado.insertId, null, 'pedido', ahora);
+
+    res.status(201).json({
+      id: resultado.insertId,
+      numero_pedido: numeroPedido,
+      tipo: datos.tipo,
+      concepto: datos.concepto,
+      cantidad: datos.cantidad,
+      descuento_porcentaje: datos.descuentoPorcentaje,
+      email: datos.email,
+      nombre_cliente_manual: datos.nombreClienteManual,
+      producto_id: datos.productoId,
+      producto_cantidad: datos.productoCantidad,
+      estado: 'pedido',
+      vendedor: creadoPor,
+      mensaje: 'Pedido registrado correctamente.',
+    });
+  })
+);
+
+// Lista los pedidos para el tablero — sin paginación (el tablero muestra
+// todas las columnas a la vez), con un tope de seguridad (500) igual de
+// espíritu que CXC_BASE_TOPE del lado del cliente.
+app.get(
+  '/api/admin/pedidos',
+  adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
+  requiereFeature('pedidosHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador', 'ventas'),
+  asyncHandler(async (req, res) => {
+    const condiciones = ['pe.eliminado_en IS NULL'];
+    const params = [];
+    const busqueda = typeof req.query.busqueda === 'string' ? req.query.busqueda.trim() : '';
+    if (busqueda) {
+      const patron = `%${busqueda}%`;
+      condiciones.push('(pe.numero_pedido LIKE ? OR pe.concepto LIKE ? OR pe.email LIKE ? OR pe.nombre_cliente_manual LIKE ?)');
+      params.push(patron, patron, patron, patron);
+    }
+    const estado = typeof req.query.estado === 'string' ? req.query.estado : '';
+    if (['pedido', 'progreso', 'confirmar', 'entregado', 'cancelado'].includes(estado)) {
+      condiciones.push('pe.estado = ?');
+      params.push(estado);
+    }
+    const where = condiciones.join(' AND ');
+    const [pedidos] = await pool.query(
+      `SELECT pe.id, pe.numero_pedido, pe.tipo, pe.concepto, pe.cantidad, pe.descuento_porcentaje, pe.email, pe.nombre_cliente_manual,
+              pe.producto_id, pe.producto_cantidad, p.sku AS producto_sku, p.nombre AS producto_nombre,
+              pe.estado, pe.estado_actualizado_en, pe.motivo_cancelacion,
+              pe.convertido_a_orden_id, pe.convertido_en, pe.creado_por, pe.creado_en
+         FROM pedidos pe
+         LEFT JOIN productos p ON p.id = pe.producto_id
+        WHERE ${where}
+        ORDER BY pe.creado_en DESC
+        LIMIT 500`,
+      params
+    );
+    res.json({ pedidos: pedidos.map(filaPedidoPublica) });
+  })
+);
+
+// CRM (punto en curso): ficha de contacto del cliente + métricas de
+// cartera. Fuente real de "quién es el cliente" es `usuarios` (perfil
+// 'cliente') — Pedidos/Ventas NO tienen FK a usuarios (se capturan con un
+// `email` suelto, a veces ni siquiera de un cliente registrado), así que
+// el cruce es por correo (LOWER, nunca exacto-sensible a mayúsculas,
+// mismo criterio que la unicidad de usuarios.email del punto 377).
+// `segmento` es un cálculo de servidor de primera pasada (nunca una
+// columna guardada): activo=0 → 'inactivo'; cero pedidos/ventas → 'nuevo';
+// más de 30 días sin actividad → 'en_riesgo'; 10+ operaciones → 'recurrente';
+// cualquier otro caso con actividad → 'activo'. Umbrales documentados aquí
+// a propósito — son el primer corte razonable, no una regla de negocio ya
+// validada con el usuario; ajustarlos no requiere tocar el esquema.
+function calcularSegmentoContactoCrm({ activo, totalPedidos, totalVentas, diasInactividad }) {
+  if (!activo) return 'inactivo';
+  const totalOperaciones = totalPedidos + totalVentas;
+  if (totalOperaciones === 0) return 'nuevo';
+  if (diasInactividad != null && diasInactividad > 30) return 'en_riesgo';
+  if (totalOperaciones >= 10) return 'recurrente';
+  return 'activo';
+}
+
+// Nunca exponer un identificador SINFISCAL-* como si fuera el RFC real
+// (ver CLAUDE.md, "RFC solo si Facturación está activa") — `identificador`
+// sale `null` para esos casos, el frontend cae a mostrar solo nombre/correo.
+function filaCrmContactoPublica(row) {
+  const totalPedidos = Number(row.total_pedidos || 0);
+  const totalVentas = Number(row.total_ventas || 0);
+  const valorTotal = Number(row.valor_total || 0);
+  const fechasActividad = [row.ultima_actividad_pedido, row.ultima_venta].filter(Boolean).sort();
+  const ultimaActividad = fechasActividad.length ? fechasActividad[fechasActividad.length - 1] : null;
+  const diasInactividad = ultimaActividad
+    ? Math.floor((Date.now() - new Date(ultimaActividad).getTime()) / 86400000)
+    : null;
+  const activo = row.activo === 1 || row.activo === true;
+  return {
+    id: row.id,
+    identificador: isValidRFCRequerido(row.rfc) ? row.rfc : null,
+    nombre: row.nombre || row.email || 'Cliente sin nombre registrado',
+    email: row.email,
+    telefono: row.telefono,
+    creadoEn: row.creado_en,
+    activo,
+    totalPedidos,
+    totalVentas,
+    valorTotal,
+    ultimaActividad,
+    diasInactividad,
+    segmento: calcularSegmentoContactoCrm({ activo, totalPedidos, totalVentas, diasInactividad }),
+  };
+}
+
+// Lista de contactos de CRM — solo lectura en esta primera versión (alta/
+// edición de un cliente sigue siendo "Usuarios"/el flujo normal de Ventas;
+// este módulo es la vista consolidada, no un CRUD nuevo). Sin paginación
+// real todavía, mismo criterio de tope de seguridad que GET
+// /api/admin/pedidos (LIMIT, nunca el dataset completo sin límite).
+app.get(
+  '/api/admin/crm/contactos',
+  adminApiLimiter,
+  requiereFeature('crmHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador', 'ventas'),
+  asyncHandler(async (req, res) => {
+    const [filas] = await pool.query(
+      `SELECT
+          u.id, u.rfc, u.nombre, u.email, u.telefono, u.creado_en, u.activo,
+          COALESCE(ped.total_pedidos, 0) AS total_pedidos,
+          ped.ultima_actividad_pedido,
+          COALESCE(vt.total_ventas, 0) AS total_ventas,
+          COALESCE(vt.valor_total, 0) AS valor_total,
+          vt.ultima_venta
+        FROM usuarios u
+        LEFT JOIN (
+          SELECT LOWER(email) AS email_norm, COUNT(*) AS total_pedidos, MAX(estado_actualizado_en) AS ultima_actividad_pedido
+            FROM pedidos
+           WHERE eliminado_en IS NULL AND email IS NOT NULL
+           GROUP BY LOWER(email)
+        ) ped ON ped.email_norm = LOWER(u.email)
+        LEFT JOIN (
+          SELECT LOWER(email) AS email_norm, COUNT(*) AS total_ventas, SUM(total) AS valor_total, MAX(fecha_compra) AS ultima_venta
+            FROM ordenes_compra
+           WHERE eliminado_en IS NULL AND email IS NOT NULL
+           GROUP BY LOWER(email)
+        ) vt ON vt.email_norm = LOWER(u.email)
+       WHERE u.perfil = 'cliente'
+       ORDER BY COALESCE(u.nombre, u.email, u.rfc) ASC
+       LIMIT 1000`
+    );
+    res.json({ contactos: filas.map(filaCrmContactoPublica) });
+  })
+);
+
+// Edita un pedido todavía abierto (no entregado/cancelado) — una
+// cotización puede ajustarse antes de concretarse; una vez cerrado, el
+// registro queda fijo (igual criterio que ordenes_compra, que tampoco
+// tiene edición general).
+app.put(
+  '/api/admin/pedidos/:id',
+  adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
+  requiereFeature('pedidosHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador', 'ventas'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+
+    const [filas] = await pool.query('SELECT estado FROM pedidos WHERE id = ? AND eliminado_en IS NULL', [id]);
+    const pedido = filas[0];
+    if (!pedido) return res.status(404).json({ error: 'Pedido no encontrado.' });
+    if (pedido.estado === 'entregado' || pedido.estado === 'cancelado') {
+      return res.status(409).json({ error: 'Este pedido ya se cerró y no se puede editar.' });
+    }
+
+    const datos = await validarDatosPedido(req.body || {});
+    if (datos.error) return res.status(400).json({ error: datos.error });
+
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    await pool.query(
+      `UPDATE pedidos
+          SET concepto = ?, cantidad = ?, descuento_porcentaje = ?, email = ?, nombre_cliente_manual = ?,
+              producto_id = ?, producto_cantidad = ?, actualizado_en = ?, tipo = ?
+        WHERE id = ?`,
+      [datos.concepto, datos.cantidad, datos.descuentoPorcentaje, datos.email, datos.nombreClienteManual, datos.productoId, datos.productoCantidad, ahora, datos.tipo, id]
+    );
+    res.json({ ok: true });
+  })
+);
+
+// Mueve un pedido entre las 3 columnas laterales (Pedido/En progreso/Por
+// confirmar) — nunca a "entregado" (eso exige datos de venta real, ver
+// /convertir) ni a "cancelado" (eso exige motivo, ver /cancelar).
+app.put(
+  '/api/admin/pedidos/:id/mover',
+  adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
+  requiereFeature('pedidosHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador', 'ventas'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const estado = String((req.body || {}).estado || '');
+    if (!ESTADOS_PEDIDO_LATERALES.includes(estado)) {
+      return res.status(400).json({ error: 'Etapa inválida.' });
+    }
+
+    const [filas] = await pool.query('SELECT estado FROM pedidos WHERE id = ? AND eliminado_en IS NULL', [id]);
+    const pedido = filas[0];
+    if (!pedido) return res.status(404).json({ error: 'Pedido no encontrado.' });
+    if (pedido.estado === 'entregado' || pedido.estado === 'cancelado') {
+      return res.status(409).json({ error: 'Este pedido ya se cerró y no se puede mover.' });
+    }
+
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    await pool.query(
+      'UPDATE pedidos SET estado = ?, estado_actualizado_en = ?, actualizado_en = ? WHERE id = ?',
+      [estado, ahora, ahora, id]
+    );
+    await registrarHistorialPedido(id, pedido.estado, estado, ahora);
+    res.json({ ok: true, estado });
+  })
+);
+
+// Cancela un pedido — terminal, queda visible para siempre (nunca se
+// borra) porque el reporte "Motivos de cancelación" depende de que el
+// historial se conserve.
+app.put(
+  '/api/admin/pedidos/:id/cancelar',
+  adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
+  requiereFeature('pedidosHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador', 'ventas'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+
+    const [filas] = await pool.query('SELECT estado FROM pedidos WHERE id = ? AND eliminado_en IS NULL', [id]);
+    const pedido = filas[0];
+    if (!pedido) return res.status(404).json({ error: 'Pedido no encontrado.' });
+    if (pedido.estado === 'entregado' || pedido.estado === 'cancelado') {
+      return res.status(409).json({ error: 'Este pedido ya se cerró.' });
+    }
+
+    const motivo = sanitizeText((req.body || {}).motivo_cancelacion, 255) || null;
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    await pool.query(
+      'UPDATE pedidos SET estado = "cancelado", estado_actualizado_en = ?, motivo_cancelacion = ?, actualizado_en = ? WHERE id = ?',
+      [ahora, motivo, ahora, id]
+    );
+    await registrarHistorialPedido(id, pedido.estado, 'cancelado', ahora);
+    res.json({ ok: true, estado: 'cancelado' });
+  })
+);
+
+// Vincula un pedido con la venta real ya creada (el frontend llama
+// primero a POST /api/admin/ordenes-compra con los datos de "Pago y
+// entrega", y solo si esa venta se registró bien llama aquí). Terminal:
+// de aquí el pedido nunca se vuelve a mover.
+app.put(
+  '/api/admin/pedidos/:id/convertir',
+  adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
+  requiereFeature('pedidosHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador', 'ventas'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const ordenId = Number((req.body || {}).orden_id);
+    if (!Number.isInteger(ordenId)) {
+      return res.status(400).json({ error: 'Falta el identificador de la venta ya registrada.' });
+    }
+
+    const [filasPedido] = await pool.query('SELECT estado FROM pedidos WHERE id = ? AND eliminado_en IS NULL', [id]);
+    const pedido = filasPedido[0];
+    if (!pedido) return res.status(404).json({ error: 'Pedido no encontrado.' });
+    if (pedido.estado === 'entregado' || pedido.estado === 'cancelado') {
+      return res.status(409).json({ error: 'Este pedido ya se cerró.' });
+    }
+
+    const [filasOrden] = await pool.query('SELECT id FROM ordenes_compra WHERE id = ? AND eliminado_en IS NULL', [ordenId]);
+    if (!filasOrden[0]) {
+      return res.status(400).json({ error: 'La venta indicada no existe.' });
+    }
+
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    await pool.query(
+      `UPDATE pedidos
+          SET estado = 'entregado', estado_actualizado_en = ?, convertido_a_orden_id = ?, convertido_en = ?, actualizado_en = ?
+        WHERE id = ?`,
+      [ahora, ordenId, ahora, ahora, id]
+    );
+    await registrarHistorialPedido(id, pedido.estado, 'entregado', ahora);
+    res.json({ ok: true, estado: 'entregado', convertido_a_orden_id: ordenId });
+  })
+);
+
+// Reportes de Pedidos (Punto 508, Segmento 3) — un solo flag basta
+// (`pedidosHabilitado`): a diferencia de las sub-pestañas de "Reportes"
+// que reusan datos de otros módulos (Ventas/Gastos/Inventarios), esta
+// ruta es la ÚNICA consumidora de `pedidos`/`pedido_historial`, así que
+// no hay riesgo de "compartir ruta entre 2 superficies con flags
+// distintos" (CLAUDE.md). Todo honesto con los datos reales: sin pedidos
+// convertidos, los promedios salen `null` (nunca 0 disfrazado de dato).
+app.get(
+  '/api/admin/pedidos/reportes/resumen',
+  adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
+  requiereFeature('pedidosHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador', 'ventas'),
+  asyncHandler(async (req, res) => {
+    const [porEtapa] = await pool.query(
+      `SELECT estado, COUNT(*) AS n, COALESCE(SUM(cantidad), 0) AS total
+         FROM pedidos WHERE eliminado_en IS NULL GROUP BY estado`
+    );
+    const mapaEtapa = {};
+    porEtapa.forEach((f) => { mapaEtapa[f.estado] = { n: Number(f.n), total: Number(f.total) }; });
+    const nDe = (e) => (mapaEtapa[e] ? mapaEtapa[e].n : 0);
+    const totalDe = (e) => (mapaEtapa[e] ? mapaEtapa[e].total : 0);
+
+    const [slaFilas] = await pool.query(
+      `SELECT
+          SUM(CASE WHEN TIMESTAMPDIFF(DAY, estado_actualizado_en, NOW()) > 4 THEN 1 ELSE 0 END) AS atascados,
+          SUM(CASE WHEN TIMESTAMPDIFF(DAY, estado_actualizado_en, NOW()) BETWEEN 2 AND 4 THEN 1 ELSE 0 END) AS en_riesgo,
+          SUM(CASE WHEN TIMESTAMPDIFF(DAY, estado_actualizado_en, NOW()) < 2 THEN 1 ELSE 0 END) AS al_dia
+        FROM pedidos
+        WHERE eliminado_en IS NULL AND estado IN ('pedido','progreso','confirmar')`
+    );
+
+    const [cargaVendedor] = await pool.query(
+      `SELECT COALESCE(creado_por, 'Sin asignar') AS vendedor, COUNT(*) AS n
+         FROM pedidos
+        WHERE eliminado_en IS NULL AND estado IN ('pedido','progreso','confirmar')
+        GROUP BY vendedor ORDER BY n DESC LIMIT 20`
+    );
+
+    const [motivosCancelacion] = await pool.query(
+      `SELECT COALESCE(motivo_cancelacion, 'Sin motivo capturado') AS motivo, COUNT(*) AS n
+         FROM pedidos WHERE eliminado_en IS NULL AND estado = 'cancelado'
+        GROUP BY motivo ORDER BY n DESC LIMIT 10`
+    );
+
+    const [cancelacionPorVendedor] = await pool.query(
+      `SELECT COALESCE(creado_por, 'Sin asignar') AS vendedor,
+              SUM(CASE WHEN estado = 'cancelado' THEN 1 ELSE 0 END) AS cancelados,
+              COUNT(*) AS total
+         FROM pedidos
+        WHERE eliminado_en IS NULL AND estado IN ('entregado', 'cancelado')
+        GROUP BY vendedor`
+    );
+
+    const [clientesCancelaciones] = await pool.query(
+      `SELECT COALESCE(nombre_cliente_manual, email, 'Sin datos de cliente') AS cliente, COUNT(*) AS n
+         FROM pedidos WHERE eliminado_en IS NULL AND estado = 'cancelado'
+        GROUP BY cliente ORDER BY n DESC LIMIT 10`
+    );
+
+    const [ticketFilas] = await pool.query(
+      `SELECT AVG(pe.cantidad) AS cotizado_promedio, AVG(o.cantidad) AS vendido_promedio
+         FROM pedidos pe
+         JOIN ordenes_compra o ON o.id = pe.convertido_a_orden_id AND o.eliminado_en IS NULL
+        WHERE pe.eliminado_en IS NULL AND pe.estado = 'entregado'`
+    );
+
+    const [saldoFilas] = await pool.query(
+      `SELECT
+          COALESCE(SUM(CASE WHEN o.estado_pago = 'pendiente' THEN (o.total - o.monto_cobrado) ELSE 0 END), 0) AS con_saldo,
+          COALESCE(SUM(CASE WHEN o.estado_pago = 'pagada' THEN o.total ELSE 0 END), 0) AS pagado_completo
+         FROM pedidos pe
+         JOIN ordenes_compra o ON o.id = pe.convertido_a_orden_id AND o.eliminado_en IS NULL
+        WHERE pe.eliminado_en IS NULL AND pe.estado = 'entregado'`
+    );
+
+    const [cicloFilas] = await pool.query(
+      `SELECT AVG(TIMESTAMPDIFF(HOUR, creacion.creado_en, entrega.creado_en)) AS horas_promedio
+         FROM (SELECT pedido_id, MIN(creado_en) AS creado_en FROM pedido_historial WHERE estado_anterior IS NULL GROUP BY pedido_id) creacion
+         JOIN (SELECT pedido_id, creado_en FROM pedido_historial WHERE estado_nuevo = 'entregado') entrega
+           ON entrega.pedido_id = creacion.pedido_id`
+    );
+
+    const [tiempoPorEtapa] = await pool.query(
+      `SELECT etapa, AVG(horas) AS horas_promedio, COUNT(*) AS n FROM (
+          SELECT estado_nuevo AS etapa,
+                 TIMESTAMPDIFF(HOUR, creado_en, LEAD(creado_en) OVER (PARTITION BY pedido_id ORDER BY creado_en)) AS horas
+            FROM pedido_historial
+       ) t
+        WHERE horas IS NOT NULL
+        GROUP BY etapa`
+    );
+
+    const totalCreados = porEtapa.reduce((s, f) => s + Number(f.n), 0);
+    const entregados = nDe('entregado');
+    const cancelados = nDe('cancelado');
+    const baseConversion = entregados + cancelados;
+    const tasaConversion = baseConversion > 0 ? Math.round((entregados / baseConversion) * 1000) / 10 : null;
+    const pipeline = totalDe('pedido') + totalDe('progreso') + totalDe('confirmar');
+
+    res.json({
+      porEtapa: ['pedido', 'progreso', 'confirmar', 'entregado', 'cancelado'].map((e) => ({
+        estado: e, n: nDe(e), total: totalDe(e),
+      })),
+      operativo: {
+        sla: {
+          atascados: Number(slaFilas[0].atascados) || 0,
+          enRiesgo: Number(slaFilas[0].en_riesgo) || 0,
+          alDia: Number(slaFilas[0].al_dia) || 0,
+        },
+        cargaPorVendedor: cargaVendedor.map((f) => ({ vendedor: f.vendedor, n: Number(f.n) })),
+        motivosCancelacion: motivosCancelacion.map((f) => ({ motivo: f.motivo, n: Number(f.n) })),
+        tiempoPorEtapa: tiempoPorEtapa.map((f) => ({ etapa: f.etapa, horasPromedio: Math.round(Number(f.horas_promedio) * 10) / 10, n: Number(f.n) })),
+      },
+      estadistico: {
+        embudo: { creados: totalCreados, entregados, cancelados, abiertos: totalCreados - entregados - cancelados },
+        tasaConversion,
+        cicloPromedioHoras: cicloFilas[0].horas_promedio !== null ? Math.round(Number(cicloFilas[0].horas_promedio) * 10) / 10 : null,
+        ticketCotizadoPromedio: ticketFilas[0].cotizado_promedio !== null ? Math.round(Number(ticketFilas[0].cotizado_promedio) * 100) / 100 : null,
+        ticketVendidoPromedio: ticketFilas[0].vendido_promedio !== null ? Math.round(Number(ticketFilas[0].vendido_promedio) * 100) / 100 : null,
+        cancelacionPorVendedor: cancelacionPorVendedor.map((f) => ({
+          vendedor: f.vendedor,
+          cancelados: Number(f.cancelados),
+          total: Number(f.total),
+          tasa: Number(f.total) > 0 ? Math.round((Number(f.cancelados) / Number(f.total)) * 1000) / 10 : null,
+        })),
+      },
+      financiero: {
+        pipeline,
+        // Estimación, nunca ingreso real — depende de tasaConversion
+        // histórica; null si todavía no hay suficiente historial
+        // (ningún pedido convertido ni cancelado).
+        ingresoProyectado: tasaConversion !== null ? Math.round(pipeline * (tasaConversion / 100) * 100) / 100 : null,
+        entregadosConSaldo: Number(saldoFilas[0].con_saldo) || 0,
+        entregadosPagadoCompleto: Number(saldoFilas[0].pagado_completo) || 0,
+        valorPerdidoCancelacion: totalDe('cancelado'),
+      },
+      cliente: {
+        masCancelaciones: clientesCancelaciones.map((f) => ({ cliente: f.cliente, n: Number(f.n) })),
+      },
     });
   })
 );

@@ -173,6 +173,8 @@
     btnVistaTickets: document.getElementById('btn-vista-tickets'),
     btnVistaResumenFinanciero: document.getElementById('btn-vista-resumen-financiero'),
     btnVistaOrdenes: document.getElementById('btn-vista-ordenes'),
+    btnVistaPedidos: document.getElementById('btn-vista-pedidos'),
+    btnVistaCrm: document.getElementById('btn-vista-crm'),
     btnVistaGastos: document.getElementById('btn-vista-gastos'),
     btnVistaUsuarios: document.getElementById('btn-vista-usuarios'),
     btnVistaConfiguraciones: document.getElementById('btn-vista-configuraciones'),
@@ -183,6 +185,33 @@
     btnSidebarReportesLedger: document.getElementById('btn-sidebar-reportes-ledger'),
     btnSidebarReportesEstadoInventario: document.getElementById('btn-sidebar-reportes-estado-inventario'),
     btnSidebarReportesEstadoTickets: document.getElementById('btn-sidebar-reportes-estado-tickets'),
+    btnSidebarReportesPedidos: document.getElementById('btn-sidebar-reportes-pedidos'),
+    btnReportesVistaPedidos: document.getElementById('btn-reportes-vista-pedidos'),
+    reportesVistaPedidos: document.getElementById('reportes-vista-pedidos'),
+    reportesPedidosError: document.getElementById('reportes-pedidos-error'),
+    reportesPedidosStatPipeline: document.getElementById('reportes-pedidos-stat-pipeline'),
+    reportesPedidosStatPipelineSub: document.getElementById('reportes-pedidos-stat-pipeline-sub'),
+    reportesPedidosStatConversion: document.getElementById('reportes-pedidos-stat-conversion'),
+    reportesPedidosStatConversionSub: document.getElementById('reportes-pedidos-stat-conversion-sub'),
+    reportesPedidosStatCiclo: document.getElementById('reportes-pedidos-stat-ciclo'),
+    reportesPedidosStatPerdido: document.getElementById('reportes-pedidos-stat-perdido'),
+    reportesPedidosEmbudo: document.getElementById('reportes-pedidos-embudo'),
+    reportesPedidosCargaVendedor: document.getElementById('reportes-pedidos-carga-vendedor'),
+    reportesPedidosMotivos: document.getElementById('reportes-pedidos-motivos'),
+    reportesPedidosClientesCancel: document.getElementById('reportes-pedidos-clientes-cancel'),
+    reportesPedidosTicket: document.getElementById('reportes-pedidos-ticket'),
+    reportesPedidosSaldo: document.getElementById('reportes-pedidos-saldo'),
+    reportesPedidosTiempoEtapa: document.getElementById('reportes-pedidos-tiempo-etapa'),
+    resumenFinPedidosPipeline: document.getElementById('resumen-fin-pedidos-pipeline'),
+    resumenFinPedidosPipelineSub: document.getElementById('resumen-fin-pedidos-pipeline-sub'),
+    resumenFinPedidosIngreso: document.getElementById('resumen-fin-pedidos-ingreso'),
+    resumenFinPedidosIngresoSub: document.getElementById('resumen-fin-pedidos-ingreso-sub'),
+    resumenFinPedidosConversion: document.getElementById('resumen-fin-pedidos-conversion'),
+    resumenFinPedidosConversionSub: document.getElementById('resumen-fin-pedidos-conversion-sub'),
+    resumenFinPedidosCiclo: document.getElementById('resumen-fin-pedidos-ciclo'),
+    resumenFinPedidosPerdido: document.getElementById('resumen-fin-pedidos-perdido'),
+    resumenFinPedidosSaldoCxc: document.getElementById('resumen-fin-pedidos-saldo-cxc'),
+    resumenFinPedidosSaldoCxcSub: document.getElementById('resumen-fin-pedidos-saldo-cxc-sub'),
     btnVistaProveedores: document.getElementById('btn-vista-proveedores'),
     btnVistaMiCuenta: document.getElementById('btn-vista-mi-cuenta'),
     // Riel colapsable del sidebar (punto 329, solo escritorio)
@@ -214,6 +243,50 @@
     vistaTickets: document.getElementById('vista-tickets'),
     vistaResumenFinanciero: document.getElementById('vista-resumen-financiero'),
     vistaOrdenes: document.getElementById('vista-ordenes'),
+    vistaPedidos: document.getElementById('vista-pedidos'),
+    vistaCrm: document.getElementById('vista-crm'),
+    pedidosKanban: document.getElementById('pedidos-kanban'),
+    pedidosCount: document.getElementById('pedidos-count'),
+    pedidosError: document.getElementById('pedidos-error'),
+    btnRefreshPedidos: document.getElementById('btn-refresh-pedidos'),
+    btnNuevoPedido: document.getElementById('btn-nuevo-pedido'),
+    pedidoNuevoModalOverlay: document.getElementById('pedido-nuevo-modal-overlay'),
+    btnPedidoNuevoCerrar: document.getElementById('btn-pedido-nuevo-cerrar'),
+    btnPedidoNuevoCancelar: document.getElementById('btn-pedido-nuevo-cancelar'),
+    btnPedidoNuevoGuardar: document.getElementById('btn-pedido-nuevo-guardar'),
+    btnPedidoNuevoGuardarLabel: document.getElementById('btn-pedido-nuevo-guardar-label'),
+    pedidoNuevoConcepto: document.getElementById('pedido-nuevo-concepto'),
+    pedidoNuevoCantidad: document.getElementById('pedido-nuevo-cantidad'),
+    pedidoNuevoDescuento: document.getElementById('pedido-nuevo-descuento'),
+    pedidoNuevoNombre: document.getElementById('pedido-nuevo-nombre'),
+    pedidoNuevoNombreSugerencias: document.getElementById('pedido-nuevo-nombre-sugerencias'),
+    pedidoNuevoEmail: document.getElementById('pedido-nuevo-email'),
+    pedidoNuevoEmailSugerencias: document.getElementById('pedido-nuevo-email-sugerencias'),
+    pedidoNuevoErrorGeneral: document.getElementById('pedido-nuevo-error-general'),
+    pedidoNuevoProductoWrap: document.getElementById('pedido-nuevo-producto-wrap'),
+    pedidoNuevoProductoBuscar: document.getElementById('pedido-nuevo-producto-buscar'),
+    pedidoNuevoProductoSugerencias: document.getElementById('pedido-nuevo-producto-sugerencias'),
+    pedidoNuevoProductoSeleccionado: document.getElementById('pedido-nuevo-producto-seleccionado'),
+    pedidoNuevoProductoSeleccionadoNombre: document.getElementById('pedido-nuevo-producto-seleccionado-nombre'),
+    pedidoNuevoProductoSeleccionadoDetalle: document.getElementById('pedido-nuevo-producto-seleccionado-detalle'),
+    pedidoNuevoProductoSinResultados: document.getElementById('pedido-nuevo-producto-sin-resultados'),
+    pedidoNuevoProductoUnidades: document.getElementById('pedido-nuevo-producto-unidades'),
+    btnPedidoNuevoCantidadMenos: document.getElementById('btn-pedido-nuevo-cantidad-menos'),
+    btnPedidoNuevoCantidadMas: document.getElementById('btn-pedido-nuevo-cantidad-mas'),
+    btnPedidoNuevoProductoQuitar: document.getElementById('btn-pedido-nuevo-producto-quitar'),
+    pedidoNuevoTipoCotizacion: document.getElementById('pedido-nuevo-tipo-cotizacion'),
+    pedidoNuevoTipoPedido: document.getElementById('pedido-nuevo-tipo-pedido'),
+    pedidoNuevoTipoHint: document.getElementById('pedido-nuevo-tipo-hint'),
+    pedidoCancelarModalOverlay: document.getElementById('pedido-cancelar-modal-overlay'),
+    pedidoCancelarSubtitulo: document.getElementById('pedido-cancelar-subtitulo'),
+    pedidoCancelarMotivo: document.getElementById('pedido-cancelar-motivo'),
+    btnPedidoCancelarVolver: document.getElementById('btn-pedido-cancelar-volver'),
+    btnPedidoCancelarConfirmar: document.getElementById('btn-pedido-cancelar-confirmar'),
+    pedidoDetalleModalOverlay: document.getElementById('pedido-detalle-modal-overlay'),
+    btnPedidoDetalleCerrar: document.getElementById('btn-pedido-detalle-cerrar'),
+    pedidoDetalleBody: document.getElementById('pedido-detalle-body'),
+    pedidoDetalleErrorGeneral: document.getElementById('pedido-detalle-error-general'),
+    pedidoDetalleAcciones: document.getElementById('pedido-detalle-acciones'),
     vistaGastos: document.getElementById('vista-gastos'),
     vistaUsuarios: document.getElementById('vista-usuarios'),
     vistaConfiguraciones: document.getElementById('config-modal-overlay'),
@@ -667,6 +740,7 @@
     ordenEntregaCorreoWrap: document.getElementById('orden-entrega-correo-wrap'),
     ordenEntregaImprimirHint: document.getElementById('orden-entrega-imprimir-hint'),
     ordenEntregaSinTicketHint: document.getElementById('orden-entrega-sinticket-hint'),
+    ordenNombreCliente: document.getElementById('orden-nombre-cliente'),
     // Toggle "Cliente ya registrado" / "Cliente nuevo" de la venta
     btnOrdenClienteRegistrado: document.getElementById('btn-orden-cliente-registrado'),
     btnOrdenClienteNuevo: document.getElementById('btn-orden-cliente-nuevo'),
@@ -2740,7 +2814,7 @@
   // control/utils/planes.js:validarReglasDependencia.
   function reportesPlanVisible() {
     if (!tenantFuncionesPlan) return true;
-    return ['reportesPorReporteHabilitado', 'reportesCortesHabilitado', 'reportesEliminadosHabilitado', 'reportesEstadoInventarioHabilitado', 'reportesEstadoTicketsHabilitado']
+    return ['reportesPorReporteHabilitado', 'reportesCortesHabilitado', 'reportesEliminadosHabilitado', 'reportesEstadoInventarioHabilitado', 'reportesEstadoTicketsHabilitado', 'pedidosHabilitado']
       .some((campo) => tenantFuncionesPlan[campo]);
   }
   // Proveedores: automático, sin bandera propia — visible si Inventarios
@@ -2814,7 +2888,7 @@
     // etc.) siguen exclusivos de fiscal — administrador entra en modo
     // lectura real, no edición.
     administrador: {
-      vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'auditoria', 'promociones', 'configuraciones', 'tickets', 'constancias'],
+      vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'pedidos', 'crm', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'auditoria', 'promociones', 'configuraciones', 'tickets', 'constancias'],
       tarjetasConfigPermitidas: ['facturacion-toggle-card', 'global-config-card', 'marca-tema-card', 'ticket-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card', 'notif-toggle-card', 'suscripcion-config-card'],
     },
     // Punto 360 (2026-10-02): "lectura-reportes" se agregó aquí porque el
@@ -2848,7 +2922,7 @@
     // SÍ se permite (punto "Mi Cuenta", 2026-09-10): perfil/datos propios
     // y cambio de contraseña, no depende de Configuraciones.
     ventas: {
-      vistasPermitidas: ['ordenes', 'cxc', 'gastos', 'mi-cuenta'],
+      vistasPermitidas: ['ordenes', 'pedidos', 'crm', 'cxc', 'gastos', 'mi-cuenta'],
       tarjetasConfigPermitidas: [],
     },
     // punto 321: perfil "Inventario" — un solo módulo, nada de negocio
@@ -2880,6 +2954,8 @@
     return {
       inicio: els.btnVistaInicio,
       ordenes: els.btnVistaOrdenes,
+      pedidos: els.btnVistaPedidos,
+      crm: els.btnVistaCrm,
       cxc: els.btnVistaCxc,
       gastos: els.btnVistaGastos,
       inventarios: els.btnVistaInventarios,
@@ -2902,7 +2978,7 @@
   // quedó visible (ver aplicarRestriccionesPerfil).
   const GRUPOS_SIDEBAR_NAV = {
     facturacion: ['tickets', 'constancias'],
-    'ventas-gastos': ['ordenes', 'cxc', 'gastos'],
+    'ventas-gastos': ['ordenes', 'pedidos', 'crm', 'cxc', 'gastos'],
     finanzas: ['resumen-financiero', 'lectura-reportes'],
     catalogo: ['inventarios', 'proveedores'],
     administracion: ['usuarios', 'auditoria', 'promociones'],
@@ -3034,6 +3110,8 @@
         (vista !== 'tickets' || planPermite('facturacionHabilitada')) &&
         (vista !== 'constancias' || planPermite('facturacionHabilitada')) &&
         (vista !== 'ordenes' || (ventasHabilitadaGlobalmente && planPermite('ventasHabilitado'))) &&
+        (vista !== 'pedidos' || (ventasHabilitadaGlobalmente && planPermite('ventasHabilitado') && planPermite('pedidosHabilitado'))) &&
+        (vista !== 'crm' || planPermite('crmHabilitado')) &&
         (vista !== 'cxc' || planPermite('cxcHabilitado')) &&
         (vista !== 'gastos' || planPermite('gastosHabilitado')) &&
         (vista !== 'resumen-financiero' || planPermite('resumenFinancieroHabilitado')) &&
@@ -3059,6 +3137,13 @@
     const puedeRegistrarVenta = !!navPorVista.ordenes && !navPorVista.ordenes.hidden;
     if (els.btnHeaderRegistrarVenta) els.btnHeaderRegistrarVenta.hidden = !puedeRegistrarVenta;
     if (els.btnMovilRegistrarVenta) els.btnMovilRegistrarVenta.hidden = !puedeRegistrarVenta;
+
+    // Punto 508, Segmento 4: primer gate por PLAN a nivel de tarjeta
+    // individual del tablero de Resumen financiero (antes solo existía a
+    // nivel de VISTA completa) — se resuelve aquí, en el mismo lugar que
+    // ya decide todo lo demás por plan, nunca en un callback aparte que
+    // pudiera correr en otro momento.
+    aplicarVisibilidadTarjetasDashboard();
 
     // Título de cada grupo del sidebar: se oculta solo si NINGÚN botón de
     // ese grupo quedó visible para este perfil — nunca deja un
@@ -4008,7 +4093,7 @@
   // "Registrar" más abajo, que lo deja abierto y listo para la
   // siguiente venta a propósito, para no romper el flujo de capturar
   // varias ventas seguidas que sí tenía el formulario sticky anterior.
-  function abrirOrdenRegistrarModal() {
+  function abrirOrdenRegistrarModal(omitirBorrador) {
     // Bug real (punto 377): este modal se puede abrir desde el atajo
     // global del header, el ícono móvil, o los botones de estado vacío de
     // Ventas/CxC — NINGUNO de esos 3 caminos pasa por la vista "ordenes"
@@ -4025,6 +4110,7 @@
     els.ordenFormExito.hidden = true;
     els.ordenFormBody.hidden = false;
     els.ordenRegistrarModalOverlay.hidden = false;
+    if (omitirBorrador) return;
     const borrador = obtenerOrdenBorradorGuardado();
     if (borrador) {
       abrirConfirmacion({
@@ -4038,6 +4124,9 @@
   }
   function cerrarOrdenRegistrarModal() {
     els.ordenRegistrarModalOverlay.hidden = true;
+    // Si se estaba convirtiendo un pedido y el admin cierra sin guardar,
+    // no debe quedar vinculado a la SIGUIENTE venta que registre.
+    pedidoOrigenEntrega = null;
   }
   els.btnCerrarOrdenModal.addEventListener('click', cerrarOrdenRegistrarModal);
   els.ordenRegistrarModalOverlay.addEventListener('click', (e) => {
@@ -6731,6 +6820,19 @@
       alEntrar: () => cargarEstadoTickets(),
       flag: 'reportesEstadoTicketsHabilitado',
     },
+    // Punto 508, Segmento 3: único flag real del módulo (pedidosHabilitado)
+    // — a diferencia de las otras 5 pestañas, esta ruta no sirve a NINGUNA
+    // otra vista (nunca "nunca compartir ruta entre 2 superficies",
+    // CLAUDE.md), así que no necesita un flag propio tipo
+    // reportesPedidosHabilitado.
+    pedidos: {
+      boton: 'btnReportesVistaPedidos',
+      botonSidebar: 'btnSidebarReportesPedidos',
+      vista: 'reportesVistaPedidos',
+      caption: 'Pedidos: pipeline, conversión, cancelaciones y el puente real a Ventas/CxC.',
+      alEntrar: () => cargarReporteGeneralPedidos(),
+      flag: 'pedidosHabilitado',
+    },
   };
 
   // Bug real reportado por el usuario (punto en curso): reportesPlanVisible()
@@ -6746,6 +6848,11 @@
   function pestanaReportesVisible(clave) {
     const def = PESTANAS_REPORTES[clave];
     if (clave !== 'estado-tickets' && perfilActual === 'fiscal') return false;
+    // Pedidos depende de Ventas (mismo criterio que #btn-vista-pedidos) —
+    // un plan viejo con pedidos_habilitado=1 heredado del backfill del
+    // punto 508 pero ventas_habilitado=0 no debe mostrar esta pestaña,
+    // aunque el flag propio siga en 1.
+    if (clave === 'pedidos' && !planPermite('ventasHabilitado')) return false;
     return planPermite(def.flag);
   }
 
@@ -6798,6 +6905,7 @@
   els.btnReportesVistaLedger.addEventListener('click', () => activarPestanaReportes('ledger'));
   els.btnReportesVistaEstadoInventario.addEventListener('click', () => activarPestanaReportes('estado-inventario'));
   els.btnReportesVistaEstadoTickets.addEventListener('click', () => activarPestanaReportes('estado-tickets'));
+  if (els.btnReportesVistaPedidos) els.btnReportesVistaPedidos.addEventListener('click', () => activarPestanaReportes('pedidos'));
 
   // Botones espejo del submenú anidado en el sidebar (escritorio, ver
   // admin.html) — cada uno navega a la vista "Reportes" (por si se hace
@@ -6808,6 +6916,7 @@
   if (els.btnSidebarReportesLedger) els.btnSidebarReportesLedger.addEventListener('click', () => { cambiarVistaPrincipal('lectura-reportes'); activarPestanaReportes('ledger'); });
   if (els.btnSidebarReportesEstadoInventario) els.btnSidebarReportesEstadoInventario.addEventListener('click', () => { cambiarVistaPrincipal('lectura-reportes'); activarPestanaReportes('estado-inventario'); });
   if (els.btnSidebarReportesEstadoTickets) els.btnSidebarReportesEstadoTickets.addEventListener('click', () => { cambiarVistaPrincipal('lectura-reportes'); activarPestanaReportes('estado-tickets'); });
+  if (els.btnSidebarReportesPedidos) els.btnSidebarReportesPedidos.addEventListener('click', () => { cambiarVistaPrincipal('lectura-reportes'); activarPestanaReportes('pedidos'); });
 
   // Clic en el padre "Reportes": navega a la vista (comportamiento de
   // siempre) y además abre/cierra su submenú — igual que un grupo del
@@ -9454,6 +9563,10 @@
     els.btnVistaResumenFinanciero.setAttribute('aria-selected', String(vista === 'resumen-financiero'));
     els.btnVistaOrdenes.classList.toggle('is-active', vista === 'ordenes');
     els.btnVistaOrdenes.setAttribute('aria-selected', String(vista === 'ordenes'));
+    els.btnVistaPedidos.classList.toggle('is-active', vista === 'pedidos');
+    els.btnVistaPedidos.setAttribute('aria-selected', String(vista === 'pedidos'));
+    els.btnVistaCrm.classList.toggle('is-active', vista === 'crm');
+    els.btnVistaCrm.setAttribute('aria-selected', String(vista === 'crm'));
     els.btnVistaCxc.classList.toggle('is-active', vista === 'cxc');
     els.btnVistaCxc.setAttribute('aria-selected', String(vista === 'cxc'));
     els.btnVistaGastos.classList.toggle('is-active', vista === 'gastos');
@@ -9487,6 +9600,8 @@
     els.vistaTickets.hidden = vista !== 'tickets';
     els.vistaResumenFinanciero.hidden = vista !== 'resumen-financiero';
     els.vistaOrdenes.hidden = vista !== 'ordenes';
+    els.vistaPedidos.hidden = vista !== 'pedidos';
+    els.vistaCrm.hidden = vista !== 'crm';
     els.vistaCxc.hidden = vista !== 'cxc';
     els.vistaGastos.hidden = vista !== 'gastos';
     els.vistaInventarios.hidden = vista !== 'inventarios';
@@ -9530,6 +9645,8 @@
     // (CLS) — por eso va en paralelo a la carga de datos, no después.
     cargarPreferenciasDashboard();
   }
+    if (vista === 'pedidos') cargarPedidos();
+    if (vista === 'crm') cargarCrm();
     if (vista === 'cxc') cargarCxc();
     if (vista === 'gastos') {
       cargarPeriodosArchivados();
@@ -9578,6 +9695,8 @@
   els.btnVistaTickets.addEventListener('click', () => cambiarVistaPrincipal('tickets'));
   els.btnVistaResumenFinanciero.addEventListener('click', () => cambiarVistaPrincipal('resumen-financiero'));
   els.btnVistaOrdenes.addEventListener('click', () => cambiarVistaPrincipal('ordenes'));
+  els.btnVistaPedidos.addEventListener('click', () => cambiarVistaPrincipal('pedidos'));
+  els.btnVistaCrm.addEventListener('click', () => cambiarVistaPrincipal('crm'));
   els.btnVistaCxc.addEventListener('click', () => cambiarVistaPrincipal('cxc'));
   els.btnVistaGastos.addEventListener('click', () => cambiarVistaPrincipal('gastos'));
   els.btnVistaInventarios.addEventListener('click', () => cambiarVistaPrincipal('inventarios'));
@@ -13186,6 +13305,8 @@
     recalcularOrdenDesdeProductos();
     els.ordenEmail.value = '';
     els.ordenEmailNuevo.value = '';
+    if (els.ordenNombreCliente) els.ordenNombreCliente.value = '';
+    setFieldError('orden-nombre-cliente', '');
     aplicarModoClienteOrden(false);
     aplicarMetodoEntregaOrden(ordenEntregaDefault);
     ordenFolioConciliacion = null;
@@ -13383,6 +13504,7 @@
     setFieldError('orden-descuento', '');
     setFieldError('orden-email', '');
     setFieldError('orden-email-nuevo', '');
+    setFieldError('orden-nombre-cliente', '');
     setFieldError('orden-inventario-unidades', '');
 
     const concepto = els.ordenConcepto.value.trim();
@@ -13402,6 +13524,9 @@
     const imprimirAlGuardar = ordenMetodoEntrega === 'imprimir';
     const fechaVencimiento = els.ordenFechaVencimiento ? els.ordenFechaVencimiento.value : '';
     const notasCobro = els.ordenNotasCobro ? els.ordenNotasCobro.value.trim() : '';
+    // Punto 507: independiente de correo/ticket — identifica la venta en
+    // Ventas/CxC/búsqueda aunque no haya correo capturado.
+    const nombreClienteManual = els.ordenNombreCliente ? els.ordenNombreCliente.value.trim() : '';
 
     let valido = true;
     if (!concepto) {
@@ -13460,6 +13585,7 @@
         notas_cobro: ordenEstadoPago === 'pendiente' ? notasCobro : null,
         metodo_pago: ordenMetodoPago,
         folio_conciliacion: ordenMetodoPago === 'transferencia' ? ordenFolioConciliacion : undefined,
+        nombre_cliente_manual: nombreClienteManual || null,
       });
       borrarOrdenBorradorGuardado();
       mostrarExitoRegistrarOrden('Guardado — se enviará al recuperar conexión');
@@ -13485,6 +13611,7 @@
           notas_cobro: ordenEstadoPago === 'pendiente' ? notasCobro : null,
           metodo_pago: ordenMetodoPago,
           folio_conciliacion: ordenMetodoPago === 'transferencia' ? ordenFolioConciliacion : undefined,
+          nombre_cliente_manual: nombreClienteManual || null,
           productos_inventario:
             lineasInventarioEnLista.length > 0
               ? lineasInventarioEnLista.map((p) => ({ producto_id: p.producto_id, cantidad: p.cantidad }))
@@ -13497,6 +13624,24 @@
         return;
       }
       borrarOrdenBorradorGuardado();
+      if (pedidoOrigenEntrega) {
+        const pedidoIdConvertido = pedidoOrigenEntrega.id;
+        const numeroPedidoConvertido = pedidoOrigenEntrega.numero_pedido;
+        pedidoOrigenEntrega = null;
+        try {
+          const resConvertir = await fetch(`${API_BASE}/admin/pedidos/${pedidoIdConvertido}/convertir`, {
+            method: 'PUT',
+            headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orden_id: data.id }),
+          });
+          if (!resConvertir.ok) {
+            showToast(`Venta registrada, pero no se pudo marcar ${numeroPedidoConvertido} como entregado — revísalo en Pedidos.`, 'error');
+          }
+        } catch (_) {
+          showToast(`Venta registrada, pero no se pudo marcar ${numeroPedidoConvertido} como entregado — revísalo en Pedidos.`, 'error');
+        }
+        cargarPedidos();
+      }
       mostrarExitoRegistrarOrden(
         undefined,
         imprimirAlGuardar
@@ -15545,7 +15690,35 @@
     { id: 'ventas-facturado-gastos', titulo: 'Ventas vs Facturado vs Gastos' },
     { id: 'utilidad', titulo: 'Utilidad neta del mes' },
     { id: 'gastos-categoria', titulo: 'Distribución de gastos por categoría' },
+    // Punto 508, Segmento 4: primera vez que una tarjeta de este tablero
+    // lleva un `flag` propio (nunca existió antes — ver
+    // aplicarVisibilidadTarjetasDashboard). Depende de Pedidos, nunca de
+    // Ventas/CxC directo, para no duplicar el candado ya resuelto en el
+    // sidebar.
+    { id: 'pedidos-pipeline', titulo: 'Pipeline de Pedidos', flag: 'pedidosHabilitado' },
+    { id: 'pedidos-ingreso-proyectado', titulo: 'Ingreso proyectado (estimación)', flag: 'pedidosHabilitado' },
+    { id: 'pedidos-tasa-conversion', titulo: 'Tasa de conversión de pedidos', flag: 'pedidosHabilitado' },
+    { id: 'pedidos-ciclo-promedio', titulo: 'Ciclo promedio de cierre', flag: 'pedidosHabilitado' },
+    { id: 'pedidos-valor-perdido', titulo: 'Valor perdido por cancelación', flag: 'pedidosHabilitado' },
+    { id: 'pedidos-saldo-cxc', titulo: 'Saldo CxC originado en Pedidos', flag: 'pedidosHabilitado' },
   ];
+
+  // Oculta/muestra, UNA por UNA, las tarjetas del tablero que dependen de
+  // un flag de plan — mecanismo que no existía hasta este punto (ninguna
+  // tarjeta de Resumen financiero se había gateado por plan antes, solo
+  // la VISTA completa). `hidden` nace en el HTML (fail-closed: nunca un
+  // parpadeo de "se ve y luego se oculta") — aquí solo se QUITA cuando el
+  // plan sí lo permite.
+  function aplicarVisibilidadTarjetasDashboard() {
+    DASHBOARD_TARJETAS.forEach((t) => {
+      if (!t.flag) return;
+      const el = els.resumenFinTablero && els.resumenFinTablero.querySelector(`[data-dashboard-id="${t.id}"]`);
+      // Mismo criterio que pestanaReportesVisible('pedidos'): este flag
+      // también depende de Ventas, nunca solo de sí mismo.
+      const visible = planPermite(t.flag) && (t.flag !== 'pedidosHabilitado' || planPermite('ventasHabilitado'));
+      if (el) el.hidden = !visible;
+    });
+  }
   const DASHBOARD_SPAN_MIN = 3;
   const DASHBOARD_SPAN_MAX = 12;
   // Resize vertical (pedido junto al de ancho ya existente) — mismos
@@ -15567,6 +15740,12 @@
     'ventas-facturado-gastos': 12,
     utilidad: 6,
     'gastos-categoria': 6,
+    'pedidos-pipeline': 3,
+    'pedidos-ingreso-proyectado': 3,
+    'pedidos-tasa-conversion': 3,
+    'pedidos-ciclo-promedio': 3,
+    'pedidos-valor-perdido': 3,
+    'pedidos-saldo-cxc': 3,
   };
   const DASHBOARD_VISTA = 'resumen-financiero';
   const DASHBOARD_GUARDADO_DEBOUNCE_MS = 800;
@@ -15576,9 +15755,15 @@
   let dashboardGuardadoTimer = null;
 
   function obtenerTarjetasDashboard() {
-    return Array.from(els.resumenFinTablero.querySelectorAll('[data-dashboard-id]')).sort(
-      (a, b) => Number(getComputedStyle(a).order) - Number(getComputedStyle(b).order)
-    );
+    // Punto 508, Segmento 4: .filter(!hidden) es NUEVO — hasta este punto
+    // ninguna tarjeta del tablero se ocultaba por plan, así que esta
+    // función nunca necesitó excluir nada. Sin el filtro, una tarjeta
+    // oculta (ej. Pedidos sin el flag) seguiría contando en el cálculo de
+    // orden/filas de igualarAlturaFilasDashboard(), corriendo el
+    // agrupamiento visual de las tarjetas que SÍ se ven.
+    return Array.from(els.resumenFinTablero.querySelectorAll('[data-dashboard-id]'))
+      .filter((t) => !t.hidden)
+      .sort((a, b) => Number(getComputedStyle(a).order) - Number(getComputedStyle(b).order));
   }
 
   // Alto libre en px — con altura explícita se recorta lo que no quepa
@@ -16076,6 +16261,12 @@
         renderResumenFinCobranza(cxcBaseCache);
       } catch (_) {
         renderResumenFinCobranza([]);
+      }
+      // Punto 508, Segmento 4: las 6 tarjetas de Pedidos solo se piden si
+      // el plan las incluye — nunca un fetch de más para un tenant sin el
+      // módulo (mismo criterio que el resto de este archivo).
+      if (planPermite('pedidosHabilitado')) {
+        await cargarTarjetasPedidosDashboard();
       }
       // Con todo el contenido ya renderizado (KPIs, donas, gráficas,
       // cobranza), se igualan las filas — un frame después, para medir
@@ -19989,6 +20180,1155 @@
     confirmarMoverGastoAPapelera(gastoDetalleActual.id, gastoDetalleActual.concepto);
   });
 
+  // ---------- Pedidos (punto 508, Segmento 2) — kanban de pre-ventas/cotizaciones ----------
+  // Un pedido NUNCA toca ordenes_compra/CxC hasta "Entregado". Al
+  // entregar se reutiliza el modal "Registrar venta" ya existente
+  // (abrirEntregaDesdePedido precarga concepto/cantidad/cliente como una
+  // línea manual más, igual que cualquier venta) — después de que esa
+  // venta se registra bien, PUT /api/admin/pedidos/:id/convertir vincula
+  // ambos registros (ver el hook dentro del submit de "Registrar venta").
+  let pedidosCache = [];
+  let pedidoOrigenEntrega = null; // pedido en curso de convertirse en venta
+  let pedidoEnTurno = null; // pedido objetivo de un modal de acción (cancelar/detalle)
+
+  const PEDIDOS_COLUMNAS = [
+    { id: 'pedido', label: 'Pedido' },
+    { id: 'progreso', label: 'En progreso' },
+    { id: 'confirmar', label: 'Por confirmar' },
+    { id: 'entregado', label: 'Entregado' },
+    { id: 'cancelado', label: 'Cancelado' },
+  ];
+  const PEDIDOS_ESTADOS_LATERALES = ['pedido', 'progreso', 'confirmar'];
+
+  // Semáforo de SLA (concepto #4 elegido): días desde que el pedido entró
+  // a su etapa actual — puramente visual, nunca una fecha de corte real
+  // (a diferencia de fecha_vencimiento en CxC), así que basta parsear la
+  // fecha UTC que ya manda el backend sin pasar por limitesPeriodo.js.
+  function diasEnEtapaPedido(pedido) {
+    const entonces = new Date(String(pedido.estado_actualizado_en).replace(' ', 'T') + 'Z');
+    if (Number.isNaN(entonces.getTime())) return 0;
+    return Math.max(0, Math.floor((Date.now() - entonces.getTime()) / 86400000));
+  }
+  function claseSlaPedido(dias) {
+    if (dias > 4) return 'is-late';
+    if (dias >= 2) return 'is-mid';
+    return 'is-ok';
+  }
+
+  async function cargarPedidos() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    els.pedidosError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/admin/pedidos`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) { clearSession(); showLogin(); return; }
+      if (!res.ok) { els.pedidosError.textContent = 'No se pudieron cargar los pedidos.'; return; }
+      const data = await res.json();
+      pedidosCache = data.pedidos || [];
+      renderPedidos();
+    } catch (_) {
+      els.pedidosError.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  function renderPedidos() {
+    if (!els.pedidosKanban) return;
+    els.pedidosCount.textContent = `${pedidosCache.length} pedido${pedidosCache.length === 1 ? '' : 's'}`;
+    els.pedidosKanban.innerHTML = '';
+    PEDIDOS_COLUMNAS.forEach((col) => {
+      const items = pedidosCache.filter((p) => p.estado === col.id);
+      const colEl = document.createElement('div');
+      colEl.className = 'pedidos-col';
+      colEl.innerHTML = `<div class="pedidos-col-head"><span class="pedidos-col-lbl">${escapeHtml(col.label)}</span><span class="admin-count">${items.length}</span></div><div class="pedidos-col-body"></div>`;
+      const body = colEl.querySelector('.pedidos-col-body');
+      if (items.length === 0) {
+        body.innerHTML = '<p class="pedidos-col-vacio">Sin pedidos aquí.</p>';
+      } else {
+        items.forEach((p) => body.appendChild(construirTarjetaPedido(p, col.id)));
+      }
+      // Punto 513: drag and drop además del <select> de siempre — solo
+      // las 3 columnas laterales aceptan soltar (Entregado/Cancelado
+      // exigen datos extra, mismo candado real que ya rechaza
+      // PUT .../mover hacia esos 2 estados con 400).
+      if (PEDIDOS_ESTADOS_LATERALES.includes(col.id)) {
+        wireDropZonaPedido(body, col.id);
+      }
+      els.pedidosKanban.appendChild(colEl);
+    });
+  }
+
+  // CRM (punto en curso): ficha de contacto de clientes + métricas de
+  // cartera. Dos vistas dentro del MISMO segmento (nunca una ruta/vista
+  // aparte) — "Contactos" (panel dividido: lista + ficha) y "Métricas"
+  // (resumen 360), intercambiables con un botón en la misma barra
+  // superior, mismo criterio que las sub-pestañas de Reportes. Solo
+  // lectura en esta primera versión: alta/edición de un cliente sigue
+  // siendo el flujo normal de "Usuarios"/Ventas, este módulo no agrega un
+  // CRUD nuevo todavía.
+  let crmContactosCache = [];
+  let crmVistaActual = 'contactos';
+  let crmContactoSeleccionadoId = null;
+  let crmBusqueda = '';
+
+  const CRM_SEGMENTOS = {
+    activo: { etiqueta: 'Activo' },
+    recurrente: { etiqueta: 'Recurrente' },
+    nuevo: { etiqueta: 'Nuevo' },
+    en_riesgo: { etiqueta: 'En riesgo' },
+    inactivo: { etiqueta: 'Inactivo' },
+  };
+  // Hex directo, nunca una variable --color-success/--color-positive que
+  // no existe en esta hoja de estilos (ver CLAUDE.md, gotcha de
+  // --color-positive) — solo 'nuevo'/'en_riesgo'/'inactivo' reusan tokens
+  // reales ya definidos (--color-accent/--color-warn/--color-ink-soft).
+  const CRM_SEGMENTO_COLOR = {
+    activo: '#1FAE6B',
+    recurrente: '#2E6FE0',
+    nuevo: 'var(--color-accent)',
+    en_riesgo: 'var(--color-warn)',
+    inactivo: 'var(--color-ink-soft)',
+  };
+  const CRM_AVATAR_COLORES = ['#03285B', '#0B6E7A', '#6A3FB5', '#2E6FE0', '#1FAE6B', '#C98A1E'];
+
+  function crmColorAvatar(id) {
+    return CRM_AVATAR_COLORES[Number(id || 0) % CRM_AVATAR_COLORES.length];
+  }
+  function crmIniciales(nombre) {
+    const partes = String(nombre || '').trim().split(/\s+/).filter(Boolean);
+    if (partes.length === 0) return '—';
+    return (partes[0][0] + (partes[1] ? partes[1][0] : '')).toUpperCase();
+  }
+  function crmBadgeSegmento(segmento) {
+    const meta = CRM_SEGMENTOS[segmento] || CRM_SEGMENTOS.nuevo;
+    return `<span class="crm-badge crm-seg-${segmento}">${meta.etiqueta}</span>`;
+  }
+
+  async function cargarCrm() {
+    const authHeader = getAuthHeader();
+    if (!authHeader || !els.vistaCrm) return;
+    construirEsqueletoCrm();
+    try {
+      const res = await fetch(`${API_BASE}/admin/crm/contactos`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) { clearSession(); showLogin(); return; }
+      const errorEl = document.getElementById('crm-error');
+      if (!res.ok) { if (errorEl) errorEl.textContent = 'No se pudieron cargar los contactos.'; return; }
+      const data = await res.json();
+      crmContactosCache = data.contactos || [];
+      crmContactoSeleccionadoId = crmContactosCache.length ? crmContactosCache[0].id : null;
+      renderCrmVistaActual();
+    } catch (_) {
+      const errorEl = document.getElementById('crm-error');
+      if (errorEl) errorEl.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  function construirEsqueletoCrm() {
+    crmVistaActual = 'contactos';
+    crmBusqueda = '';
+    els.vistaCrm.innerHTML = `
+      <div class="admin-toolbar">
+        <div class="admin-toolbar-title"><h1>Clientes (CRM)</h1></div>
+        <div class="admin-toolbar-right">
+          <div class="crm-view-switch" role="tablist" aria-label="Vista de Clientes (CRM)">
+            <button type="button" class="crm-view-btn" id="crm-btn-contactos" aria-pressed="true">Contactos</button>
+            <button type="button" class="crm-view-btn" id="crm-btn-metricas" aria-pressed="false">Métricas</button>
+          </div>
+        </div>
+      </div>
+      <p class="field-error" id="crm-error" role="alert"></p>
+      <div id="crm-body"></div>
+    `;
+    document.getElementById('crm-btn-contactos').addEventListener('click', () => {
+      crmVistaActual = 'contactos';
+      renderCrmVistaActual();
+    });
+    document.getElementById('crm-btn-metricas').addEventListener('click', () => {
+      crmVistaActual = 'metricas';
+      renderCrmVistaActual();
+    });
+  }
+
+  function renderCrmVistaActual() {
+    const btnContactos = document.getElementById('crm-btn-contactos');
+    const btnMetricas = document.getElementById('crm-btn-metricas');
+    if (btnContactos) btnContactos.setAttribute('aria-pressed', String(crmVistaActual === 'contactos'));
+    if (btnMetricas) btnMetricas.setAttribute('aria-pressed', String(crmVistaActual === 'metricas'));
+    const body = document.getElementById('crm-body');
+    if (!body) return;
+    if (crmVistaActual === 'metricas') {
+      body.innerHTML = renderCrmMetricasHtml();
+    } else {
+      body.innerHTML = renderCrmContactosHtml();
+      wireCrmContactosListeners();
+    }
+  }
+
+  function crmContactosFiltrados() {
+    const q = crmBusqueda.trim().toLowerCase();
+    if (!q) return crmContactosCache;
+    return crmContactosCache.filter((c) =>
+      (c.nombre || '').toLowerCase().includes(q) ||
+      (c.email || '').toLowerCase().includes(q) ||
+      (c.identificador || '').toLowerCase().includes(q)
+    );
+  }
+
+  function renderCrmContactosHtml() {
+    if (crmContactosCache.length === 0) {
+      return '<p class="crm-vacio">Aún no hay clientes registrados.</p>';
+    }
+    const inicial = crmContactosCache.find((c) => c.id === crmContactoSeleccionadoId) || crmContactosCache[0];
+    crmContactoSeleccionadoId = inicial.id;
+    return `
+      <div class="crm-split">
+        <div class="crm-split-list">
+          <div class="crm-split-search">
+            <input type="search" id="crm-buscar" placeholder="Buscar por nombre, correo o RFC..." value="${escapeHtmlAttr(crmBusqueda)}" autocomplete="off" />
+          </div>
+          <div class="crm-split-items"></div>
+        </div>
+        <div class="crm-split-detail" id="crm-detalle">${renderCrmDetalleHtml(inicial)}</div>
+      </div>`;
+  }
+
+  function crmFilaListaHtml(c) {
+    return `<button type="button" class="crm-split-item${c.id === crmContactoSeleccionadoId ? ' is-active' : ''}" data-id="${c.id}">
+      <span class="crm-avatar" style="background:${crmColorAvatar(c.id)}">${crmIniciales(c.nombre)}</span>
+      <span class="crm-split-item-texto">
+        <span class="crm-split-item-nombre">${escapeHtml(c.nombre)}</span>
+        <span class="crm-split-item-sub">${(CRM_SEGMENTOS[c.segmento] || CRM_SEGMENTOS.nuevo).etiqueta} · ${c.totalPedidos + c.totalVentas} operaciones</span>
+      </span>
+    </button>`;
+  }
+
+  function crmRenderListaItems() {
+    const wrap = document.querySelector('#crm-body .crm-split-items');
+    if (!wrap) return;
+    const lista = crmContactosFiltrados();
+    wrap.innerHTML = lista.length
+      ? lista.map(crmFilaListaHtml).join('')
+      : `<p class="crm-vacio">Ningún contacto coincide con &quot;${escapeHtml(crmBusqueda)}&quot;. Revisa el nombre, correo o RFC.</p>`;
+    wrap.querySelectorAll('.crm-split-item').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        crmContactoSeleccionadoId = Number(btn.dataset.id);
+        wrap.querySelectorAll('.crm-split-item').forEach((b) => b.classList.toggle('is-active', Number(b.dataset.id) === crmContactoSeleccionadoId));
+        const detalle = document.getElementById('crm-detalle');
+        const contacto = crmContactosCache.find((c) => c.id === crmContactoSeleccionadoId);
+        if (detalle && contacto) detalle.innerHTML = renderCrmDetalleHtml(contacto);
+      });
+    });
+  }
+
+  function wireCrmContactosListeners() {
+    crmRenderListaItems();
+    const buscar = document.getElementById('crm-buscar');
+    if (buscar) {
+      buscar.addEventListener('input', () => {
+        crmBusqueda = buscar.value;
+        crmRenderListaItems();
+      });
+    }
+  }
+
+  function renderCrmDetalleHtml(c) {
+    const totalOperaciones = c.totalPedidos + c.totalVentas;
+    return `
+      <div class="crm-detalle-top">
+        <span class="crm-avatar crm-avatar-lg" style="background:${crmColorAvatar(c.id)}">${crmIniciales(c.nombre)}</span>
+        <div class="crm-detalle-nombre">
+          <h3>${escapeHtml(c.nombre)}</h3>
+          <p class="crm-detalle-meta">${c.identificador ? `${escapeHtml(c.identificador)} · ` : ''}${c.activo ? 'Cuenta activa' : 'Cuenta suspendida'}</p>
+        </div>
+        ${crmBadgeSegmento(c.segmento)}
+      </div>
+      <div class="crm-detalle-contacto">
+        ${c.email ? `<span>${escapeHtml(c.email)}</span>` : ''}
+        ${c.telefono ? `<span>${escapeHtml(c.telefono)}</span>` : ''}
+        ${!c.email && !c.telefono ? '<span class="soft">Sin datos de contacto registrados.</span>' : ''}
+      </div>
+      <div class="crm-detalle-stats">
+        <div class="crm-stat"><span class="v">${c.totalPedidos}</span><span class="l">Pedidos</span></div>
+        <div class="crm-stat"><span class="v">${c.totalVentas}</span><span class="l">Ventas</span></div>
+        <div class="crm-stat"><span class="v">$${formatearMoneda(c.valorTotal)}</span><span class="l">Valor total</span></div>
+        <div class="crm-stat"><span class="v">${c.diasInactividad == null ? '—' : c.diasInactividad + ' d'}</span><span class="l">Desde última actividad</span></div>
+      </div>
+      <p class="crm-detalle-nota">${totalOperaciones === 0
+        ? 'Aún sin pedidos. Aparecerán aquí en cuanto registre su primera compra.'
+        : `Cliente desde ${formatearFechaSoloDia(c.creadoEn)}.`}</p>`;
+  }
+
+  function renderCrmMetricasHtml() {
+    const total = crmContactosCache.length;
+    if (total === 0) {
+      return '<p class="crm-vacio">Aún no hay clientes registrados para calcular métricas.</p>';
+    }
+    const conteos = {};
+    Object.keys(CRM_SEGMENTOS).forEach((s) => { conteos[s] = 0; });
+    let sumaValor = 0;
+    crmContactosCache.forEach((c) => {
+      conteos[c.segmento] = (conteos[c.segmento] || 0) + 1;
+      sumaValor += c.valorTotal;
+    });
+    const enRiesgo = conteos.en_riesgo || 0;
+    const recurrentesYActivos = (conteos.activo || 0) + (conteos.recurrente || 0);
+    const tasaRecurrencia = Math.round((recurrentesYActivos / total) * 100);
+    const valorPromedio = Math.round(sumaValor / total);
+
+    let acumulado = 0;
+    const stops = Object.keys(CRM_SEGMENTOS).map((s) => {
+      const v = conteos[s] || 0;
+      const desde = (acumulado / total) * 360;
+      acumulado += v;
+      const hasta = (acumulado / total) * 360;
+      return `${CRM_SEGMENTO_COLOR[s]} ${desde}deg ${hasta}deg`;
+    }).join(',');
+
+    const topClientes = [...crmContactosCache].sort((a, b) => b.valorTotal - a.valorTotal).slice(0, 6);
+    const filasTop = topClientes.map((c) => `
+      <tr>
+        <td class="col-nombre">${escapeHtml(c.nombre)}</td>
+        <td>${crmBadgeSegmento(c.segmento)}</td>
+        <td data-col="total">$${formatearMoneda(c.valorTotal)}</td>
+        <td data-col="fecha">${c.ultimaActividad ? formatearFechaSoloDia(c.ultimaActividad) : 'Sin actividad'}</td>
+      </tr>`).join('');
+
+    return `
+      <div class="crm-kpi-row">
+        <div class="crm-kpi-card"><span class="l">Clientes totales</span><span class="v">${total}</span></div>
+        <div class="crm-kpi-card"><span class="l">Nuevos</span><span class="v">${conteos.nuevo || 0}</span></div>
+        <div class="crm-kpi-card"><span class="l">Valor promedio</span><span class="v">$${formatearMoneda(valorPromedio)}</span></div>
+        <div class="crm-kpi-card"><span class="l">Tasa de recurrencia</span><span class="v">${tasaRecurrencia}%</span>${enRiesgo ? `<span class="crm-kpi-alerta">${enRiesgo} en riesgo</span>` : ''}</div>
+      </div>
+      <div class="crm-dash-grid">
+        <div class="crm-donut-card">
+          <h4>Por segmento</h4>
+          <div class="crm-donut" style="background:conic-gradient(${stops})"></div>
+          <div class="crm-donut-legend">
+            ${Object.keys(CRM_SEGMENTOS).map((s) => `<div class="crm-dl-row"><span class="dot" style="background:${CRM_SEGMENTO_COLOR[s]}"></span><span class="n">${CRM_SEGMENTOS[s].etiqueta}</span><span class="v">${conteos[s] || 0}</span></div>`).join('')}
+          </div>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Cliente de mayor valor</th><th data-col="estado">Segmento</th><th data-col="total">Valor total</th><th data-col="fecha">Última actividad</th></tr></thead>
+            <tbody>${filasTop}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  function wireDropZonaPedido(body, estadoDestino) {
+    body.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      body.classList.add('is-dragover');
+    });
+    body.addEventListener('dragleave', (e) => {
+      if (e.target === body) body.classList.remove('is-dragover');
+    });
+    body.addEventListener('drop', (e) => {
+      e.preventDefault();
+      body.classList.remove('is-dragover');
+      const id = Number(e.dataTransfer.getData('text/plain'));
+      if (!id) return;
+      const pedido = pedidosCache.find((p) => p.id === id);
+      if (pedido && pedido.estado !== estadoDestino) moverPedido(id, estadoDestino);
+    });
+  }
+
+  function construirTarjetaPedido(pedido, colId) {
+    const esLateral = PEDIDOS_ESTADOS_LATERALES.includes(colId);
+    const card = document.createElement('div');
+    card.className = 'pedidos-card';
+    const dias = diasEnEtapaPedido(pedido);
+    const slaHtml = esLateral ? `<div class="pedidos-sla-bar ${claseSlaPedido(dias)}" aria-hidden="true"></div>` : '';
+    const clienteTxt = pedido.nombre_cliente_manual || pedido.email || 'Sin datos de cliente';
+    const moveOptions = PEDIDOS_ESTADOS_LATERALES
+      .map((id) => {
+        const col = PEDIDOS_COLUMNAS.find((c) => c.id === id);
+        return `<option value="${id}" ${id === pedido.estado ? 'selected' : ''}>${escapeHtml(col.label)}</option>`;
+      })
+      .join('');
+    const pieHtml = colId === 'entregado'
+      ? `<div class="pedidos-card-pie is-entregado">Venta #${pedido.convertido_a_orden_id}</div>`
+      : colId === 'cancelado'
+        ? `<div class="pedidos-card-pie is-cancelado">${pedido.motivo_cancelacion ? escapeHtml(pedido.motivo_cancelacion) : 'Sin motivo capturado'}</div>`
+        : `<select class="pedidos-card-mover" aria-label="Mover ${escapeHtml(pedido.numero_pedido)} a otra etapa">${moveOptions}</select>`;
+    const esPedido = pedido.tipo === 'pedido';
+    if (esLateral) {
+      card.draggable = true;
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', String(pedido.id));
+        e.dataTransfer.effectAllowed = 'move';
+        card.classList.add('is-dragging');
+      });
+      card.addEventListener('dragend', () => card.classList.remove('is-dragging'));
+    }
+    card.innerHTML = `
+      ${slaHtml}
+      <span class="pedidos-card-tipo ${esPedido ? 'es-pedido' : 'es-cotizacion'}">${esPedido ? 'Pedido' : 'Cotización'}</span>
+      <div class="pedidos-card-top">
+        <span class="pedidos-card-folio">${escapeHtml(pedido.numero_pedido)}</span>
+        <button type="button" class="btn-icono-accion" data-tooltip="Más acciones" aria-label="Más acciones para ${escapeHtml(pedido.numero_pedido)}">${ICONO_KEBAB}</button>
+      </div>
+      <div class="pedidos-card-cliente">${escapeHtml(clienteTxt)}</div>
+      <div class="pedidos-card-concepto">${escapeHtml(pedido.concepto)}</div>
+      <div class="pedidos-card-meta"><span class="pedidos-card-total">$${formatearMoneda(pedido.cantidad)}</span>${esLateral ? `<span class="pedidos-card-dias">${dias} d.</span>` : ''}</div>
+      <div class="pedidos-card-vendedor">${escapeHtml(pedido.vendedor || '—')}</div>
+    `;
+    const pieWrap = document.createElement('div');
+    pieWrap.innerHTML = pieHtml;
+    card.appendChild(pieWrap.firstElementChild);
+
+    card.querySelector('.btn-icono-accion').addEventListener('click', (e) => {
+      e.stopPropagation();
+      abrirMenuAccionesPedido(e.currentTarget, pedido);
+    });
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.btn-icono-accion') || e.target.closest('select')) return;
+      abrirDetallePedido(pedido);
+    });
+    const selectMover = card.querySelector('.pedidos-card-mover');
+    if (selectMover) {
+      selectMover.addEventListener('click', (e) => e.stopPropagation());
+      selectMover.addEventListener('change', () => moverPedido(pedido.id, selectMover.value));
+    }
+    return card;
+  }
+
+  let pedidosMenuAbierto = null;
+  function cerrarMenuAccionesPedido() {
+    if (pedidosMenuAbierto) { pedidosMenuAbierto.remove(); pedidosMenuAbierto = null; }
+    document.removeEventListener('click', cerrarMenuAccionesPedido);
+  }
+  function abrirMenuAccionesPedido(boton, pedido) {
+    cerrarMenuAccionesPedido();
+    const menu = document.createElement('div');
+    menu.className = 'pedidos-menu';
+    const esCerrado = pedido.estado === 'entregado' || pedido.estado === 'cancelado';
+    menu.innerHTML = `
+      <button type="button" data-accion="detalle">Ver detalle</button>
+      ${esCerrado ? '' : '<button type="button" data-accion="entregar">Marcar como Entregado</button>'}
+      ${esCerrado ? '' : '<button type="button" data-accion="cancelar" class="pedidos-menu-peligro">Cancelar pedido</button>'}
+    `;
+    document.body.appendChild(menu);
+    const r = boton.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.top = `${r.bottom + 4}px`;
+    menu.style.left = `${Math.min(r.left, window.innerWidth - 200)}px`;
+    menu.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      if (btn.dataset.accion === 'detalle') abrirDetallePedido(pedido);
+      if (btn.dataset.accion === 'entregar') abrirEntregaDesdePedido(pedido);
+      if (btn.dataset.accion === 'cancelar') abrirCancelarPedido(pedido);
+      cerrarMenuAccionesPedido();
+    });
+    pedidosMenuAbierto = menu;
+    setTimeout(() => document.addEventListener('click', cerrarMenuAccionesPedido), 0);
+  }
+
+  async function moverPedido(id, estado) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/pedidos/${id}/mover`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(data.error || 'No se pudo mover el pedido.', 'error'); cargarPedidos(); return; }
+      showToast('Pedido movido.');
+      cargarPedidos();
+    } catch (_) {
+      showToast('No se pudo conectar con el servidor.', 'error');
+    }
+  }
+
+  // ---------- Nuevo pedido ----------
+  // Mismo criterio que Ventas (ver aplicarVisibilidadInventarioEnVentas):
+  // si Inventarios está activo para este tenant, el pedido se cotiza
+  // tomando el producto/servicio real del catálogo; si no, es alta
+  // manual directa de concepto+monto — nunca ambos caminos a la vez.
+  let pedidoNuevoProductoSeleccionado = null;
+  let pedidoNuevoBusquedaTimeout = null;
+  // Punto 508, rediseño "panel dividido" (propuesta visual, concepto 1,
+  // elegido por el usuario): clasificación explícita del registro — el
+  // backend ya la acepta (tipo ENUM, default 'cotizacion'), aquí solo se
+  // refleja en UI + copy del botón de guardar.
+  let pedidoNuevoTipo = 'cotizacion';
+
+  function aplicarVisibilidadProductoPedido() {
+    const activo = inventarioActivoGlobalmente && planPermite('inventariosHabilitado');
+    els.pedidoNuevoProductoWrap.hidden = !activo;
+  }
+
+  function aplicarTipoPedido(tipo) {
+    pedidoNuevoTipo = tipo;
+    [els.pedidoNuevoTipoCotizacion, els.pedidoNuevoTipoPedido].forEach((btn) => {
+      const activo = btn.dataset.tipo === tipo;
+      btn.classList.toggle('is-active', activo);
+      btn.setAttribute('aria-checked', String(activo));
+    });
+    els.pedidoNuevoTipoHint.textContent = tipo === 'pedido'
+      ? 'El cliente ya decidió comprar — considera reservar inventario y dar seguimiento más cerrado.'
+      : 'El cliente todavía está comparando precio o condiciones — nada se compromete aún. No es una venta ni afecta Cuentas por cobrar hasta que llegue a "Entregado".';
+    els.btnPedidoNuevoGuardarLabel.textContent = tipo === 'pedido' ? 'Crear pedido' : 'Crear cotización';
+  }
+  els.pedidoNuevoTipoCotizacion.addEventListener('click', () => aplicarTipoPedido('cotizacion'));
+  els.pedidoNuevoTipoPedido.addEventListener('click', () => aplicarTipoPedido('pedido'));
+
+  // Leyenda roja de "sin resultados" (pedido explícito del usuario, mismo
+  // mecanismo de búsqueda que Ventas/Compras pero ese nunca tuvo este
+  // aviso) — solo se muestra cuando SÍ se escribió algo y la búsqueda
+  // real regresó 0, nunca con el cuadro vacío.
+  function renderSugerenciasProductoPedido(productos, mostrarSinResultados) {
+    els.pedidoNuevoProductoSinResultados.hidden = !mostrarSinResultados;
+    if (!productos.length) {
+      els.pedidoNuevoProductoSugerencias.hidden = true;
+      els.pedidoNuevoProductoSugerencias.innerHTML = '';
+      return;
+    }
+    els.pedidoNuevoProductoSugerencias.innerHTML = productos
+      .map((p) => `
+        <button type="button" class="orden-inventario-sugerencia" data-id="${p.id}">
+          <span class="orden-inventario-sugerencia-texto">
+            <span class="orden-inventario-sugerencia-nombre">${escapeHtml(p.nombre)}</span>
+            <span class="orden-inventario-sugerencia-detalle">${escapeHtml(p.sku)}${p.precio !== null ? ' · $' + formatearMoneda(p.precio) : ''}</span>
+          </span>
+        </button>`)
+      .join('');
+    els.pedidoNuevoProductoSugerencias.hidden = false;
+    els.pedidoNuevoProductoSugerencias.querySelectorAll('.orden-inventario-sugerencia').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const producto = productos.find((p) => p.id === Number(btn.dataset.id));
+        if (producto) seleccionarProductoPedido(producto);
+      });
+    });
+  }
+
+  async function buscarProductoPedido(termino) {
+    const authHeader = getAuthHeader();
+    if (!authHeader || !termino) { renderSugerenciasProductoPedido([], false); return; }
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/productos/buscar?q=${encodeURIComponent(termino)}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) { renderSugerenciasProductoPedido([], true); return; }
+      const data = await res.json();
+      const productos = data.productos || [];
+      // Bug real reportado por el usuario: antes se mandaba `true` aquí
+      // sin importar si SÍ había resultados — la leyenda roja de "sin
+      // resultados" tapaba visualmente la lista que sí había cargado
+      // debajo, dando la impresión de que nunca cargaba nada.
+      renderSugerenciasProductoPedido(productos, productos.length === 0);
+    } catch (_) {
+      renderSugerenciasProductoPedido([], true);
+    }
+  }
+
+  els.pedidoNuevoProductoBuscar.addEventListener('input', () => {
+    clearTimeout(pedidoNuevoBusquedaTimeout);
+    const termino = els.pedidoNuevoProductoBuscar.value.trim();
+    pedidoNuevoBusquedaTimeout = setTimeout(() => buscarProductoPedido(termino), 250);
+  });
+
+  // Buscador de cliente en "Nuevo pedido" (punto en curso): mismo patrón
+  // visual/interacción que el buscador de producto de arriba, pero
+  // síncrono — `correosRegistradosCache` (usuarios perfil='cliente', ya
+  // cargada para el desplegable de Ventas) se filtra en el navegador,
+  // sin pedir nada al servidor. Dispara desde CUALQUIERA de los 2 campos
+  // (Nombre o Correo) — escribir un teléfono en el campo de nombre
+  // también encuentra al cliente, no solo lo que "debería" ir ahí. Si no
+  // hay match, el campo se queda exactamente como texto libre de
+  // siempre — nunca bloquea ni fuerza nada (pedido explícito del
+  // usuario: "si no lo encuentra, que lo deje colocar manualmente").
+  function clientesPedidoFiltrados(termino) {
+    const q = termino.trim().toLowerCase();
+    if (!q) return [];
+    const qTel = q.replace(/\D/g, '');
+    return correosRegistradosCache.filter((c) => {
+      const nombre = (c.nombre || '').toLowerCase();
+      const email = (c.email || '').toLowerCase();
+      const telefono = (c.telefono || '').replace(/\D/g, '');
+      return nombre.includes(q) || email.includes(q) || (qTel && telefono.includes(qTel));
+    }).slice(0, 8);
+  }
+
+  function renderSugerenciasClientePedido(contenedorEl, resultados) {
+    if (!resultados.length) {
+      contenedorEl.hidden = true;
+      contenedorEl.innerHTML = '';
+      return;
+    }
+    contenedorEl.innerHTML = resultados
+      .map((c, i) => `
+        <button type="button" class="orden-inventario-sugerencia" data-i="${i}">
+          <span class="orden-inventario-sugerencia-texto">
+            <span class="orden-inventario-sugerencia-nombre">${escapeHtml(c.nombre || c.email || 'Sin nombre')}</span>
+            <span class="orden-inventario-sugerencia-detalle">${escapeHtml(c.email || '')}${c.telefono ? ' · ' + escapeHtml(c.telefono) : ''}</span>
+          </span>
+        </button>`)
+      .join('');
+    contenedorEl.hidden = false;
+    contenedorEl.querySelectorAll('.orden-inventario-sugerencia').forEach((btn) => {
+      btn.addEventListener('click', () => seleccionarClientePedido(resultados[Number(btn.dataset.i)]));
+    });
+  }
+
+  function seleccionarClientePedido(cliente) {
+    els.pedidoNuevoNombre.value = cliente.nombre || '';
+    els.pedidoNuevoEmail.value = cliente.email || '';
+    renderSugerenciasClientePedido(els.pedidoNuevoNombreSugerencias, []);
+    renderSugerenciasClientePedido(els.pedidoNuevoEmailSugerencias, []);
+    setFieldError('pedido-nuevo-email', '');
+  }
+
+  els.pedidoNuevoNombre.addEventListener('input', () => {
+    renderSugerenciasClientePedido(els.pedidoNuevoNombreSugerencias, clientesPedidoFiltrados(els.pedidoNuevoNombre.value));
+  });
+  els.pedidoNuevoEmail.addEventListener('input', () => {
+    renderSugerenciasClientePedido(els.pedidoNuevoEmailSugerencias, clientesPedidoFiltrados(els.pedidoNuevoEmail.value));
+  });
+
+  function seleccionarProductoPedido(producto) {
+    pedidoNuevoProductoSeleccionado = producto;
+    renderSugerenciasProductoPedido([], false);
+    els.pedidoNuevoProductoBuscar.value = '';
+    document.getElementById('pedido-nuevo-producto-buscar-wrap').hidden = true;
+    els.pedidoNuevoProductoSeleccionado.hidden = false;
+    els.pedidoNuevoProductoSeleccionadoNombre.textContent = producto.nombre;
+    els.pedidoNuevoProductoSeleccionadoDetalle.textContent = `${producto.sku}${producto.precio !== null ? ' · $' + formatearMoneda(producto.precio) + ' c/u' : ' · sin precio en catálogo'}`;
+    if (!els.pedidoNuevoProductoUnidades.value || Number(els.pedidoNuevoProductoUnidades.value) < 1) {
+      els.pedidoNuevoProductoUnidades.value = '1';
+    }
+    els.pedidoNuevoConcepto.value = producto.nombre;
+    actualizarCantidadDesdeProductoPedido();
+  }
+
+  function actualizarCantidadDesdeProductoPedido() {
+    if (!pedidoNuevoProductoSeleccionado) return;
+    const unidades = Number(els.pedidoNuevoProductoUnidades.value) || 0;
+    const precio = Number(pedidoNuevoProductoSeleccionado.precio) || 0;
+    if (unidades > 0 && precio > 0) {
+      els.pedidoNuevoCantidad.value = String(Math.round(unidades * precio * 100) / 100);
+    }
+  }
+  els.pedidoNuevoProductoUnidades.addEventListener('input', actualizarCantidadDesdeProductoPedido);
+
+  // Stepper +/- de Cantidad (pedido explícito del usuario, "menos
+  // clics") — nunca un <input type="number"> nativo (gotcha ya
+  // documentado: sanea valores intermedios inválidos sin tecleo real).
+  function ajustarCantidadPedido(delta) {
+    const actual = Math.max(1, Number(els.pedidoNuevoProductoUnidades.value) || 1);
+    els.pedidoNuevoProductoUnidades.value = String(Math.max(1, actual + delta));
+    actualizarCantidadDesdeProductoPedido();
+  }
+  els.btnPedidoNuevoCantidadMenos.addEventListener('click', () => ajustarCantidadPedido(-1));
+  els.btnPedidoNuevoCantidadMas.addEventListener('click', () => ajustarCantidadPedido(1));
+  els.pedidoNuevoProductoUnidades.addEventListener('blur', () => {
+    if (!els.pedidoNuevoProductoUnidades.value || Number(els.pedidoNuevoProductoUnidades.value) < 1) {
+      els.pedidoNuevoProductoUnidades.value = '1';
+    }
+  });
+
+  function quitarProductoPedido() {
+    pedidoNuevoProductoSeleccionado = null;
+    document.getElementById('pedido-nuevo-producto-buscar-wrap').hidden = false;
+    els.pedidoNuevoProductoSeleccionado.hidden = true;
+    renderSugerenciasProductoPedido([], false);
+  }
+  els.btnPedidoNuevoProductoQuitar.addEventListener('click', quitarProductoPedido);
+
+  function abrirNuevoPedidoModal() {
+    els.pedidoNuevoConcepto.value = '';
+    els.pedidoNuevoCantidad.value = '';
+    els.pedidoNuevoDescuento.value = '';
+    els.pedidoNuevoNombre.value = '';
+    els.pedidoNuevoEmail.value = '';
+    renderSugerenciasClientePedido(els.pedidoNuevoNombreSugerencias, []);
+    renderSugerenciasClientePedido(els.pedidoNuevoEmailSugerencias, []);
+    // Mismo fire-and-forget que abrirOrdenRegistrarModal() (punto 377):
+    // el modal abre de inmediato, el buscador se llena solo en cuanto
+    // responde — nunca se espera a que cargue para dejar escribir.
+    cargarCorreosRegistrados();
+    els.pedidoNuevoProductoUnidades.value = '1';
+    els.pedidoNuevoErrorGeneral.textContent = '';
+    ['concepto', 'cantidad', 'descuento', 'email'].forEach((c) => setFieldError(`pedido-nuevo-${c}`, ''));
+    aplicarTipoPedido('cotizacion');
+    quitarProductoPedido();
+    aplicarVisibilidadProductoPedido();
+    els.pedidoNuevoModalOverlay.hidden = false;
+    els.pedidoNuevoConcepto.focus();
+  }
+  function cerrarNuevoPedidoModal() {
+    els.pedidoNuevoModalOverlay.hidden = true;
+  }
+  els.btnNuevoPedido.addEventListener('click', abrirNuevoPedidoModal);
+  els.btnPedidoNuevoCerrar.addEventListener('click', cerrarNuevoPedidoModal);
+  els.btnPedidoNuevoCancelar.addEventListener('click', cerrarNuevoPedidoModal);
+  els.pedidoNuevoModalOverlay.addEventListener('click', (e) => {
+    if (e.target === els.pedidoNuevoModalOverlay) cerrarNuevoPedidoModal();
+  });
+  els.btnRefreshPedidos.addEventListener('click', cargarPedidos);
+
+  els.btnPedidoNuevoGuardar.addEventListener('click', async () => {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    els.pedidoNuevoErrorGeneral.textContent = '';
+    ['concepto', 'cantidad', 'descuento', 'email'].forEach((c) => setFieldError(`pedido-nuevo-${c}`, ''));
+
+    const concepto = els.pedidoNuevoConcepto.value.trim();
+    const cantidad = obtenerValorNumerico(els.pedidoNuevoCantidad);
+    const unidades = Number(els.pedidoNuevoProductoUnidades.value);
+    let valido = true;
+    if (!concepto) { setFieldError('pedido-nuevo-concepto', 'El concepto es obligatorio.'); valido = false; }
+    if (!Number.isFinite(cantidad) || cantidad <= 0) { setFieldError('pedido-nuevo-cantidad', 'Captura un monto mayor a cero.'); valido = false; }
+    if (!Number.isFinite(unidades) || unidades < 1) { els.pedidoNuevoProductoUnidades.value = '1'; }
+    if (!valido) return;
+
+    const descuentoTexto = els.pedidoNuevoDescuento.value.trim();
+    const payload = {
+      tipo: pedidoNuevoTipo,
+      concepto,
+      cantidad,
+      descuento_porcentaje: descuentoTexto ? Number(descuentoTexto) : null,
+      nombre_cliente_manual: els.pedidoNuevoNombre.value.trim() || null,
+      email: els.pedidoNuevoEmail.value.trim() || null,
+      producto_id: pedidoNuevoProductoSeleccionado ? pedidoNuevoProductoSeleccionado.id : null,
+      producto_cantidad: Math.max(1, Number(els.pedidoNuevoProductoUnidades.value) || 1),
+    };
+
+    const etiquetaGuardando = els.btnPedidoNuevoGuardarLabel.textContent;
+    els.btnPedidoNuevoGuardar.disabled = true;
+    els.btnPedidoNuevoGuardarLabel.textContent = 'Guardando…';
+    try {
+      const res = await fetch(`${API_BASE}/admin/pedidos`, {
+        method: 'POST',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.pedidoNuevoErrorGeneral.textContent = data.error || 'No se pudo crear el pedido.';
+        return;
+      }
+      cerrarNuevoPedidoModal();
+      showToast(`${data.numero_pedido} — ${data.tipo === 'pedido' ? 'pedido' : 'cotización'} creado${data.tipo === 'pedido' ? '' : 'a'}.`);
+      cargarPedidos();
+      // Primeros pasos (Segmento 5, punto 508): "Prueba el kanban de
+      // Pedidos" — mismo patrón ya usado para venta/gasto/usuario.
+      guardarEstadoOnboarding({ pedidoCreado: true });
+      renderOnboardingChecklist();
+    } catch (_) {
+      els.pedidoNuevoErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
+    } finally {
+      els.btnPedidoNuevoGuardar.disabled = false;
+      els.btnPedidoNuevoGuardarLabel.textContent = etiquetaGuardando;
+    }
+  });
+
+  // ---------- Cancelar pedido ----------
+  function abrirCancelarPedido(pedido) {
+    pedidoEnTurno = pedido;
+    els.pedidoCancelarSubtitulo.textContent = `${pedido.numero_pedido} — ${pedido.concepto}`;
+    els.pedidoCancelarMotivo.value = '';
+    els.pedidoCancelarModalOverlay.hidden = false;
+  }
+  function cerrarCancelarPedido() {
+    els.pedidoCancelarModalOverlay.hidden = true;
+    pedidoEnTurno = null;
+  }
+  els.btnPedidoCancelarVolver.addEventListener('click', cerrarCancelarPedido);
+  els.pedidoCancelarModalOverlay.addEventListener('click', (e) => {
+    if (e.target === els.pedidoCancelarModalOverlay) cerrarCancelarPedido();
+  });
+  els.btnPedidoCancelarConfirmar.addEventListener('click', async () => {
+    if (!pedidoEnTurno) return;
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    const id = pedidoEnTurno.id;
+    const motivo = els.pedidoCancelarMotivo.value.trim();
+    try {
+      const res = await fetch(`${API_BASE}/admin/pedidos/${id}/cancelar`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ motivo_cancelacion: motivo || null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(data.error || 'No se pudo cancelar el pedido.', 'error'); return; }
+      cerrarCancelarPedido();
+      showToast('Pedido cancelado.');
+      cargarPedidos();
+      if (!els.pedidoDetalleModalOverlay.hidden) cerrarDetallePedido();
+    } catch (_) {
+      showToast('No se pudo conectar con el servidor.', 'error');
+    }
+  });
+
+  // ---------- Detalle de pedido ----------
+  // Punto 513: el detalle deja de ser de solo lectura — con el pedido
+  // abierto (lateral), "la información" se puede editar aquí mismo, sin
+  // modal aparte, reusando el PUT /api/admin/pedidos/:id ya real
+  // (mismo candado del backend: 409 si ya está entregado/cancelado, por
+  // eso esos 2 estados se quedan 100% de solo lectura, sin tocar nada).
+  let pedidoDetalleTipo = 'cotizacion';
+
+  function abrirDetallePedido(pedido) {
+    pedidoEnTurno = pedido;
+    const col = PEDIDOS_COLUMNAS.find((c) => c.id === pedido.estado);
+    const esCerrado = pedido.estado === 'entregado' || pedido.estado === 'cancelado';
+    const esPedidoDetalle = pedido.tipo === 'pedido';
+    els.pedidoDetalleErrorGeneral.textContent = '';
+
+    if (esCerrado) {
+      const clienteTxt = pedido.nombre_cliente_manual || pedido.email || 'Sin datos de cliente';
+      let extra = '';
+      if (pedido.estado === 'entregado') {
+        extra = `<p class="field-hint">Ya es una venta real — folio #${pedido.convertido_a_orden_id} en Ventas.</p>`;
+      } else if (pedido.estado === 'cancelado' && pedido.motivo_cancelacion) {
+        extra = `<p class="field-hint">Motivo: ${escapeHtml(pedido.motivo_cancelacion)}</p>`;
+      }
+      els.pedidoDetalleBody.innerHTML = `
+        <p class="panel-subtitle">${escapeHtml(pedido.numero_pedido)} — ${escapeHtml(col ? col.label : pedido.estado)}</p>
+        <span class="pedidos-card-tipo ${esPedidoDetalle ? 'es-pedido' : 'es-cotizacion'}">${esPedidoDetalle ? 'Pedido' : 'Cotización'}</span>
+        <div class="field"><label>Cliente</label><p class="orden-campo-automatico">${escapeHtml(clienteTxt)}</p></div>
+        <div class="field"><label>Concepto</label><p class="orden-campo-automatico">${escapeHtml(pedido.concepto)}</p></div>
+        <div class="field"><label>Cantidad</label><p class="orden-campo-automatico">${formatearMoneda(pedido.producto_cantidad != null ? pedido.producto_cantidad : 1).replace(/\.00$/, '')}</p></div>
+        <div class="field"><label>Monto estimado</label><p class="orden-total-preview">$${formatearMoneda(pedido.cantidad)}</p></div>
+        <div class="field"><label>Vendedor</label><p class="orden-campo-automatico">${escapeHtml(pedido.vendedor || '—')}</p></div>
+        ${extra}
+      `;
+      els.pedidoDetalleAcciones.innerHTML = '<button type="button" class="btn btn-secondary" id="btn-pedido-detalle-ok">Cerrar</button>';
+      els.pedidoDetalleModalOverlay.hidden = false;
+      document.getElementById('btn-pedido-detalle-ok').addEventListener('click', cerrarDetallePedido);
+      return;
+    }
+
+    pedidoDetalleTipo = pedido.tipo || 'cotizacion';
+    els.pedidoDetalleBody.innerHTML = `
+      <p class="panel-subtitle">${escapeHtml(pedido.numero_pedido)} — ${escapeHtml(col ? col.label : pedido.estado)}</p>
+      <div class="field">
+        <label>Tipo de registro</label>
+        <div class="pedido-tipo-seg" role="radiogroup" aria-label="Tipo de registro">
+          <button type="button" class="pedido-tipo-opt" id="pedido-detalle-tipo-cotizacion" data-tipo="cotizacion" role="radio" aria-checked="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>
+            <span><span class="t">Cotización</span><span class="d">Aún negocian precio</span></span>
+          </button>
+          <button type="button" class="pedido-tipo-opt" id="pedido-detalle-tipo-pedido" data-tipo="pedido" role="radio" aria-checked="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a4 4 0 018 0v2"/></svg>
+            <span><span class="t">Pedido</span><span class="d">Ya decidió comprar</span></span>
+          </button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="pedido-detalle-nombre">Nombre del cliente <span class="field-mark optional">(opcional)</span></label>
+        <input type="text" id="pedido-detalle-nombre" maxlength="200" value="${escapeHtml(pedido.nombre_cliente_manual || '')}" />
+      </div>
+      <div class="field">
+        <label for="pedido-detalle-email">Correo electrónico <span class="field-mark optional">(opcional)</span></label>
+        <input type="email" id="pedido-detalle-email" maxlength="200" value="${escapeHtml(pedido.email || '')}" />
+        <p class="field-error" id="error-pedido-detalle-email" role="alert"></p>
+      </div>
+      <div class="field">
+        <label for="pedido-detalle-concepto">Concepto <span class="required">*</span></label>
+        <textarea id="pedido-detalle-concepto" rows="2" maxlength="255">${escapeHtml(pedido.concepto)}</textarea>
+        <p class="field-error" id="error-pedido-detalle-concepto" role="alert"></p>
+      </div>
+      <div class="pedido-nuevo-row3">
+        <div class="field">
+          <label for="pedido-detalle-unidades">Cantidad</label>
+          <div class="stepper-cantidad">
+            <button type="button" class="stepper-cantidad-btn" id="btn-pedido-detalle-cantidad-menos" aria-label="Restar una unidad">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12h14" stroke-linecap="round" stroke-width="2.4"/></svg>
+            </button>
+            <input type="text" inputmode="numeric" id="pedido-detalle-unidades" value="${Number(pedido.producto_cantidad) >= 1 ? Number(pedido.producto_cantidad) : 1}" />
+            <button type="button" class="stepper-cantidad-btn" id="btn-pedido-detalle-cantidad-mas" aria-label="Sumar una unidad">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke-linecap="round" stroke-width="2.4"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="pedido-detalle-monto">Monto estimado (MXN) <span class="required">*</span></label>
+          <input type="text" inputmode="decimal" id="pedido-detalle-monto" value="${pedido.cantidad}" />
+          <p class="field-error" id="error-pedido-detalle-monto" role="alert"></p>
+        </div>
+        <div class="field">
+          <label for="pedido-detalle-descuento">Descuento <span class="field-mark optional">(opcional)</span></label>
+          <input type="text" inputmode="decimal" id="pedido-detalle-descuento" value="${pedido.descuento_porcentaje != null ? pedido.descuento_porcentaje : ''}" />
+          <p class="field-error" id="error-pedido-detalle-descuento" role="alert"></p>
+        </div>
+      </div>
+      <div class="field"><label>Vendedor</label><p class="orden-campo-automatico">${escapeHtml(pedido.vendedor || '—')}</p></div>
+    `;
+    els.pedidoDetalleAcciones.innerHTML = `
+      <button type="button" class="btn btn-secondary" id="btn-pedido-detalle-cancelar-accion">Cancelar pedido</button>
+      <button type="button" class="btn btn-secondary" id="btn-pedido-detalle-guardar">Guardar cambios</button>
+      <button type="button" class="btn btn-primary" id="btn-pedido-detalle-entregar-accion">Marcar como Entregado</button>
+    `;
+    els.pedidoDetalleModalOverlay.hidden = false;
+
+    function aplicarTipoDetalle(tipo) {
+      pedidoDetalleTipo = tipo;
+      ['cotizacion', 'pedido'].forEach((t) => {
+        const btn = document.getElementById(`pedido-detalle-tipo-${t}`);
+        btn.classList.toggle('is-active', t === tipo);
+        btn.setAttribute('aria-checked', String(t === tipo));
+      });
+    }
+    aplicarTipoDetalle(pedidoDetalleTipo);
+    document.getElementById('pedido-detalle-tipo-cotizacion').addEventListener('click', () => aplicarTipoDetalle('cotizacion'));
+    document.getElementById('pedido-detalle-tipo-pedido').addEventListener('click', () => aplicarTipoDetalle('pedido'));
+
+    const unidadesInput = document.getElementById('pedido-detalle-unidades');
+    function ajustarUnidadesDetalle(delta) {
+      const actual = Math.max(1, Number(unidadesInput.value) || 1);
+      unidadesInput.value = String(Math.max(1, actual + delta));
+    }
+    document.getElementById('btn-pedido-detalle-cantidad-menos').addEventListener('click', () => ajustarUnidadesDetalle(-1));
+    document.getElementById('btn-pedido-detalle-cantidad-mas').addEventListener('click', () => ajustarUnidadesDetalle(1));
+    unidadesInput.addEventListener('blur', () => {
+      if (!unidadesInput.value || Number(unidadesInput.value) < 1) unidadesInput.value = '1';
+    });
+
+    document.getElementById('btn-pedido-detalle-cancelar-accion').addEventListener('click', () => { cerrarDetallePedido(); abrirCancelarPedido(pedido); });
+    document.getElementById('btn-pedido-detalle-entregar-accion').addEventListener('click', () => { cerrarDetallePedido(); abrirEntregaDesdePedido(pedido); });
+    document.getElementById('btn-pedido-detalle-guardar').addEventListener('click', () => guardarEdicionPedido(pedido));
+  }
+
+  async function guardarEdicionPedido(pedido) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    els.pedidoDetalleErrorGeneral.textContent = '';
+    ['concepto', 'monto', 'descuento', 'email'].forEach((c) => setFieldError(`pedido-detalle-${c}`, ''));
+
+    const concepto = document.getElementById('pedido-detalle-concepto').value.trim();
+    const monto = obtenerValorNumerico(document.getElementById('pedido-detalle-monto'));
+    let valido = true;
+    if (!concepto) { setFieldError('pedido-detalle-concepto', 'El concepto es obligatorio.'); valido = false; }
+    if (!Number.isFinite(monto) || monto <= 0) { setFieldError('pedido-detalle-monto', 'Captura un monto mayor a cero.'); valido = false; }
+    if (!valido) return;
+
+    const descuentoTexto = document.getElementById('pedido-detalle-descuento').value.trim();
+    const unidades = Math.max(1, Number(document.getElementById('pedido-detalle-unidades').value) || 1);
+    const payload = {
+      tipo: pedidoDetalleTipo,
+      concepto,
+      cantidad: monto,
+      descuento_porcentaje: descuentoTexto ? Number(descuentoTexto) : null,
+      nombre_cliente_manual: document.getElementById('pedido-detalle-nombre').value.trim() || null,
+      email: document.getElementById('pedido-detalle-email').value.trim() || null,
+      // Preserva el producto ya ligado (si lo hay) — este formulario no
+      // permite cambiar el producto del catálogo, solo su cantidad y el
+      // resto de la información. Omitir producto_id aquí lo borraría.
+      producto_id: pedido.producto_id || null,
+      producto_cantidad: unidades,
+    };
+
+    const btnGuardar = document.getElementById('btn-pedido-detalle-guardar');
+    const etiquetaOriginal = btnGuardar.textContent;
+    btnGuardar.disabled = true;
+    btnGuardar.textContent = 'Guardando…';
+    try {
+      const res = await fetch(`${API_BASE}/admin/pedidos/${pedido.id}`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.pedidoDetalleErrorGeneral.textContent = data.error || 'No se pudo guardar el pedido.';
+        return;
+      }
+      cerrarDetallePedido();
+      showToast('Pedido actualizado.');
+      cargarPedidos();
+    } catch (_) {
+      els.pedidoDetalleErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
+    } finally {
+      btnGuardar.disabled = false;
+      btnGuardar.textContent = etiquetaOriginal;
+    }
+  }
+
+  function cerrarDetallePedido() {
+    els.pedidoDetalleModalOverlay.hidden = true;
+    pedidoEnTurno = null;
+  }
+  els.btnPedidoDetalleCerrar.addEventListener('click', cerrarDetallePedido);
+  els.pedidoDetalleModalOverlay.addEventListener('click', (e) => {
+    if (e.target === els.pedidoDetalleModalOverlay) cerrarDetallePedido();
+  });
+
+  // ---------- Entregar (convertir en venta real) ----------
+  // Reutiliza el modal "Registrar venta" de siempre (abrirOrdenRegistrarModal,
+  // definido más arriba) — nunca se duplica la lógica de pago/entrega/
+  // inventario. Se precarga como UNA línea manual más (mismo mecanismo que
+  // cualquier producto agregado a mano), para que concepto/cantidad se
+  // recalculen con el sistema real (recalcularOrdenDesdeProductos).
+  function abrirEntregaDesdePedido(pedido) {
+    pedidoOrigenEntrega = pedido;
+    abrirOrdenRegistrarModal(true);
+    // Si el pedido ya traía un producto del catálogo, se agrega como línea
+    // de INVENTARIO real (mismo mecanismo que cualquier venta normal) —
+    // así el stock se descuenta al convertir, nunca antes (punto 508: un
+    // pedido nunca aparta existencia por sí solo).
+    if (pedido.producto_id && pedido.producto_cantidad) {
+      const unidades = Number(pedido.producto_cantidad);
+      const precioUnitario = unidades > 0 ? Math.round((Number(pedido.cantidad) / unidades) * 100) / 100 : Number(pedido.cantidad);
+      productosOrdenActual.push({
+        cantidad: unidades,
+        concepto: pedido.producto_nombre || pedido.concepto,
+        precio: precioUnitario,
+        producto_id: pedido.producto_id,
+      });
+    } else {
+      productosOrdenActual.push({ cantidad: 1, concepto: pedido.concepto, precio: Number(pedido.cantidad) });
+    }
+    recalcularOrdenDesdeProductos();
+    if (pedido.nombre_cliente_manual || pedido.email) {
+      aplicarModoClienteOrden(true);
+      if (els.ordenNombreCliente) els.ordenNombreCliente.value = pedido.nombre_cliente_manual || '';
+      if (pedido.email) els.ordenEmailNuevo.value = pedido.email;
+    }
+    showToast(`Convirtiendo ${pedido.numero_pedido} en venta — completa pago y entrega.`);
+  }
+
+  // ---------- Reportes de Pedidos (punto 508, Segmento 3) ----------
+  async function cargarReporteGeneralPedidos() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    els.reportesPedidosError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/admin/pedidos/reportes/resumen`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) { clearSession(); showLogin(); return; }
+      if (!res.ok) { els.reportesPedidosError.textContent = 'No se pudo cargar el reporte de Pedidos.'; return; }
+      const data = await res.json();
+      renderReportePedidos(data);
+    } catch (_) {
+      els.reportesPedidosError.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  function filaReportePedidos(label, valor, pct) {
+    return `<div class="pedidos-reporte-fila"><span>${escapeHtml(label)}</span><strong>${valor}</strong>${pct !== undefined ? `<span class="pedidos-reporte-pct">${pct}</span>` : ''}</div>`;
+  }
+
+  const ETAPA_LABEL_REPORTE = { pedido: 'Pedido', progreso: 'En progreso', confirmar: 'Por confirmar' };
+
+  function renderReportePedidos(data) {
+    const f = data.financiero;
+    const e = data.estadistico;
+    const op = data.operativo;
+
+    els.reportesPedidosStatPipeline.textContent = `$${formatearMoneda(f.pipeline)}`;
+    els.reportesPedidosStatPipelineSub.textContent = `${e.embudo.abiertos} pedido${e.embudo.abiertos === 1 ? '' : 's'} abierto${e.embudo.abiertos === 1 ? '' : 's'}`;
+    els.reportesPedidosStatConversion.textContent = e.tasaConversion === null ? '—' : `${e.tasaConversion}%`;
+    els.reportesPedidosStatConversionSub.textContent = f.ingresoProyectado === null
+      ? 'Sin historial suficiente para proyectar'
+      : `Ingreso esperado: $${formatearMoneda(f.ingresoProyectado)} (estimación)`;
+    els.reportesPedidosStatCiclo.textContent = e.cicloPromedioHoras === null ? '—' : `${Math.round((e.cicloPromedioHoras / 24) * 10) / 10} días`;
+    els.reportesPedidosStatPerdido.textContent = `$${formatearMoneda(f.valorPerdidoCancelacion)}`;
+
+    const totalEmbudo = e.embudo.creados || 1;
+    els.reportesPedidosEmbudo.innerHTML = e.embudo.creados === 0
+      ? '<p class="admin-empty">Sin pedidos todavía.</p>'
+      : [
+          filaReportePedidos('Creados', e.embudo.creados),
+          filaReportePedidos('Entregados', e.embudo.entregados, `${Math.round((e.embudo.entregados / totalEmbudo) * 100)}%`),
+          filaReportePedidos('Cancelados', e.embudo.cancelados, `${Math.round((e.embudo.cancelados / totalEmbudo) * 100)}%`),
+          filaReportePedidos('Siguen abiertos', e.embudo.abiertos, `${Math.round((e.embudo.abiertos / totalEmbudo) * 100)}%`),
+        ].join('');
+
+    els.reportesPedidosCargaVendedor.innerHTML = op.cargaPorVendedor.length === 0
+      ? '<p class="admin-empty">Nadie tiene pedidos abiertos ahora mismo.</p>'
+      : op.cargaPorVendedor.map((v) => filaReportePedidos(v.vendedor, v.n)).join('');
+
+    els.reportesPedidosMotivos.innerHTML = op.motivosCancelacion.length === 0
+      ? '<p class="admin-empty">Sin pedidos cancelados todavía.</p>'
+      : op.motivosCancelacion.map((m) => filaReportePedidos(m.motivo, m.n)).join('');
+
+    els.reportesPedidosClientesCancel.innerHTML = data.cliente.masCancelaciones.length === 0
+      ? '<p class="admin-empty">Sin datos todavía.</p>'
+      : data.cliente.masCancelaciones.map((c) => filaReportePedidos(c.cliente, c.n)).join('');
+
+    els.reportesPedidosTicket.innerHTML = e.ticketCotizadoPromedio === null
+      ? '<p class="admin-empty">Todavía no hay pedidos convertidos en venta.</p>'
+      : filaReportePedidos('Promedio cotizado', `$${formatearMoneda(e.ticketCotizadoPromedio)}`) +
+        filaReportePedidos('Promedio vendido real', `$${formatearMoneda(e.ticketVendidoPromedio)}`);
+
+    els.reportesPedidosSaldo.innerHTML =
+      filaReportePedidos('Con saldo (va a Cuentas por cobrar)', `$${formatearMoneda(f.entregadosConSaldo)}`) +
+      filaReportePedidos('Pagado completo', `$${formatearMoneda(f.entregadosPagadoCompleto)}`);
+
+    els.reportesPedidosTiempoEtapa.innerHTML = op.tiempoPorEtapa.length === 0
+      ? '<p class="admin-empty">Todavía no hay suficiente historial de movimientos.</p>'
+      : op.tiempoPorEtapa.map((t) => filaReportePedidos(
+          ETAPA_LABEL_REPORTE[t.etapa] || t.etapa,
+          `${Math.round((t.horasPromedio / 24) * 10) / 10} días`,
+          `${t.n} caso${t.n === 1 ? '' : 's'}`
+        )).join('');
+  }
+
+  // ---------- 6 tarjetas de Resumen financiero (punto 508, Segmento 4) ----------
+  // Reusa el mismo GET /api/admin/pedidos/reportes/resumen del Segmento 3
+  // (cero endpoint nuevo) — solo se llama si el plan incluye Pedidos, ver
+  // el guard dentro de cargarResumenFinanciero().
+  async function cargarTarjetasPedidosDashboard() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/pedidos/reportes/resumen`, { headers: { Authorization: authHeader } });
+      if (!res.ok) return;
+      const data = await res.json();
+      renderTarjetasPedidosDashboard(data);
+    } catch (_) {
+      // Silencioso a propósito: estas 6 tarjetas son un complemento del
+      // tablero, no el núcleo de Resumen financiero — un fallo aquí nunca
+      // debe bloquear ni ensuciar el resto del resumen ya renderizado.
+    }
+  }
+
+  function renderTarjetasPedidosDashboard(data) {
+    const f = data.financiero;
+    const e = data.estadistico;
+
+    if (els.resumenFinPedidosPipeline) {
+      els.resumenFinPedidosPipeline.textContent = `$${formatearMoneda(f.pipeline)}`;
+    }
+    if (els.resumenFinPedidosIngreso) {
+      els.resumenFinPedidosIngreso.textContent = f.ingresoProyectado === null ? '—' : `$${formatearMoneda(f.ingresoProyectado)}`;
+    }
+    if (els.resumenFinPedidosConversion) {
+      els.resumenFinPedidosConversion.textContent = e.tasaConversion === null ? '—' : `${e.tasaConversion}%`;
+    }
+    if (els.resumenFinPedidosConversionSub && e.tasaConversion !== null) {
+      els.resumenFinPedidosConversionSub.textContent = `${e.embudo.entregados} de ${e.embudo.entregados + e.embudo.cancelados} cerrados`;
+    }
+    if (els.resumenFinPedidosCiclo) {
+      els.resumenFinPedidosCiclo.textContent = e.cicloPromedioHoras === null ? '—' : `${Math.round((e.cicloPromedioHoras / 24) * 10) / 10} días`;
+    }
+    if (els.resumenFinPedidosPerdido) {
+      els.resumenFinPedidosPerdido.textContent = `$${formatearMoneda(f.valorPerdidoCancelacion)}`;
+    }
+    // % de la cartera por cobrar REAL que se originó en pedidos entregados
+    // con saldo — reusa cxcBaseCache/calcularMetricasCxc ya cargado para
+    // "Cobranza del mes" en la misma pantalla, nunca una segunda fuente de
+    // CxC (ver gotcha ya documentado: "ordenesCache ya no es todas las
+    // ventas", 3 fuentes de CxC distintas a propósito, nunca intercambiables).
+    if (els.resumenFinPedidosSaldoCxc) {
+      const metricasCxc = calcularMetricasCxc(cxcBaseCache);
+      if (metricasCxc.porCobrar > 0 && f.entregadosConSaldo > 0) {
+        const pct = Math.round((f.entregadosConSaldo / metricasCxc.porCobrar) * 1000) / 10;
+        els.resumenFinPedidosSaldoCxc.textContent = `${pct}%`;
+        els.resumenFinPedidosSaldoCxcSub.textContent = `$${formatearMoneda(f.entregadosConSaldo)} de tu cartera por cobrar`;
+      } else {
+        els.resumenFinPedidosSaldoCxc.textContent = '0%';
+        els.resumenFinPedidosSaldoCxcSub.textContent = 'Sin saldo pendiente originado en Pedidos';
+      }
+    }
+  }
+
   // ---------- Cuentas por cobrar (punto 138) — nueva vista entre Ventas y Gastos ----------
   let cxcVista = 'pendientes'; // 'pendientes' | 'cobradas'
   let cxcOrdenActualCobro = null;
@@ -23501,6 +24841,7 @@
       ],
     },
     tickets: {
+      flag: 'facturacionHabilitada',
       titulo: 'Tickets',
       lead: 'Revisar solicitudes de factura y generar la factura final.',
       pasos: [
@@ -23512,6 +24853,7 @@
       ],
     },
     constancias: {
+      flag: 'facturacionHabilitada',
       titulo: 'Constancias',
       lead: 'Registros de clientes con su Constancia de Situación Fiscal.',
       pasos: [
@@ -23521,6 +24863,7 @@
       ],
     },
     ventas: {
+      flag: 'ventasHabilitado',
       titulo: 'Ventas',
       lead: 'Registrar, cobrar y hacer el corte del día.',
       pasos: [
@@ -23533,7 +24876,20 @@
         { t: 'Modo sin conexión', d: 'Si se va el internet, la venta se guarda localmente y se sincroniza sola al reconectar — la franja de arriba avisa cuándo pasa cada cosa.' },
       ],
     },
+    pedidos: {
+      flag: 'pedidosHabilitado',
+      titulo: 'Pedidos',
+      lead: 'Cotizaciones en kanban — no son una venta real hasta que llegan a "Entregado".',
+      pasos: [
+        { t: 'Las 5 columnas', d: 'Pedido → En progreso → Por confirmar → Entregado → Cancelado. Solo las 3 primeras se mueven libremente con el selector de cada tarjeta.' },
+        { t: 'Crear un pedido', d: 'Botón "+ Nuevo pedido" — concepto, monto estimado y, si tienes Inventarios activo, puedes tomar el producto o servicio directo del catálogo (sin apartar existencia todavía).' },
+        { t: 'Marcar como Entregado', d: 'Abre el mismo formulario de "Registrar venta", precargado con los datos del pedido — ahí sí se captura método de pago, estado de cobro y entrega. Al guardar, el pedido queda vinculado a esa venta real.' },
+        { t: 'Cancelar', d: 'Con motivo opcional — un pedido cancelado nunca se borra, queda visible para el reporte de motivos de cancelación.' },
+        { t: 'Reportes de Pedidos', d: 'Dentro de Reportes → pestaña "Pedidos": pipeline, tasa de conversión, ciclo promedio de cierre y más — siempre separado del ingreso real.' },
+      ],
+    },
     cxc: {
+      flag: 'cxcHabilitado',
       titulo: 'Cuentas por cobrar',
       lead: 'Ventas pendientes de cobro y su seguimiento.',
       pasos: [
@@ -23543,6 +24899,7 @@
       ],
     },
     gastos: {
+      flag: 'gastosHabilitado',
       titulo: 'Gastos',
       lead: 'Control administrativo de los gastos de la operación.',
       pasos: [
@@ -23553,6 +24910,7 @@
       ],
     },
     inventarios: {
+      flag: 'inventariosHabilitado',
       titulo: 'Inventarios',
       lead: 'Productos, servicios y existencias — módulo opcional.',
       pasos: [
@@ -23568,6 +24926,7 @@
       ],
     },
     proveedores: {
+      flag: ['inventariosHabilitado', 'gastosHabilitado'],
       titulo: 'Proveedores',
       lead: 'Sección en construcción.',
       pasos: [
@@ -23575,6 +24934,7 @@
       ],
     },
     reportes: {
+      flag: ['reportesPorReporteHabilitado', 'reportesCortesHabilitado', 'reportesEliminadosHabilitado', 'reportesEstadoInventarioHabilitado', 'reportesEstadoTicketsHabilitado', 'pedidosHabilitado'],
       titulo: 'Reportes',
       lead: '"Lectura de reportes" — todo lo que se archivó o eliminó, con auditoría.',
       pasos: [
@@ -23606,6 +24966,7 @@
       ],
     },
     auditoria: {
+      flag: 'auditoriaHabilitado',
       titulo: 'Auditoría',
       lead: 'Quién entró al panel, cuándo y qué hizo — perfiles Administrador y Super.',
       pasos: [
@@ -23615,6 +24976,7 @@
       ],
     },
     promociones: {
+      flag: 'promocionesHabilitado',
       titulo: 'Promociones',
       lead: 'Envía mensajes a tus clientes por la campana de notificaciones — perfil Administrador y Super.',
       pasos: [
@@ -23627,6 +24989,7 @@
       ],
     },
     'resumen-financiero': {
+      flag: 'resumenFinancieroHabilitado',
       titulo: 'Resumen financiero',
       lead: 'La foto completa del mes, con gráficas — perfil Administrador.',
       pasos: [
@@ -23703,6 +25066,28 @@
     });
   }
 
+  // Punto 508, Segmento 6: el Centro de conocimiento NUNCA había filtrado
+  // sus categorías por plan (deuda conocida, PROJECT_STATE.md punto 273)
+  // — abrirConocimiento()/filtrarConocimiento() forzaban TODOS los botones
+  // visibles sin importar el tenant. `flag` ausente = siempre visible
+  // (primeros-pasos, glosario, inicio, usuarios, mi-cuenta, configuraciones
+  // — nunca dependen de un módulo apagable). Acepta string o array
+  // (array = OR, mismo criterio que requiereFeature() del backend).
+  function categoriaConocimientoVisible(catKey) {
+    const datos = CONOCIMIENTO_CATEGORIAS[catKey];
+    if (!datos || !datos.flag) return true;
+    // Mismo criterio que pestanaReportesVisible('pedidos')/
+    // aplicarVisibilidadTarjetasDashboard: Pedidos depende de Ventas,
+    // nunca solo de su propio flag.
+    if (catKey === 'pedidos' && !planPermite('ventasHabilitado')) return false;
+    const flags = Array.isArray(datos.flag) ? datos.flag : [datos.flag];
+    return flags.some((f) => planPermite(f));
+  }
+
+  function primeraCategoriaConocimientoVisible() {
+    return Object.keys(CONOCIMIENTO_CATEGORIAS).find((k) => categoriaConocimientoVisible(k)) || 'primeros-pasos';
+  }
+
   let conocimientoCatActual = 'primeros-pasos';
 
   function seleccionarCategoriaConocimiento(catKey) {
@@ -23726,13 +25111,16 @@
   function filtrarConocimiento() {
     const q = els.conocimientoBuscar.value.trim().toLowerCase();
     if (!q) {
-      els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => { btn.hidden = false; });
+      els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => {
+        btn.hidden = !categoriaConocimientoVisible(btn.dataset.cat);
+      });
       els.conocimientoNavEmpty.hidden = true;
       renderCategoriaConocimiento(conocimientoCatActual, '');
       return;
     }
     const coincidencias = new Set();
     Object.entries(CONOCIMIENTO_CATEGORIAS).forEach(([key, datos]) => {
+      if (!categoriaConocimientoVisible(key)) return;
       const texto = (datos.titulo + ' ' + datos.pasos.map((p) => `${p.t} ${p.d}`).join(' ')).toLowerCase();
       if (texto.includes(q)) coincidencias.add(key);
     });
@@ -23759,9 +25147,14 @@
   // "Primeros pasos", como antes).
   function abrirConocimiento(enfocarBuscador) {
     els.conocimientoBuscar.value = '';
-    els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => { btn.hidden = false; });
+    els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => {
+      btn.hidden = !categoriaConocimientoVisible(btn.dataset.cat);
+    });
     els.conocimientoNavEmpty.hidden = true;
-    seleccionarCategoriaConocimiento('primeros-pasos');
+    // "primeros-pasos" siempre es visible (sin flag), pero por si acaso se
+    // reordena el objeto algún día, nunca asumirlo — usa el mismo cálculo
+    // que ya filtra el nav.
+    seleccionarCategoriaConocimiento(categoriaConocimientoVisible('primeros-pasos') ? 'primeros-pasos' : primeraCategoriaConocimientoVisible());
     mostrarListaMovilConocimiento();
     els.conocimientoOverlay.hidden = false;
     if (enfocarBuscador) els.conocimientoBuscar.focus();
@@ -23866,6 +25259,7 @@
     const estado = leerEstadoOnboarding();
     const vistos = estado.vistos || {};
     const ventaHecha = ordenesCache.length > 0 || !!estado.ventaCreada;
+    const pedidoHecho = pedidosCache.length > 0 || !!estado.pedidoCreado;
     const mapa = {
       fiscal: [
         { texto: 'Completa tus datos fiscales', vista: 'configuraciones', hecho: datosFiscalesCompletos === true },
@@ -23885,11 +25279,16 @@
         // inventarioActivoGlobalmente encendido — justo lo que este paso le
         // está pidiendo al admin que haga, así que nunca podría cumplirse.
         { texto: 'Activa Inventarios si vendes producto físico', vista: 'configuraciones', hecho: inventarioActivoGlobalmente === true, opcional: true, disponible: planPermite('inventariosHabilitado') },
+        // Punto 508, Segmento 5: opcional, igual criterio que Inventarios
+        // arriba — Pedidos es un módulo independiente/opt-out (como CxC),
+        // nunca un paso obligatorio para considerar el onboarding "listo".
+        { texto: 'Prueba el kanban de Pedidos', vista: 'pedidos', hecho: pedidoHecho, opcional: true, disponible: planPermite('pedidosHabilitado') },
       ],
       ventas: [
         { texto: 'Registra tu primera venta', vista: 'ordenes', hecho: ventaHecha },
         { texto: 'Revisa Cuentas por cobrar', vista: 'cxc', hecho: !!vistos.cxc },
         { texto: 'Registra tu primer gasto', vista: 'gastos', hecho: !!estado.gastoCreado },
+        { texto: 'Crea tu primer pedido (cotización)', vista: 'pedidos', hecho: pedidoHecho, opcional: true, disponible: planPermite('pedidosHabilitado') },
       ],
       // punto 321/recorrido inventario: "hecho" del paso 1 se lee de
       // estadoInventarioCache (la misma respuesta que ya carga su propio
@@ -24028,6 +25427,7 @@
     administrador: [
       { selector: '.admin-sidebar-nav', titulo: 'Aquí navegas todo el panel', desc: 'Cada botón te lleva a una sección — Ventas, Cuentas por cobrar, Gastos, y más.' },
       { selector: '#btn-vista-ordenes', titulo: 'Registra tus ventas aquí', desc: 'Desde "Ventas" registras cada venta y controlas si ya se facturó.' },
+      { selector: '#btn-vista-pedidos', titulo: 'Pedidos: cotiza antes de vender', desc: 'Un tablero para dar seguimiento a cotizaciones — nunca es una venta real ni afecta Cuentas por cobrar hasta que lo marcas como Entregado.' },
       { selector: '#btn-vista-promociones', titulo: 'Envía promociones a tus clientes', desc: 'Les llega en la campana de notificaciones de su portal, con sonido — mensaje, vigencia opcional, y puedes archivar/relanzar/eliminar después.' },
       { selector: '#btn-vista-lectura-reportes', titulo: 'Reportes', desc: 'Lo que se archivó o eliminó, con auditoría — cortes del día, cierres mensuales, estado del inventario y exportar a CSV/Excel.' },
       { selector: '#btn-vista-configuraciones', titulo: 'Configuraciones', desc: 'Ajustes que cambian todo el panel — datos fiscales, SMTP, interruptores de Ventas/Inventarios y más. Un buscador arriba filtra entre las secciones.' },
@@ -24037,6 +25437,7 @@
     ventas: [
       { selector: '.admin-sidebar-nav', titulo: 'Tus 3 secciones', desc: 'Ventas, Cuentas por cobrar y Gastos — todo lo que necesitas para tu día a día.' },
       { selector: '#btn-header-registrar-venta', titulo: 'Registra una venta nueva', desc: 'Este botón abre el formulario para capturar cada venta — vive aquí arriba, siempre a la mano sin importar en qué sección estés.' },
+      { selector: '#btn-vista-pedidos', titulo: 'Pedidos: cotiza antes de vender', desc: 'Un tablero para dar seguimiento a cotizaciones — nunca es una venta real hasta que lo marcas como Entregado.' },
       { selector: '#onboarding-checklist-card', titulo: 'Tus primeros pasos', desc: 'Esta tarjeta te va guiando — se oculta sola cuando terminas.' },
       TOUR_PASO_AYUDA,
     ],

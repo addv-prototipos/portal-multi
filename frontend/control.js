@@ -3228,6 +3228,11 @@
     // entra en REPORTES_WIZARD_DEF ni en ninguna regla de dependencia.
     { campo: 'promociones_habilitado', titulo: 'Promociones', desc: 'Enviar promociones a clientes (campana del portal)',
       icono: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 7l9 6 9-6" stroke-linecap="round" stroke-linejoin="round"/>' },
+    // CRM (punto en curso): ficha de contacto de clientes + métricas de
+    // cartera — independiente, sin prerrequisito (igual que
+    // promociones_habilitado/auditoria_habilitado de arriba).
+    { campo: 'crm_habilitado', titulo: 'CRM', desc: 'Ficha de contacto de clientes + métricas de cartera',
+      icono: '<path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"/>' },
   ];
 
   // Las 4 pestañas reales de la vista "Reportes" en /admin
@@ -3265,6 +3270,9 @@
       sucursales_habilitado: false,
       marca_lookfeel_habilitado: false,
       cxc_habilitado: false,
+      // Punto 508: "Pedidos" — mismo criterio que cxc_habilitado (opcional/
+      // independiente, requiere ventas_habilitado, nunca se activa solo).
+      pedidos_habilitado: false,
       resumen_financiero_habilitado: false,
       reportes_por_reporte_habilitado: false,
       reportes_cortes_habilitado: false,
@@ -3272,6 +3280,10 @@
       reportes_estado_inventario_habilitado: false,
       reportes_estado_tickets_habilitado: false,
       promociones_habilitado: false,
+      // Punto en curso: "CRM" — independiente, sin prerrequisito (igual
+      // que promociones_habilitado arriba, nunca entra en las reglas
+      // automáticas de dependencia).
+      crm_habilitado: false,
       ticket_impresion_habilitado: false,
     };
   }
@@ -3318,6 +3330,10 @@
       if (campo === 'ventas_habilitado' && !encendiendo && planWizardState.cxc_habilitado) {
         planWizardState.cxc_habilitado = false;
         showToast('Se desactivó Cuentas por cobrar: depende de Ventas.');
+      }
+      if (campo === 'ventas_habilitado' && !encendiendo && planWizardState.pedidos_habilitado) {
+        planWizardState.pedidos_habilitado = false;
+        showToast('Se desactivó Pedidos: depende de Ventas.');
       }
       if (campo === 'ventas_habilitado' && !encendiendo && planWizardState.ticket_impresion_habilitado) {
         planWizardState.ticket_impresion_habilitado = false;
@@ -3454,6 +3470,14 @@
       modulos: ['ventas'],
     });
     html += filaDependienteWizard({
+      etiqueta: 'Pedidos',
+      desc: 'Opcional — kanban de pre-ventas/cotizaciones, no se activa solo aunque Ventas esté encendido',
+      campo: 'pedidos_habilitado',
+      deshabilitado: !planWizardState.ventas_habilitado,
+      requiereTxt: 'Ventas',
+      modulos: ['ventas'],
+    });
+    html += filaDependienteWizard({
       etiqueta: 'Resumen financiero',
       desc: planWizardState.resumen_financiero_habilitado
         ? 'Activo automáticamente por Ventas/Gastos — se puede apagar'
@@ -3509,6 +3533,7 @@
     html += fila('Gestión de facturas', planWizardState.facturacion_habilitada);
     html += fila('Ventas', planWizardState.ventas_habilitado);
     html += filaN2('Cuentas por cobrar', planWizardState.cxc_habilitado);
+    html += filaN2('Pedidos', planWizardState.pedidos_habilitado);
     html += fila('Gastos', planWizardState.gastos_habilitado);
     html += fila('Resumen financiero', planWizardState.resumen_financiero_habilitado);
     html += fila('Reportes', reportesVisibleWizard());
@@ -3521,6 +3546,7 @@
     html += fila('Marca propia', planWizardState.marca_lookfeel_habilitado);
     html += filaN2('Ticket de impresión', planWizardState.ticket_impresion_habilitado);
     html += fila('Promociones', planWizardState.promociones_habilitado);
+    html += fila('CRM', planWizardState.crm_habilitado);
     els.planesWizardResumenBody.innerHTML = html;
   }
 
@@ -3584,6 +3610,7 @@
           sucursales_habilitado: Boolean(p.sucursales_habilitado),
           marca_lookfeel_habilitado: Boolean(p.marca_lookfeel_habilitado),
           cxc_habilitado: Boolean(p.cxc_habilitado),
+          pedidos_habilitado: Boolean(p.pedidos_habilitado),
           resumen_financiero_habilitado: Boolean(p.resumen_financiero_habilitado),
           reportes_por_reporte_habilitado: Boolean(p.reportes_por_reporte_habilitado),
           reportes_cortes_habilitado: Boolean(p.reportes_cortes_habilitado),
@@ -3591,6 +3618,7 @@
           reportes_estado_inventario_habilitado: Boolean(p.reportes_estado_inventario_habilitado),
           reportes_estado_tickets_habilitado: Boolean(p.reportes_estado_tickets_habilitado),
           promociones_habilitado: Boolean(p.promociones_habilitado),
+          crm_habilitado: Boolean(p.crm_habilitado),
           ticket_impresion_habilitado: Boolean(p.ticket_impresion_habilitado),
         };
         planWizardTotalTenants = Number(p.total_tenants || 0);

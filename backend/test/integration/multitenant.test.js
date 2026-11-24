@@ -178,7 +178,7 @@ describe('Multi-tenant (segmento 3) — resolución de tenant end-to-end', () =>
   // (true, migración-segura) EXCEPTO sucursalesHabilitado, que por
   // diseño default a false cuando la columna está ausente (feature nueva
   // que nadie tenía antes — ver tenantContext.js).
-  test('GET /api/admin/login con tenant resuelto expone "funciones" con los 18 flags del plan', async () => {
+  test('GET /api/admin/login con tenant resuelto expone "funciones" con los 19 flags del plan', async () => {
     mockControlPool([TENANT_CLIENTE1]);
 
     const res = await request(app)
@@ -202,6 +202,7 @@ describe('Multi-tenant (segmento 3) — resolución de tenant end-to-end', () =>
       inventariosHabilitado: true,
       auditoriaHabilitado: true,
       cxcHabilitado: true,
+      pedidosHabilitado: true,
       resumenFinancieroHabilitado: true,
       reportesPorReporteHabilitado: true,
       reportesCortesHabilitado: true,

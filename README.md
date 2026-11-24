@@ -442,7 +442,7 @@ contra infraestructura real y confirma cada uno.
 Disponible en `http://localhost/admin` (o `https://tudominio.com/admin` en producción; usa el puerto que hayas configurado en `FRONTEND_PORT` si no es el `80` por defecto).
 
 - **Acceso**: usuario y contraseña por HTTP Basic Auth. Por defecto `admin` / `admin` (ver "Administración de cuentas y contraseñas" más abajo para los dos mecanismos que aceptan credenciales — variable de entorno, o usuarios con perfil administrador/fiscal). Es un sistema **separado** del login de RFC + contraseña de los usuarios del portal (`login.html`) — un cliente no puede iniciar sesión en el panel, y un administrador no inicia sesión como cliente.
-- El panel tiene un menú lateral agrupado por categorías plegables, en este orden (punto 365): **Inicio** (suelta, fuera de categoría) → **Ventas y gastos** (Ventas, Cuentas por cobrar, Gastos) → **Catálogo** (Inventarios, Proveedores) → **Finanzas** (Resumen financiero, Reportes) → **Facturación** (Tickets, Constancias) → **Administración** (Usuarios, Auditoría) → **Cuenta** (Mi Cuenta, Configuraciones globales). "Inicio" es la vista que se ve al iniciar sesión para los perfiles que la tienen disponible; el perfil `administrador` aterriza en "Resumen financiero" (ver abajo), su primera vista disponible. Un botón de libro en la barra de sesión (y otro fijo en el sidebar en escritorio; en móvil se reubica como primer tile del menú "Menú") abre el **Centro de conocimiento**, el manual del sistema integrado en la propia app (ver más abajo). Junto a la campana de notificaciones de la barra de sesión vive un atajo fijo **"Registrar venta"** (perfiles `administrador`/`ventas`/`super`, visible en cualquier vista — en móvil es un ícono junto a la campana, que ahí también se muestra) — abre el mismo modal que el de la vista Ventas, sin necesidad de entrar a esa vista primero.
+- El panel tiene un menú lateral agrupado por categorías plegables, en este orden (punto 365): **Inicio** (suelta, fuera de categoría) → **Ventas y gastos** (Ventas, Pedidos, Clientes (CRM), Cuentas por cobrar, Gastos) → **Catálogo** (Inventarios, Proveedores) → **Finanzas** (Resumen financiero, Reportes) → **Facturación** (Tickets, Constancias) → **Administración** (Usuarios, Auditoría) → **Cuenta** (Mi Cuenta, Configuraciones globales). "Inicio" es la vista que se ve al iniciar sesión para los perfiles que la tienen disponible; el perfil `administrador` aterriza en "Resumen financiero" (ver abajo), su primera vista disponible. Un botón de libro en la barra de sesión (y otro fijo en el sidebar en escritorio; en móvil se reubica como primer tile del menú "Menú") abre el **Centro de conocimiento**, el manual del sistema integrado en la propia app (ver más abajo). Junto a la campana de notificaciones de la barra de sesión vive un atajo fijo **"Registrar venta"** (perfiles `administrador`/`ventas`/`super`, visible en cualquier vista — en móvil es un ícono junto a la campana, que ahí también se muestra) — abre el mismo modal que el de la vista Ventas, sin necesidad de entrar a esa vista primero.
 
 ### Vista "Inicio"
 
@@ -559,7 +559,31 @@ Al registrar una orden, se le envía automáticamente al correo del cliente un m
 - Como con cualquier otro correo de esta app, el envío es "fire-and-forget": si el SMTP no está configurado o el envío falla, la orden se guarda correctamente de todas formas — el error solo se registra en los logs del backend.
 - Se manda tanto en HTML (el ticket) como en texto plano equivalente — buena práctica de entregabilidad y accesibilidad, por si el cliente de correo del destinatario no renderiza HTML.
 
+### Vista "Pedidos"
+
+Kanban de pre-ventas (cotizaciones), entre "Ventas" y "Cuentas por cobrar" en el sidebar — visible para `administrador`/`ventas`, gateado por **Ventas Y Pedidos a la vez** (`pedidosHabilitado` es independiente/opt-out, pero depende de `ventasHabilitado` en el catálogo de planes). Un pedido vive en su propia tabla — nunca se mezcla con las ventas reales hasta que se entrega.
+
+- **5 columnas** (concepto "semáforo de SLA"): Pedido → En progreso → Por confirmar → Entregado → Cancelado. Cada tarjeta muestra folio (`PED-000001`), cliente, monto, vendedor y una barra de SLA por días en la etapa actual (verde/ámbar/rojo).
+- **Alta manual o desde catálogo**: "Nuevo pedido" toma producto del catálogo de Inventarios (si el módulo está activo) con el mismo buscador de Ventas, o alta libre de concepto + monto si no hay Inventarios. Sin reserva de stock al crear — el stock se descuenta hasta "Entregado".
+- **Mover entre columnas**: selector "Mover a…" en las 3 columnas laterales, o arrastrar la tarjeta (drag-and-drop HTML5 real entre columnas).
+- **"Marcar como Entregado"** reutiliza el mismo modal/endpoint "Registrar venta" ya existente (precarga concepto/monto/cliente) — al guardar la venta real, vincula ambos registros (`pedido_id`); nunca duplica la lógica de Ventas.
+- **Cancelar** pide un motivo opcional (visible en la tarjeta, alimenta el reporte de motivos de cancelación) — un pedido cancelado nunca se borra.
+- **Reportes** (sub-pestaña "Pedidos" dentro de "Reportes"): embudo de conversión, pipeline, ingreso proyectado, SLA, carga por vendedor, motivos de cancelación, ticket cotizado vs. vendido, ciclo promedio de cierre y tiempo promedio por etapa — todo honesto (sin datos suficientes, los promedios salen vacíos, nunca cero disfrazado).
+- **6 tarjetas en "Resumen financiero"** (gateadas individualmente, ocultas si el módulo está apagado): Pipeline, Ingreso proyectado, Tasa de conversión, Ciclo promedio de cierre, Valor perdido por cancelación, Saldo CxC originado en Pedidos.
+- Categoría propia en el Centro de conocimiento, filtrada por plan igual que el resto del manual.
+
+### Vista "Clientes (CRM)"
+
+Ficha de contacto de clientes + métricas de cartera, Fase 1 solo lectura (sin alta/edición/archivado de contacto — el alta sigue siendo el flujo normal de Ventas/registro). Entre "Pedidos" y "Cuentas por cobrar" en el sidebar — gateado por `crmHabilitado`, sin dependencia de otro módulo, activo por default en todos los planes salvo CLARVO Solicita.
+
+- **Dos vistas dentro del mismo segmento** (botones "Contactos"/"Métricas" en la misma barra, nunca una ruta aparte).
+- **"Contactos"**: cruza a los usuarios con `perfil='cliente'` con sus pedidos/ventas por correo — ficha completa por cliente (datos de contacto, estadísticas, historial de operaciones). El identificador fiscal sintético (`SINFISCAL-*`, ver "RFC solo si Facturación está activa" más abajo) nunca se muestra como RFC real.
+- **Segmento de cliente** (calculado en servidor, heurística de primera pasada): `inactivo` (cuenta desactivada) → `nuevo` (sin pedidos ni ventas) → `en_riesgo` (30+ días sin actividad) → `recurrente` (10+ operaciones) → `activo` (resto).
+- **"Métricas"**: KPIs de cartera, donut por segmento, tabla de clientes de mayor valor.
+- Sin paginación real (tope de 1000 filas, mismo criterio que Pedidos).
+
 ### Vista "Cuentas por cobrar"
+
 
 Entre "Ventas" y "Gastos" en el sidebar — visible para `administrador` + `super`. Una venta puede
 registrarse como **"Pagada"** (default) o **"Pendiente de pago"** (con fecha de vencimiento y notas

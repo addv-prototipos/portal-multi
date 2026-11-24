@@ -958,6 +958,19 @@ a.btn {
   margin: 0 0 14px;
 }
 .modal p:last-of-type { margin-bottom: 0; }
+/* Bug real encontrado al verificar la leyenda de "sin resultados" del
+   modal "Nuevo pedido" (punto 508, rediseño): `.modal p` (0,1,1) le gana
+   en especificidad a `.field-error` (0,1,0) — TODO mensaje de error de
+   formulario dentro de CUALQUIER modal del sitio se pintaba gris
+   (--color-ink-soft), nunca rojo, desde siempre. No es solo de Pedidos —
+   afecta cualquier `<p class="field-error">` anidado en `.modal` en
+   admin/control/portal de cliente. Fix mínimo: reforzar la
+   especificidad para que gane el color de error real. */
+.modal p.field-error {
+  color: var(--color-error);
+  font-size: 12.5px;
+  margin: 6px 0 0;
+}
 
 .modal-preview {
   margin: 0 0 14px;

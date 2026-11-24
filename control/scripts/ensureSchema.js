@@ -143,6 +143,13 @@ const COLUMNAS_NUEVAS = [
   // esquema) — columna propia de todos modos porque es "opcional, no se
   // activa sola aunque Ventas esté encendido" (decisión del usuario).
   { nombre: 'cxc_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  // Punto 508: "Pedidos" (kanban de pre-ventas/cotizaciones) — depende de
+  // Ventas igual que cxc_habilitado (misma regla, independiente/opt-out,
+  // nunca se activa sola). DEFAULT 1: decisión explícita del usuario,
+  // "activo para todos" — a diferencia del criterio normal de una
+  // funcionalidad NUEVA (que nacería en 0), aquí se arranca encendida para
+  // todo tenant existente desde el día uno.
+  { nombre: 'pedidos_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
   // Se auto-activa en /control cuando Ventas o Gastos se enciende por
   // primera vez (regla 2) — la columna en sí es un simple TINYINT, la
   // regla de auto-activación/bloqueo vive en control/utils/planes.js.
@@ -169,6 +176,12 @@ const COLUMNAS_NUEVAS = [
   // arriba, que es solo para no apagarle algo a nadie el día de la
   // migración.
   { nombre: 'promociones_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  // CRM (punto en curso): ficha de contacto de clientes + métricas de
+  // cartera, separado de "Usuarios" (administración de cuentas). Nunca
+  // existió antes como funcionalidad — mismo criterio DEFAULT 0 que
+  // promociones_habilitado arriba, ningún tenant real queda con una
+  // capacidad nueva encendida sin haberla pedido.
+  { nombre: 'crm_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   // Suscripción por tenant (punto en curso, propuesta 3 aprobada): modo
   // de prueba, ciclo de facturación, fecha de expiración y estatus de
   // cobro. Todas NULL/0 por default — a diferencia de los flags de
@@ -390,6 +403,12 @@ const COLUMNAS_PLANES_NUEVAS = [
   { nombre: 'inventarios_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'auditoria_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'cxc_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  // Punto 508: a diferencia del resto de esta tabla (un plan NUEVO nace
+  // sin nada, el operador lo elige), "Pedidos" se agrega aquí también en 0
+  // — el "activo para todos" del usuario aplica solo a lo que YA existe
+  // hoy (tenants reales + planes ya creados, ver backfill incondicional
+  // más abajo), nunca a un plan que se cree DESPUÉS de este punto.
+  { nombre: 'pedidos_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'resumen_financiero_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'reportes_por_reporte_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'reportes_cortes_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
@@ -397,6 +416,11 @@ const COLUMNAS_PLANES_NUEVAS = [
   { nombre: 'reportes_estado_inventario_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'reportes_estado_tickets_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'promociones_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  // CRM (punto en curso) — mismo criterio que en `tenants`: DEFAULT 0,
+  // ningún plan nuevo lo trae incluido hasta que el operador lo elige en
+  // el asistente de /control. Sin regla de dependencia (no requiere
+  // Ventas/Pedidos: lee la base de clientes directo de `usuarios`).
+  { nombre: 'crm_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   // Mismo criterio que en `tenants` arriba: columna propia, DEFAULT 0, con
   // backfill condicional desde marca_lookfeel_habilitado en
   // asegurarTablaPlanes() — ningún plan ya creado pierde el ticket de
@@ -456,15 +480,27 @@ async function asegurarTablaPlanes(db) {
   const nombresPlanes = columnasPlanes.map((c) => c.COLUMN_NAME);
   let ticketImpresionPlanesReciénAgregada = false;
   let destacadoPlanesReciénAgregada = false;
+  let pedidosPlanesReciénAgregada = false;
   for (const { nombre, definicion } of COLUMNAS_PLANES_NUEVAS) {
     if (!nombresPlanes.includes(nombre)) {
       await db.query(`ALTER TABLE planes ADD COLUMN ${nombre} ${definicion}`);
       if (nombre === 'ticket_impresion_habilitado') ticketImpresionPlanesReciénAgregada = true;
       if (nombre === 'destacado') destacadoPlanesReciénAgregada = true;
+      if (nombre === 'pedidos_habilitado') pedidosPlanesReciénAgregada = true;
     }
   }
   if (ticketImpresionPlanesReciénAgregada) {
     await db.query('UPDATE planes SET ticket_impresion_habilitado = marca_lookfeel_habilitado');
+  }
+  // Punto 508: "activo para todos" — a diferencia de ticket_impresion
+  // (backfill condicionado a otra columna) o destacado (solo el plan
+  // "Controla"), aquí el usuario pidió explícitamente TODOS los planes ya
+  // existentes en 1, sin condición. Solo corre la primera vez que la
+  // columna se crea (misma guarda que las otras 2 de arriba) — nunca
+  // vuelve a tocar un plan que un operador haya apagado a propósito
+  // después.
+  if (pedidosPlanesReciénAgregada) {
+    await db.query('UPDATE planes SET pedidos_habilitado = 1');
   }
   if (destacadoPlanesReciénAgregada) {
     // Continuidad visual: hasta este punto "Plan más elegido" en la isla
@@ -474,6 +510,55 @@ async function asegurarTablaPlanes(db) {
     // insignia el día del deploy. `LIMIT 1`: si por error hay más de un
     // "Controla", nunca marca dos a la vez.
     await db.query("UPDATE planes SET destacado = 1 WHERE nombre LIKE '%Controla%' ORDER BY id LIMIT 1");
+  }
+
+  // Decisión del usuario (2026-11-23): "Clientes (CRM)" deja de ser
+  // opt-in plan por plan como el resto del catálogo — va habilitado en
+  // TODOS los planes salvo "Solicita". `crm_habilitado` nació con
+  // DEFAULT 0 (punto 500-ish, construcción del CRM) ANTES de que esta
+  // política existiera, así que no se puede reusar el patrón de
+  // "recién agregada" de arriba (esa ventana de una sola vez ya se gastó
+  // en esa sesión, con la política todavía sin decidir). Este backfill
+  // usa su propio sentinel en `ajustes_globales` para que corra UNA sola
+  // vez sin importar cuántos restarts pasen — después de aplicado, un
+  // operador puede apagar CRM a mano en cualquier plan (incluso uno que
+  // no sea Solicita) desde /control y ese valor nunca se vuelve a pisar.
+  // v2 (no v1): la v1 de esta misma sesión solo backfilleaba `planes` —
+  // al agregar el segundo UPDATE (tabla `tenants`, 2 líneas abajo) justo
+  // después de que v1 ya había quedado marcada como aplicada en este
+  // mismo entorno de prueba, re-usar la clave vieja habría dejado el
+  // UPDATE de tenants sin correr NUNCA aquí. Mismo criterio que cualquier
+  // sentinel de este archivo: si el EFECTO de un backfill cambia después
+  // de que ya quedó marcado aplicado, la clave sube de versión — nunca se
+  // reinicia a mano (`control_app` no tiene DELETE).
+  const CLAVE_CRM_DEFAULT_APLICADO = 'crm_default_aplicado_v2';
+  const [[{ total: crmDefaultAplicado }]] = await db.query(
+    'SELECT COUNT(*) AS total FROM ajustes_globales WHERE clave = ?',
+    [CLAVE_CRM_DEFAULT_APLICADO]
+  );
+  if (!crmDefaultAplicado) {
+    await db.query("UPDATE planes SET crm_habilitado = 1 WHERE nombre NOT LIKE '%Solicita%'");
+    // Modelo de 2 capas (igual que cualquier otro flag de gobierno, ver
+    // CLAUDE.md): cambiar el catálogo de `planes` NUNCA se refleja solo
+    // con eso en un tenant ya aprovisionado — `tenants.crm_habilitado` es
+    // su propia copia, hecha en el momento en que se le asignó el plan.
+    // Sin este segundo UPDATE, un tenant existente (como el de pruebas
+    // "t1") seguiría viendo el candado 404 pese a que su plan ya dice
+    // crm_habilitado=1 en el catálogo — exactamente el síntoma que el
+    // usuario reportó ("que se vea en el sitio también"). Solo toca
+    // tenants cuyo valor difiere del de su plan — un tenant sin plan
+    // asignado (plan_id NULL) no matchea el JOIN y se queda como está.
+    await db.query(
+      `UPDATE tenants t
+       JOIN planes p ON t.plan_id = p.id
+       SET t.crm_habilitado = p.crm_habilitado
+       WHERE t.crm_habilitado <> p.crm_habilitado`
+    );
+    await db.query(
+      `INSERT INTO ajustes_globales (clave, valor) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE valor = VALUES(valor)`,
+      [CLAVE_CRM_DEFAULT_APLICADO, '1']
+    );
   }
 
   // Semilla de arranque — solo si el catálogo está vacío (primera

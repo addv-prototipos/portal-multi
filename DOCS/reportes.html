@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Accesos directos — Reportes de Google Analytics (Clarvo)</title>
+<style>
+  :root {
+    --page-bg: #F7F8FA; --page-surface: #FFFFFF; --page-ink: #14151A;
+    --page-ink-soft: #5B6472; --page-border: #E3E6EC; --accent: #03285B;
+    --accent-soft: #E7ECF3; --ok: #1FAE6B; --ok-soft: #E4F6ED;
+    --warn: #B4530C; --warn-soft: #FBEBDC;
+    --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+    --mono: ui-monospace, 'SF Mono', Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --page-bg:#0D0F14; --page-surface:#15171F; --page-ink:#ECEDF2; --page-ink-soft:#9BA1AF; --page-border:#262A36; --accent:#5B9BFF; --accent-soft:#1A2338; --ok:#3CCB8C; --ok-soft:#102B20; --warn:#E08A3C; --warn-soft:#2E1F0E; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--page-bg); color: var(--page-ink); }
+  .shell { max-width: 820px; margin: 0 auto; padding: clamp(24px, 5vw, 64px) clamp(18px, 4vw, 32px) 80px; }
+
+  header.top { margin-bottom: 36px; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--page-ink-soft); margin-bottom: 12px; }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  h1 { font-size: clamp(24px, 3.2vw, 32px); font-weight: 800; letter-spacing: -0.015em; margin: 0 0 12px; text-wrap: balance; }
+  .lead { font-size: 15px; line-height: 1.65; color: var(--page-ink-soft); max-width: 62ch; margin: 0; }
+
+  .callout { display: flex; gap: 10px; padding: 12px 15px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.55; margin: 20px 0 0; background: var(--warn-soft); color: var(--warn); }
+  .callout svg { flex-shrink: 0; margin-top: 1px; width: 16px; height: 16px; }
+  .callout b { font-weight: 700; }
+
+  .cards { display: flex; flex-direction: column; gap: 14px; margin-top: 36px; }
+  a.card { display: flex; align-items: flex-start; gap: 16px; background: var(--page-surface); border: 1px solid var(--page-border); border-radius: var(--radius-lg); padding: 20px 22px; text-decoration: none; color: inherit; transition: border-color .15s ease, transform .15s ease; }
+  a.card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card-icon { flex-shrink: 0; width: 42px; height: 42px; border-radius: 10px; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; color: var(--accent); }
+  .card-icon svg { width: 22px; height: 22px; }
+  .card-body h2 { font-size: 16.5px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.005em; }
+  .card-body p { font-size: 13.5px; line-height: 1.55; color: var(--page-ink-soft); margin: 0 0 8px; }
+  .card-body .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .card-body .tag { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .03em; background: var(--ok-soft); color: var(--ok); padding: 3px 8px; border-radius: 999px; }
+  .card-arrow { margin-left: auto; flex-shrink: 0; align-self: center; color: var(--page-ink-soft); width: 18px; height: 18px; }
+
+  .divider { height: 1px; background: var(--page-border); margin: 40px 0 28px; }
+
+  footer.end { background: var(--accent-soft); border: 1px solid var(--page-border); border-radius: var(--radius-lg); padding: 20px 24px; font-size: 13.5px; line-height: 1.65; color: var(--page-ink-soft); }
+  footer.end b { color: var(--page-ink); }
+  footer.end code { font-family: var(--mono); background: var(--page-surface); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <span class="eyebrow"><span class="dot"></span>Accesos directos · Google Analytics 4</span>
+    <h1>Reportes de clarvo.mx</h1>
+    <p class="lead">Enlaces directos a los reportes de Google Analytics del sitio público
+    de Clarvo. Cada tarjeta abre el reporte exacto — nada que buscar en el menú.</p>
+
+    <div class="callout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span>Requiere sesión iniciada en Google con acceso a la propiedad
+      <b>Clarvo — Sitio público</b>. Los datos demográficos (edad/sexo) tardan
+      24-48&nbsp;h en aparecer desde que se activó Google Signals y necesitan un
+      mínimo de tráfico por el umbral de privacidad de Google.</span>
+    </div>
+  </header>
+
+  <div class="cards">
+
+    <a class="card" href="https://analytics.google.com/analytics/web/?authuser=0#/a416973337p565244625/reports/explorer?params=_u..nav%3Dmaui&ruid=user-demographics-detail,user,demographics&collectionId=user&r=user-demographics-detail" target="_blank" rel="noopener">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <div class="card-body">
+        <h2>Datos demográficos de usuarios</h2>
+        <p>Edad, sexo, país/ciudad e intereses de quienes visitan el sitio.
+        Viene de Google Signals (ya activado).</p>
+        <div class="tags"><span class="tag">Edad</span><span class="tag">Sexo</span><span class="tag">Ubicación</span></div>
+      </div>
+      <svg class="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+    </a>
+
+    <a class="card" href="https://analytics.google.com/analytics/web/?authuser=0#/a416973337p565244625/assetlibrary/explorer/edit?params=_u..nav%3Dmaui&collectionId=user&ruid=lifecycle-traffic-acquisition-v2,life-cycle,acquisition&r=lifecycle-traffic-acquisition-v2" target="_blank" rel="noopener">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      </div>
+      <div class="card-body">
+        <h2>Adquisición de tráfico (redes sociales)</h2>
+        <p>De dónde viene cada visita — Facebook, Instagram, TikTok, búsqueda
+        orgánica, directo, etc. Cambia la dimensión de la tabla a "Sesión:
+        Origen/medio" para ver la red exacta.</p>
+        <div class="tags"><span class="tag">Canal</span><span class="tag">Red social</span><span class="tag">Origen/medio</span></div>
+      </div>
+      <svg class="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+    </a>
+
+    <a class="card" href="https://analytics.google.com/analytics/web/?authuser=0#/a416973337p565244625/reports/intelligenthome" target="_blank" rel="noopener">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </div>
+      <div class="card-body">
+        <h2>Inicio / resumen general</h2>
+        <p>Vista general de la propiedad: usuarios activos, eventos clave,
+        tiempo real.</p>
+        <div class="tags"><span class="tag">General</span></div>
+      </div>
+      <svg class="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+    </a>
+
+    <a class="card" href="https://tagmanager.google.com/#/container/accounts/6406595853/containers/287868940/workspaces/2/tags" target="_blank" rel="noopener">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      </div>
+      <div class="card-body">
+        <h2>Google Tag Manager (GTM-MWPWGKQ5)</h2>
+        <p>Contenedor de etiquetas — edición de tags/activadores de eventos
+        (onboarding, checkout, compra). Solo accesible iniciando sesión con
+        <code>aprado13@gmail.com</code>.</p>
+        <div class="tags"><span class="tag">Tags</span><span class="tag">Eventos</span></div>
+      </div>
+      <svg class="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+    </a>
+
+  </div>
+
+  <div class="divider"></div>
+
+  <footer class="end">
+    <b>IDs de referencia</b> — Measurement ID <code>G-WKD7DVW38M</code> ·
+    Stream ID <code>16378052886</code> · Account <code>416973337</code> ·
+    Property <code>565244625</code> · Contenedor GTM <code>GTM-MWPWGKQ5</code>
+    (account <code>6406595853</code>, container <code>287868940</code>).
+  </footer>
+</div>
+</body>
+</html>

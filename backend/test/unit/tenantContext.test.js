@@ -163,6 +163,7 @@ describe('utils/tenantContext.js', () => {
         inventariosHabilitado: true,
         auditoriaHabilitado: true,
         cxcHabilitado: true,
+        pedidosHabilitado: true,
         resumenFinancieroHabilitado: true,
         reportesPorReporteHabilitado: true,
         reportesCortesHabilitado: true,
@@ -170,6 +171,7 @@ describe('utils/tenantContext.js', () => {
         reportesEstadoInventarioHabilitado: true,
         reportesEstadoTicketsHabilitado: true,
         promocionesHabilitado: false,
+        crmHabilitado: false,
         ticketImpresionHabilitado: false,
         suscripcionBloqueo: { bloqueada: false },
       });

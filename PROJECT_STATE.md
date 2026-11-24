@@ -31191,3 +31191,899 @@ primero el código PROPIO que corre en esa misma página — un
 parámetro de la URL de retorno de un proveedor externo es sospechoso por
 defecto para cualquier automatización que dependa de leer esa misma URL
 después de que la página ya cargó.
+
+## Punto 507 — "Nombre del cliente" en Registrar venta, para quien no da correo ni ticket (20 nov 2026, trabajo local)
+
+**Contexto**: en "Cliente nuevo", el único identificador era el correo
+(obligatorio solo si la entrega es "Enviar por correo" — en "Imprimir
+ticket"/"Sin ticket" la venta quedaba sin NINGÚN dato del cliente, "Sin
+correo" en CxC/Reportes). El nombre que ya se mostraba en CxC
+(`cliente_nombre`) nunca fue una columna real: es `r.nombre` de un
+`LEFT JOIN registros r ON r.email = o.email` — solo existe si el cliente
+dio correo Y subió su Constancia de Situación Fiscal.
+
+**Implementado**: columna nueva `ordenes_compra.nombre_cliente_manual`
+(nullable, deliberadamente NO llamada `cliente_nombre` — ese nombre ya
+es un alias calculado en el SELECT, chocaría). Campo "Nombre del cliente
+(opcional)" siempre visible en el modal "Registrar venta"
+(`frontend/admin.html`/`admin.js`), independiente de correo/ticket/tipo
+de cliente — no required en este segmento (ver pendiente abajo). Backend
+(`POST /api/admin/ordenes-compra`) lo guarda; el `SELECT` de
+`GET /api/admin/ordenes-compra` ahora resuelve
+`COALESCE(r.nombre, o.nombre_cliente_manual) AS cliente_nombre` — cero
+cambios en frontend/CxC, que ya consumía ese alias. Búsqueda
+(`busqueda=`) ahora incluye `o.nombre_cliente_manual` en el OR. 71+1390
+tests de `backend/` en verde, cero regresiones (Resumen financiero no se
+tocó).
+
+**Pendiente, decisión explícita diferida**: hacerlo obligatorio cuando no
+hay correo (hoy sigue 100% opcional) — no se tomó sola porque entrega
+"imprimir"/"sinticket" hoy no valida nada del cliente en absoluto
+(`validarPasoClienteOrden()` regresa `true` de inmediato si
+`ordenMetodoEntrega !== 'correo'`); forzarlo ahí es un cambio de
+comportamiento más grande que el pedido original.
+
+**Solo local, sin desplegar** — pendiente de confirmación explícita del
+usuario antes de ir a producción (regla de `feedback_nunca_deploy_sin_permiso`).
+
+## Punto 508 — "Pedidos" (kanban de pre-ventas): Segmento 0, gobernanza base en /control (20 nov 2026, EN CURSO, trabajo local)
+
+**Decisión de producto** (confirmada explícitamente por el usuario,
+20 nov 2026): nuevo segmento "Pedidos" en `/admin` (perfiles
+admin+ventas) — kanban con columnas Pedido/En progreso/Por
+confirmar/Entregado/Cancelado (concepto visual #4, "semáforo de SLA",
+elegido entre 7 propuestas de Artifact). Un Pedido vive en tabla PROPIA
+(nunca mezclada con `ordenes_compra`) — se trata como cotización, nunca
+toca CxC/Resumen financiero/Auditoría hasta que llega a "Entregado", ahí
+genera una venta real reutilizando el mismo modal/endpoint "Registrar
+venta" ya existente (`pedido_id` opcional vinculándolos, mismo patrón que
+`folios_conciliacion.orden_compra_id`). Catálogo completo de reportes de
+Pedidos (operativo/estadístico/financiero/cliente) y 6 tarjetas nuevas
+para Resumen financiero (Pipeline, Ingreso proyectado, Tasa de
+conversión, Ciclo promedio de cierre, Valor perdido por cancelación,
+Saldo CxC originado en Pedidos) — todas aprobadas, pendientes de
+implementar en segmentos posteriores.
+
+**4 decisiones de gobernanza confirmadas antes de empezar** (ver análisis
+de 4 agentes paralelos sobre el patrón real del proyecto): Pedidos es
+**independiente/opt-out** de Ventas, igual que `cxc_habilitado` (nunca se
+activa ni desactiva solo); **activo para todos los planes y tenants YA
+existentes** desde el día uno (no para planes que se creen DESPUÉS, esos
+nacen en 0 como el resto del catálogo — el operador los activa a
+propósito, igual que cxc/ventas/etc.); el Centro de conocimiento
+(`CONOCIMIENTO_CATEGORIAS`, `frontend/admin.js`) necesita filtro real por
+plan — hoy NO EXISTE para ninguna de sus 17 categorías (deuda ya conocida,
+punto 273) — se construirá ahora como parte de este trabajo, de paso
+resolviendo también las categorías existentes; sin bloqueo de downgrade
+(apagar el flag con pedidos en curso oculta y congela, igual que el resto
+del proyecto — no hay precedente de 409 a nivel módulo/tenant, ni se
+construye uno nuevo para esto).
+
+**Hallazgos reales del análisis (4 agentes paralelos, read-only) que
+cambian el plan original**:
+- El tablero arrastrable de Resumen financiero (`#resumen-fin-tablero`,
+  `data-dashboard-id`) **nunca se ha gateado por plan** — ninguna tarjeta
+  existente (ni "Proveedores") se oculta hoy por flag. El mecanismo para
+  las 6 tarjetas nuevas se construye desde cero, no hay nada que copiar.
+  Gotcha a vigilar: varias clases de tarjeta (`.resumen-fin-donut-card`,
+  etc.) declaran `display:flex` sin `[hidden]{display:none}` explícito —
+  sin esa regla CSS por cada clase nueva, `hidden` no oculta nada.
+- `preferencias_dashboard` tiene su propia whitelist estructural
+  (`VISTAS_DASHBOARD`, `backend/server.js`) ciega a planes — agregar los
+  ids de las tarjetas nuevas ahí debe ir DESPUÉS de que el flag ya exista,
+  nunca antes.
+- Una sub-pestaña de Reportes necesita SIEMPRE su propia ruta dedicada,
+  nunca compartida (confirmado con el precedente real de "Estado del
+  inventario", que vive bajo `/inventarios/*` con doble
+  `requiereFeature`, no bajo `/reportes/*`).
+- El catálogo de flags de plan está disperso en 6+ sitios sin fuente
+  única (`tenantContext.js`, login de `server.js`, 3 bloques de
+  `control/utils/planes.js`, `ensureSchema.js`, wizard de `control.js`,
+  consumo en `admin.js`) — alto riesgo real de "olvidar un sitio" en
+  cualquier flag nuevo, no solo este.
+
+**Segmento 0 implementado y probado** (gobernanza base, antes de
+cualquier backend/frontend de Pedidos):
+- `control/scripts/ensureSchema.js`: columna `pedidos_habilitado` en
+  `tenants` (`DEFAULT 1`, retroactivo) y en `planes` (`DEFAULT 0` para
+  planes nuevos + backfill incondicional a `1` la primera vez que la
+  columna se crea, para los planes YA existentes — mismo patrón que
+  `destacado`/`ticket_impresion_habilitado`).
+- `backend/utils/tenantContext.js`: columna en el SELECT +
+  `pedidosHabilitado` en `req.tenant` (mismo criterio que
+  `cxcHabilitado`).
+- `control/utils/planes.js`: whitelist de `normalizarDatosPlan`, regla
+  nueva en `validarReglasDependencia` ("Pedidos requiere Ventas"),
+  `mapearFila`, columnas+valores de `crearPlan` (`actualizarPlan` es
+  dinámico, no necesitó tocarse).
+- `frontend/control.js`: wizard de planes — fila en "Reglas automáticas"
+  (`filaDependienteWizard`, deshabilitada sin Ventas), cascada de apagado
+  si Ventas se apaga, fila en el resumen del wizard, estado inicial y
+  carga al editar un plan existente.
+- `backend/server.js`: `GET /api/admin/login` expone `pedidosHabilitado`
+  en `funciones` (null completo si no hay tenant/sitio base, igual que el
+  resto).
+- Tests actualizados (gotcha ya documentado del proyecto: contadores
+  hardcodeados de columnas/parámetros en `control/test/unit/planes.test.js`
+  y `ensureSchema.test.js` rompen con cualquier columna nueva) + 2 tests
+  nuevos de la regla de dependencia. **Backend: 70/70 suites, 1390/1390
+  tests. Control: 39/39 suites, 631/631 tests.** Pendiente: verificación
+  funcional real con Playwright/clics (el wizard de planes en vivo) antes
+  de dar el segmento por cerrado del todo — no se hizo en esta sesión.
+
+**Segmento 1 implementado y probado** (backend de Pedidos — tabla +
+endpoints, sin UI todavía):
+- `backend/db.js`: tabla `pedidos` nueva (sin `pedido_productos` en este
+  segmento a propósito — un pedido admite como máximo UN producto de
+  inventario opcional, igual que `ordenes_compra` antes de Segmento A;
+  ampliar a varias líneas queda para después, no bloquea). Sin reserva de
+  stock al crear un pedido (decisión de alcance ya confirmada) —
+  `producto_id` es solo descriptivo, para precargar la venta real al
+  convertir.
+- `backend/server.js`, 6 rutas nuevas, todas con
+  `requiereFeature('ventasHabilitado')` + `requiereFeature('pedidosHabilitado')`
+  (AND por composición, antes de `requireAdminAuth`) +
+  `requireAdminArea('administrador', 'ventas')`:
+  `POST/GET /api/admin/pedidos`, `PUT /api/admin/pedidos/:id` (editar,
+  bloqueado si ya cerró), `PUT .../mover` (solo entre
+  Pedido/En progreso/Por confirmar — "Entregado" y "Cancelado" tienen su
+  propio endpoint), `PUT .../cancelar` (con motivo, nunca se borra —
+  alimenta el reporte de motivos de cancelación), `PUT .../convertir`
+  (vincula un pedido con una venta YA creada — el frontend llama primero
+  al `POST /api/admin/ordenes-compra` de siempre, sin tocarlo, y solo si
+  esa venta se registró bien llama aquí; cero duplicación de la lógica de
+  Ventas).
+- A diferencia de `ordenes_compra` (donde `creado_por` nunca se expone),
+  aquí SÍ se expone como `vendedor` — es justo uno de los reportes ya
+  aprobados (carga por vendedor).
+- Tests nuevos (`backend/test/integration/pedidos.test.js`, 27 casos) +
+  candado por plan verificado real (tenant con `pedidos_habilitado=0` →
+  404; `ventas_habilitado=0` también → 404, confirma la dependencia).
+  **Backend completo: 71/71 suites, 1417/1417 tests.** Sigue pendiente la
+  verificación funcional con Playwright/clics reales (no hay UI todavía
+  en este segmento — llega en el Segmento 2).
+
+**Segmento 2 implementado y VERIFICADO FUNCIONAL contra Docker/MySQL
+real** (frontend del kanban, concepto visual #4 — semáforo de SLA):
+- Vista nueva "Pedidos" en el sidebar (grupo "Ventas y gastos", entre
+  Ventas y Cuentas por cobrar), gateada por perfil (administrador/ventas)
+  + plan (`ventasHabilitadaGlobalmente && planPermite('ventasHabilitado')
+  && planPermite('pedidosHabilitado')`) — mismo patrón que el resto de
+  `aplicarRestriccionesPerfil()`.
+- Tablero real (`frontend/admin.js`/`admin.css`, clases `.pedidos-*`
+  nuevas): 5 columnas, tarjeta con folio/cliente/monto/vendedor, barra de
+  SLA por días en la etapa actual (verde/ámbar/rojo), selector "Mover a…"
+  en las 3 columnas laterales, menú kebab (Ver detalle/Marcar como
+  Entregado/Cancelar).
+- 3 modales nuevos: "Nuevo pedido" (concepto/monto/descuento/nombre/
+  correo, todo opcional salvo concepto+monto), "Cancelar pedido" (motivo
+  opcional), "Detalle del pedido" (acciones según estado).
+- **"Marcar como Entregado" reutiliza el modal "Registrar venta" ya
+  existente, sin duplicar una sola línea de su lógica**: precarga el
+  pedido como una línea manual más (mismo mecanismo que cualquier
+  producto agregado a mano, vía `productosOrdenActual` +
+  `recalcularOrdenDesdeProductos()`), precarga nombre/correo del cliente,
+  y tras un `POST /api/admin/ordenes-compra` exitoso llama
+  `PUT /api/admin/pedidos/:id/convertir` para vincular ambos registros.
+  `abrirOrdenRegistrarModal()` ganó un parámetro `omitirBorrador` para no
+  competir con el prompt de "¿continuar borrador?" al convertir.
+- **Bug real encontrado y corregido durante la verificación**: el botón
+  del sidebar "Pedidos" no tenía su propio `addEventListener` — cada
+  vista del sidebar lo registra a mano (`els.btnVistaX.addEventListener('click', ...)`),
+  no hay wiring automático a partir de `mapaNavPorVista()` como se
+  asumió al principio. Sin este fix, el botón existía, se veía, pasaba
+  el gate de perfil/plan, pero no hacía nada al hacer clic.
+- **Verificado con clics reales contra Docker/MySQL real** (Chrome
+  DevTools MCP, tenant `panes`, rebuild de `backend`+`control`+`frontend`
+  + reinvocación de `/internal/activar-tenant/:slug` en los 4 tenants
+  locales para que la tabla `pedidos` nueva llegara a sus bases — mismo
+  gotcha ya documentado de `ensureSchema(poolTenant)`): crear pedido →
+  folio real `PED-000001` → mover de columna (`PUT /mover` real) → abrir
+  detalle → "Marcar como Entregado" precargó concepto/monto/cliente en
+  el modal real de Ventas → `POST /api/admin/ordenes-compra` real (201,
+  folio `OC-000001`, IVA calculado correcto `$21,402.00` sobre
+  `$18,450.00`) → `PUT /convertir` real (200) → la tarjeta pasó sola a
+  "Entregado" con el link "Venta #1". Cancelación probada aparte (motivo
+  visible en la tarjeta). El clic sintético de Chrome DevTools MCP sobre
+  CUALQUIER pestaña del sidebar (incluida "Ventas", ya existente, sin
+  tocar) no pasa el check de interactividad de la herramienta — mismo
+  bug-shape ya documentado para la extensión de Chrome (punto 438): se
+  disparó con `element.click()`/`dispatchEvent` vía `evaluate_script` en
+  su lugar, confirmando que es límite de la herramienta, no del código.
+
+**Corrección post-Segmento 2 (pedido explícito del usuario, verificada
+real)**: "Nuevo pedido" ahora toma producto/servicio del catálogo de
+Inventarios si el módulo está activo para el tenant (mismo widget de
+búsqueda que "Registrar venta", versión simplificada — sin escáner de
+código de barras ni multi-línea, porque `pedidos` solo admite un producto
+igual que `ordenes_compra` antes del Segmento A); si Inventarios no está
+activo, cae al alta manual de concepto+monto, igual que ya hacía Ventas
+(`aplicarVisibilidadInventarioEnVentas`, misma condición exacta
+replicada: `inventarioActivoGlobalmente && planPermite('inventariosHabilitado')`).
+Sin reserva de stock al crear el pedido (decisión de alcance ya
+confirmada) — el producto es solo descriptivo hasta "Entregado", donde
+`abrirEntregaDesdePedido()` lo agrega como línea de inventario REAL
+(mismo mecanismo que D8/Segmento A de Ventas), así que el stock se
+descuenta ahí, nunca antes. **Verificado real contra Docker/MySQL**
+(tenant `test-sa-de-cv`, producto real "BUJIA" id 8601): búsqueda real
+devolvió el producto del catálogo, pedido creado con `producto_id=8601`/
+`producto_cantidad=2` en BD, y al convertir a venta el disponible real
+bajó de 4 a 2 unidades — flujo idéntico a una venta normal con
+inventario.
+
+**Segmento 3 implementado y VERIFICADO FUNCIONAL contra Docker/MySQL
+real** (Reportes de Pedidos, catálogo completo aprobado):
+- Tabla nueva `pedido_historial` (bitácora de CADA cambio de etapa,
+  `estado_anterior`/`estado_nuevo`/`creado_en`) — sin ella, "tiempo
+  promedio por etapa"/"ciclo promedio de cierre" solo se podrían calcular
+  como una foto de la etapa actual, nunca un promedio histórico real.
+  Se registra en los 4 puntos de transición (crear, mover, cancelar,
+  convertir).
+- `GET /api/admin/pedidos/reportes/resumen` (mismo flag `pedidosHabilitado`,
+  sin flag dedicado — es la única superficie que consume estos datos,
+  nunca compartida): embudo de conversión, tasa de conversión, pipeline,
+  ingreso proyectado (estimación, nunca ingreso real), SLA (atascados/en
+  riesgo/al día), carga por vendedor, motivos de cancelación, cancelación
+  por vendedor, clientes con más cancelaciones, ticket cotizado vs
+  vendido (**ambos comparados ANTES de IVA** — `pedidos.cantidad` vs
+  `ordenes_compra.cantidad`, nunca `.total`, para no sesgar la
+  comparación 16%), entregados con saldo vs pagado completo, ciclo
+  promedio de cierre y tiempo promedio por etapa (ambos vía
+  `pedido_historial` con `LEAD() OVER`, MySQL 8). Todo honesto: sin datos
+  suficientes, los promedios salen `null`, nunca 0 disfrazado.
+- Nueva sub-pestaña "Pedidos" dentro de "Reportes" (`PESTANAS_REPORTES`),
+  mismo patrón declarativo que las otras 5 — reusa `pestanaReportesVisible()`/
+  `activarPestanaReportes()` sin tocarlos, agregado también a
+  `reportesPlanVisible()` para que la sección completa no se oculte si
+  solo `pedidosHabilitado` está activo.
+- 30 tests de integración (`backend/test/integration/pedidos.test.js`) +
+  **verificado real contra Docker/MySQL** (tenant `test-sa-de-cv`): el
+  pedido convertido ANTES de este segmento (sin historial, por diseño)
+  mostró `cicloPromedioHoras: null` correctamente; un pedido nuevo
+  creado+convertido DESPUÉS mostró ciclo y tiempo-por-etapa reales
+  (pequeños porque la conversión fue instantánea en la prueba, pero el
+  cálculo con `LEAD()` se confirmó funcionando). Ticket cotizado/vendido
+  coincidieron exacto (sin negociación de precio en la prueba). Backend
+  completo: 71/71 suites, 1420/1420 tests.
+
+**Segmento 4 implementado y VERIFICADO FUNCIONAL contra Docker/MySQL
+real** (6 tarjetas nuevas en Resumen financiero — Pipeline, Ingreso
+proyectado, Tasa de conversión, Ciclo promedio de cierre, Valor perdido
+por cancelación, Saldo CxC de Pedidos):
+- **Mecanismo de gating por tarjeta individual construido desde cero**
+  (nunca había existido — confirmado por el análisis previo: hasta este
+  punto solo se gateaba la VISTA completa de Resumen financiero, nunca
+  una tarjeta suelta del tablero arrastrable). `DASHBOARD_TARJETAS`
+  (`frontend/admin.js`) ganó un campo `flag` opcional; función nueva
+  `aplicarVisibilidadTarjetasDashboard()` lo resuelve dentro de
+  `aplicarRestriccionesPerfil()` (mismo punto único que ya decide todo lo
+  demás por plan). Las 6 tarjetas nacen con `hidden` en el HTML
+  (fail-closed, nunca un parpadeo visible-y-luego-oculto).
+- **Bug real encontrado y corregido ANTES de que ocurriera** (nunca antes
+  hacía falta porque ninguna tarjeta se ocultaba): `obtenerTarjetasDashboard()`
+  leía `querySelectorAll('[data-dashboard-id]')` sin filtrar por `hidden`
+  — una tarjeta oculta seguía contando en el cálculo de
+  orden/filas de `igualarAlturaFilasDashboard()` (Modo dashboard),
+  corriendo el agrupamiento visual de las tarjetas SÍ visibles. Se agregó
+  `.filter((t) => !t.hidden)`.
+- Confirmado que `.inicio-stat-card` (la clase que ya usan los 4 KPI
+  existentes, reusada para las 6 nuevas) **nunca declara `display` propio**
+  — a diferencia de `.resumen-fin-donut-card`/`.resumen-fin-chart-card`/etc.
+  (el gotcha de `[hidden]` ya documentado), así que el atributo `hidden`
+  nativo las oculta bien sin necesitar una regla CSS adicional — verificado
+  real, no solo por lectura del código.
+- Backend: cero endpoint nuevo — las 6 tarjetas reusan el mismo
+  `GET /api/admin/pedidos/reportes/resumen` del Segmento 3. Único cambio
+  de servidor: los 6 ids nuevos agregados a la whitelist
+  `VISTAS_DASHBOARD.elementos` (para que un layout personalizado los
+  pueda incluir).
+- "Saldo CxC de Pedidos" (% de la cartera por cobrar real que originaron
+  pedidos entregados con saldo) reusa `cxcBaseCache`/`calcularMetricasCxc()`
+  ya cargado en la misma pantalla — nunca una 4ta fuente de datos de CxC
+  (gotcha ya documentado: 3 fuentes de CxC existentes, nunca
+  intercambiables, nunca agregar una más sin necesidad real).
+- **Verificado real contra Docker/MySQL** (tenant `panes`): con
+  `pedidos_habilitado=0`, las 6 tarjetas desaparecen del todo (capturado
+  en screenshot, layout limpio sin huecos); al reactivarlo, las 6
+  reaparecen con datos reales coherentes (ej. "Tasa de conversión 50% —
+  1 de 2 cerrados", reflejando los 2 pedidos reales de prueba de ese
+  tenant). Backend completo: 71/71 suites, 1420/1420 tests (sin tests
+  nuevos en este segmento — cero lógica de servidor nueva que probar,
+  solo una whitelist).
+
+**Segmento 5 implementado** (onboarding guiado — el más chico de los 8,
+casi gratis por diseño ya declarativo):
+- Checklist "Primeros pasos": paso nuevo `opcional: true` ("Prueba el
+  kanban de Pedidos" en administrador, "Crea tu primer pedido
+  (cotización)" en ventas), `disponible: planPermite('pedidosHabilitado')`
+  — mismo criterio que "Activa Inventarios si vendes producto físico"
+  (opcional, nunca bloquea que el checklist se dé por "listo"). Hook
+  `guardarEstadoOnboarding({ pedidoCreado: true })` en el submit de
+  "Nuevo pedido", mismo patrón que venta/gasto/usuario.
+- Tour de bienvenida: 2 pasos nuevos (`administrador`/`ventas`), apuntando
+  a `#btn-vista-pedidos` — **cero flag nuevo necesario**, el tour ya se
+  autofiltra por visibilidad real del DOM (`el && !el.hidden &&
+  el.offsetParent !== null`), y ese botón ya respeta
+  `pedidosHabilitado` desde el Segmento 2.
+- **Verificado real contra Docker/MySQL**: el hook de
+  `guardarEstadoOnboarding({ pedidoCreado: true })` se confirmó escribiendo
+  correctamente en `localStorage` tras crear un pedido real (tenant
+  `prueba-ga-test-19nov`). **Limitación honesta de esta verificación**: no
+  se pudo ver el checklist completo renderizado con el paso nuevo en
+  pantalla — los 4 tenants locales disponibles ya tienen ventas reales de
+  pruebas anteriores, lo que marca "Registra tu primera venta" como hecho
+  y oculta el checklist completo (`todoListo`, comportamiento preexistente
+  correcto, no un bug). El código del paso nuevo sigue exactamente la
+  misma forma declarativa que 3 pasos ya en producción — riesgo residual
+  bajo, pero queda anotado como pendiente de una verificación visual
+  completa si se levanta un tenant 100% nuevo más adelante.
+
+**Segmento 6 implementado y VERIFICADO FUNCIONAL contra Docker/MySQL
+real** (filtro por plan del Centro de conocimiento — resuelve de una vez
+la deuda ya conocida del punto 273, que afectaba a las 16 categorías
+existentes, no solo a la nueva):
+- `CONOCIMIENTO_CATEGORIAS` ganó un campo `flag` opcional (string o array
+  — array = OR, mismo criterio que `requiereFeature()`). Se agregó a las
+  9 categorías que de verdad dependen de un módulo apagable (tickets/
+  constancias→facturacionHabilitada, ventas, cxc, gastos, inventarios,
+  proveedores→OR inventarios/gastos, reportes→OR de sus 5 flags + ahora
+  también pedidosHabilitado, auditoria, promociones, resumen-financiero)
+  — primeros-pasos/glosario/inicio/usuarios/mi-cuenta/configuraciones se
+  quedan sin flag a propósito (nunca dependen de un módulo).
+- Función nueva `categoriaConocimientoVisible()` + `primeraCategoriaConocimientoVisible()`
+  — `abrirConocimiento()` y `filtrarConocimiento()` (las 2 funciones que
+  antes forzaban `hidden=false` en TODOS los botones, el bug real del
+  punto 273) ahora filtran por este cálculo, incluida la búsqueda (una
+  categoría oculta por plan nunca aparece como resultado aunque su texto
+  coincida).
+- Categoría nueva "Pedidos" agregada al manual (botón + contenido real:
+  las 5 columnas, crear, "Marcar como Entregado" reusando Registrar
+  venta, cancelar, y los reportes).
+- **Verificado real contra Docker/MySQL** (tenant `panes`, apagando y
+  reactivando `pedidos_habilitado`): con el flag apagado, "Pedidos"
+  queda oculto en el nav Y la búsqueda "pedido" da 0 resultados; con el
+  flag activo, aparece con su contenido real y la búsqueda sí lo
+  encuentra. Cero regresión en las demás 16 categorías (todas con sus
+  flags reales activos en ese tenant siguieron visibles).
+
+**Segmento 7 implementado y VERIFICADO FUNCIONAL contra Docker/MySQL
+real (ÚLTIMO segmento — Punto 508 queda CERRADO):**
+
+- `e2e/tests/pedidos-kanban.spec.ts` (nuevo, 5 pruebas, `mode: 'serial'`,
+  mismo patrón que `admin-plan-gating.spec.ts`). **No existe ya el
+  tenant fijo "t1"** que ese spec viejo usa (se perdió en algún reset de
+  Docker previo a este punto — confirmado con `SELECT slug FROM
+  control_tenants.tenants`, no está; `admin-plan-gating.spec.ts` queda
+  roto por esa razón, preexistente, fuera de alcance de este punto). El
+  spec nuevo usa 2 tenants reales ya existentes en vez de crear uno:
+  `panes` (PAN — ventas/inventarios/pedidos ON, módulo completo) y
+  `prueba-cancel-8` (PBC8 — ventas OFF, pedidos_habilitado=1 heredado del
+  backfill "activo para todos" del Segmento 0 → caso real del candado
+  AND, no solo el flag suelto). Contraseña temporal fijada UNA VEZ en
+  `beforeAll` vía `UPDATE usuarios SET password_hash=...` con el usuario
+  `app` (nunca root) y el formato real `salt:hash` de
+  `authUsuario.js:hashPassword` — mismo criterio ya documentado en el
+  punto que validó el importador de `.xls` con la cuenta `PAN`.
+- Cubre: las 5 columnas del kanban, alta manual con nombre de cliente,
+  mover lateralmente con el `<select>` de la tarjeta, cancelar con
+  motivo (verifica el pie de la tarjeta), pestaña Reportes → Pedidos,
+  al menos 1 de las 6 tarjetas gateadas de Resumen financiero, y la
+  categoría "Pedidos" del Centro de conocimiento — más el candado por
+  plan en los 4 puntos donde se expone (sidebar, pestaña de reportes,
+  tarjetas de dashboard, conocimiento).
+- **3 huecos reales de gating encontrados y corregidos ANTES de que el
+  spec pudiera pasar** (el propio ejercicio de escribir el candado
+  negativo contra `prueba-cancel-8` los expuso): `pestanaReportesVisible('pedidos')`,
+  `aplicarVisibilidadTarjetasDashboard()` (las 6 tarjetas) y
+  `categoriaConocimientoVisible('pedidos')` (`frontend/admin.js`) solo
+  comprobaban `planPermite('pedidosHabilitado')` — a diferencia del
+  botón del sidebar (`#btn-vista-pedidos`, línea ~3102), que desde el
+  Segmento 1 ya combina `ventasHabilitado && pedidosHabilitado`. Con un
+  plan viejo que tuviera `pedidos_habilitado=1` (heredado del backfill
+  incondicional "activo para todos" del Segmento 0) y
+  `ventas_habilitado=0` — exactamente el estado real de
+  `prueba-cancel-8`, visto en el campo, no hipotético — esas 3
+  superficies habrían mostrado un control muerto (backend ya 404 por
+  `requiereFeature('ventasHabilitado')`, pero la UI invitaba a entrar).
+  Fix: cada uno de los 3 sitios agrega el mismo chequeo explícito
+  `(clave/t.flag/catKey === 'pedidos') && !planPermite('ventasHabilitado')
+  → false`, mismo criterio que el sidebar, nunca un cambio genérico a la
+  firma de `planPermite()`. `node --check` limpio, rebuild + recreate de
+  `frontend` aplicado, los 5 tests del spec nuevo pasan con el fix
+  puesto (fallaban sin él antes de escribirlo — confirmado invirtiendo
+  el orden: se vio fallar primero el flujo "panes" completo por 3
+  overlays de bienvenida sin manejar en el helper de login
+  —`#asistente-facturacion-overlay`, `#onboarding-tour-overlay`,
+  `#terminos-gate-overlay`—, y después, ya con esos 3 resueltos, el
+  intento inicial sin el fix habría dejado visibles los 3 controles en
+  `prueba-cancel-8`; el fix se aplicó proactivamente apenas se detectó
+  el patrón, antes de correr esa aserción en rojo a propósito).
+- Gotcha nuevo de helper de login para specs futuros contra una cuenta
+  que nunca ha aceptado los Términos y Condiciones vigentes: el checkbox
+  de aceptación exige DOS condiciones a la vez
+  (`terminosGateScrollCompleto && nombreOk`,
+  `actualizarEstadoChkTerminos()`) — si falta el nombre completo de la
+  cuenta (caso real de `PBC8`), hay que llenar
+  `#terminos-gate-nombre-input` ANTES de esperar que el checkbox se
+  habilite, nunca después; esperar primero el checkbox revienta en
+  timeout aunque el scroll ya esté al 100%.
+- **Cerrado en una sesión posterior (23 nov 2026)**: se pidió explícito
+  arreglar `admin-plan-gating.spec.ts` recreando "t1" — el pendiente de
+  arriba ya no aplica. Recreado con el mecanismo real de onboarding, NO
+  con el CLI `provisionar-tenant.js`: ese script asume que
+  `control_tenants` vive en el MISMO servidor MySQL que las bases
+  `tenant_*` (`leerConexionDesdeEnv()` solo toma un `DB_HOST`/`DB_PORT`),
+  algo que dejó de ser cierto desde el Segmento 9b — hoy son 2
+  contenedores MySQL distintos (`mysql` para `tenant_*`, `mysql-control`
+  para `control_tenants`, confirmado con `SHOW DATABASES` en ambos).
+  Correrlo tal cual habría creado una `control_tenants` DUPLICADA y
+  desincronizada dentro del contenedor `mysql` — nunca se ejecutó. Pasos
+  reales en su lugar: (1) `INSERT` a mano en `control_tenants.tenants`
+  (mysql-control) clonando la forma de una fila real (`panes`) con los 3
+  flags en 0 que el spec siempre esperó
+  (`gastos_habilitado`/`auditoria_habilitado`/`inventarios_habilitado`);
+  (2) `POST /internal/activar-tenant/t1` (crea `tenant_t1` + esquema
+  completo); (3) `POST /internal/crear-admin-inicial/t1` (cuenta
+  `admin`/`admin`, mismo mecanismo real que usa el onboarding público,
+  hash scrypt generado aparte). El spec en sí tenía 2 problemas propios,
+  ninguno de gating real — ambos arreglados en `loginAdminTenant()`: (a)
+  le faltaba cerrar los overlays de bienvenida agregados en puntos
+  posteriores a su fecha original (Términos y Condiciones, asistente de
+  facturación, tour guiado — mismo patrón ya resuelto en
+  `pedidos-kanban.spec.ts`, una cuenta nueva siempre los dispara); (b) el
+  viewport default (1280×720) deja el grupo "Cuenta" del sidebar
+  colapsado por default en una sesión nueva — el segundo test necesitaba
+  expandirlo antes de clickear `#btn-vista-configuraciones` (el nav
+  "intercepta" el clic de un acordeón a alto 0, no es un bug de gating).
+  **Verificado real**: los 2 tests de `admin-plan-gating.spec.ts` pasan
+  solos, y los 7 (2 + los 5 de `pedidos-kanban.spec.ts`) pasan corriendo
+  juntos — los 2 tenants fixture (`t1`, `panes`/`prueba-cancel-8`) no se
+  pisan entre sí.
+
+**Punto 508 — CERRADO.** 8 segmentos (0 a 7) implementados y verificados
+funcionalmente contra Docker/MySQL real, todo en local — sin ningún
+despliegue a producción, por instrucción explícita del usuario al inicio
+de este punto ("vamos a trabajar en local, hasta que digas explícitamente
+que se despliega en producción"). Sigue vigente: nada de este punto se
+sube a `clarvo.mx` sin una confirmación nueva y explícita.
+
+## Punto 509 — Rediseño del modal "Nuevo pedido": panel dividido + Tipo + Cantidad (23 nov 2026, CERRADO, trabajo local)
+
+El usuario reportó que el modal "Nuevo pedido" se veía apretado. Se
+propusieron 4 mockups interactivos vía Artifact (panel dividido, pasos en
+acordeón, panel lateral amplio, producto primero) con `/ux-copy
+/ui-ux-pro-max /impeccable` — el usuario eligió el **concepto 1 (panel
+dividido)** y pidió además, sobre la marcha, un campo de Cantidad visible
+(mínimos clics) y una búsqueda de inventario con leyenda roja de "sin
+resultados" (mismo mecanismo que Ventas/Compras, que nunca tuvo ese
+aviso) y un campo nuevo "Tipo" (Pedido/Cotización).
+
+**Implementado y verificado real contra Docker/MySQL:**
+
+- **Backend**: columna nueva `tipo ENUM('cotizacion','pedido') NOT NULL
+  DEFAULT 'cotizacion'` en `pedidos` (`backend/db.js`, `CREATE TABLE` +
+  migración `ALTER TABLE` condicional para tenants ya aprovisionados —
+  default `'cotizacion'` para TODA fila vieja, coincide con la filosofía
+  original del módulo). `validarDatosPedido()` acepta `tipo` (default
+  `'cotizacion'` si se omite, 400 si no es uno de los 2 valores válidos).
+  `producto_cantidad` dejó de ser exclusivo de cuando hay `producto_id`
+  — ahora es Cantidad general, default 1, siempre se guarda (antes
+  quedaba `NULL` sin producto). `filaPedidoPublica()`, el `INSERT`, el
+  `UPDATE` (editar) y el `SELECT` del listado ya exponen/aceptan `tipo`
+  — `tipo` se agregó al FINAL del `UPDATE` (nunca intercalado, mismo
+  criterio ya documentado para no romper tests que indexan params por
+  posición). 7 tests nuevos en `backend/test/integration/pedidos.test.js`
+  (default, explícito, inválido, cantidad general sin producto, cantidad
+  inválida, UPDATE con tipo). Suite completa: 71/71 suites, 1427/1427
+  tests.
+- **Frontend — modal**: `frontend/admin.html` reestructurado a 2 columnas
+  (`.pedido-nuevo-grid`, 250px + 1fr, reusa `.gastos-modal-grid` ya
+  existente para Nombre/Correo — nunca un cuarto sistema de grid)
+  — izquierda: Tipo (segmentado, 2 opciones con ícono+texto, hint que
+  cambia según selección) + Producto del catálogo; derecha: Concepto,
+  fila de 3 (Cantidad con stepper +/- · Monto · Descuento), Nombre+Correo.
+  Se eliminó el campo "Cantidad estimada" que antes vivía escondido
+  DENTRO de la tarjeta de producto seleccionado (`pedido-nuevo-producto-unidades-field`)
+  — se fusionó en el campo Cantidad general, siempre visible, para
+  "menos clics" (pedido explícito del usuario). Leyenda roja
+  `#pedido-nuevo-producto-sin-resultados` (`.field-error`, oculta por
+  default) debajo del buscador — solo aparece cuando SÍ se escribió algo
+  y la búsqueda real regresó 0 resultados.
+- **Frontend — JS**: `aplicarTipoPedido()` (toggle + hint + label del
+  botón "Crear cotización"/"Crear pedido", dinámico), stepper de Cantidad
+  (`ajustarCantidadPedido()`, nunca `<input type="number">` nativo — gotcha
+  ya documentado), `recomputeMonto` sigue igual (precio × cantidad) pero
+  ya no depende de que el campo de unidades esté visible. Badge de Tipo
+  agregado a la tarjeta real del kanban (`construirTarjetaPedido()`,
+  `.pedidos-card-tipo`) y al modal de detalle (`abrirDetallePedido()`,
+  también muestra Cantidad ahí).
+- **Hallazgo real durante la verificación, corregido antes de cerrar**:
+  `.field-error` dentro de CUALQUIER `.modal` del sitio nunca se pintaba
+  rojo — `.modal p` (especificidad 0,1,1) le gana a `.field-error`
+  (0,1,0) sin importar el orden en el archivo. Bug sitewide preexistente,
+  no solo de Pedidos (afecta cualquier mensaje de validación en
+  cualquier modal de admin/control/portal). Fix: `.modal p.field-error`
+  agregado en `style.css` justo debajo de `.modal p`. Detalle completo y
+  la lección replicable en `CLAUDE.md` (gotchas operativos).
+- **Verificado real con Chrome DevTools MCP** contra `test-sa-de-cv`
+  (11,551 productos reales importados) y `panes`: búsqueda real con
+  resultados (`FORD`, `BUJE`) y sin resultados (leyenda roja confirmada
+  por `getComputedStyle`, `rgb(179,38,30)` = `#B3261E` real), selección
+  de producto rellena concepto + tarjeta + oculta el buscador, stepper
+  de Cantidad funcional, Tipo cambia hint/label en vivo, alta real
+  guardada y confirmada en BD (`tipo='pedido'`, `producto_cantidad=3`,
+  `cantidad=850.00`), tarjeta nueva en el kanban con badge verde
+  "PEDIDO" junto a tarjetas viejas con badge navy "COTIZACIÓN" (default
+  correcto de la migración). Las 2 suites E2E de Pedidos
+  (`pedidos-kanban.spec.ts`, `admin-plan-gating.spec.ts`) siguen en
+  verde (7/7) tras el rediseño.
+- **Gotcha reconfirmado en esta sesión** (ya documentado, se repitió en
+  la práctica): cada tenant YA aprovisionado necesita su propio
+  `/internal/activar-tenant/:slug` después de un cambio de esquema — se
+  me olvidó para `test-sa-de-cv` al verificar y reventó con
+  `ER_BAD_FIELD_ERROR` real (`Unknown column 'pe.tipo'`) hasta
+  reinvocarlo. Reaplicado a `panes`, `t1`, `test-sa-de-cv`,
+  `prueba-cancel-8`, `prueba-ga-test-19nov`.
+
+**Solo local, sin desplegar.**
+
+## Punto 510 — Buscador de inventario en "Nuevo pedido": 2 bugs reales (23 nov 2026, CERRADO, trabajo local)
+
+El usuario reportó "no me carga ningún producto o servicio del inventario"
+en el sitio base, con captura del buscador vacío. Investigado real contra
+Docker/MySQL (sitio base, cuenta `admin`/`admin` de `ADMIN_USERS`, 22
+productos reales en `portal_facturacion.productos`) y confirmados **2
+bugs reales del Punto 509**, ninguno relacionado con datos ni con el
+candado por plan:
+
+1. **Leyenda roja falsa positiva**: `buscarProductoPedido()` mandaba
+   `mostrarSinResultados = true` cada vez que el fetch respondía 200,
+   SIN revisar si `data.productos` traía algo — con resultados reales
+   (confirmado: 15 productos reales en la respuesta), la leyenda roja
+   "No hay resultados" se mostraba de todas formas, tapando visualmente
+   la lista que sí había cargado debajo. Fix:
+   `renderSugerenciasProductoPedido(productos, productos.length === 0)`
+   en vez de `true` fijo.
+2. **Dropdown de sugerencias fuera de vista**: `.orden-inventario-sugerencias`
+   (`position:absolute; left:0; right:0;`, compartida con el buscador de
+   Ventas) depende de que su contenedor directo tenga
+   `position:relative` — en Ventas ese contenedor lleva la clase
+   `.orden-inventario-buscar-field` (`position:relative`), pero el
+   wrapper nuevo del rediseño del Punto 509
+   (`#pedido-nuevo-producto-buscar-wrap`) se escribió sin esa clase. Sin
+   contenedor relativo, el dropdown se posicionaba absoluto contra un
+   ancestro lejano — `getBoundingClientRect()` real mostró
+   `{top:831, left:0, width:1440}` (ancho completo de la página, fuera
+   del área visible del modal) en vez de los ~250px de la columna
+   izquierda bajo el input. Confirmado real que SÍ tenía los 15
+   `<button>` en el DOM (`hidden:false`, `display:block`) — nunca fue un
+   problema de datos ni de JS roto, solo de dónde se dibujaba. Fix: una
+   línea, agregar `class="orden-inventario-buscar-field"` al wrapper
+   (mismo patrón ya usado por Ventas, cero CSS nuevo).
+
+**Verificado real tras ambos fixes** (sitio base, Chrome DevTools MCP):
+dropdown anclado correctamente bajo el input
+(`{top:502, left:364, width:250}`), 15 sugerencias reales visibles,
+selección de "Agenda escolar institucional" ($110) con cantidad 3 vía
+stepper → monto auto-calculado `$330` exacto. E2E de Pedidos (7/7) sigue
+en verde tras ambos fixes — no afectan el buscador de Ventas (clase ya
+existente, reusada tal cual, cero CSS nuevo).
+
+**Solo local, sin desplegar.**
+
+## Punto 511 — Auditoría UX/UI de "Nuevo pedido": tarjeta de producto desalineada (23 nov 2026, CERRADO, trabajo local)
+
+El usuario pidió auditoría UX/UI (`/impeccable /ui-ux-pro-max /ux-copy`)
+con captura real mostrando la tarjeta de producto seleccionado con texto
+y botón "Quitar" encimados/desalineados. 3 hallazgos, los 3 con el mismo
+origen: el Punto 509/510 reusó `.orden-inventario-seleccionado` (pensada
+para el modal ANCHO de Ventas) dentro de la columna angosta de 250px de
+Pedidos, sin copiar la estructura interna real de Ventas.
+
+1. **[Crítico] Markup plano en vez de agrupado**: Pedidos ponía nombre +
+   detalle + botón como 3 hijos sueltos de un contenedor
+   `display:flex;justify-content:space-between` — Ventas agrupa
+   nombre+detalle en un `.orden-inventario-seleccionado-info` (1 solo
+   bloque) y dejaba el botón aparte (2 hijos). Con 3 hijos compitiendo
+   por espacio en 250px, el texto se envolvía a 3 líneas y el botón
+   quedaba encimado.
+2. **[Crítico] Botón de texto completo en vez de ícono compacto**:
+   "Quitar" (`btn btn-secondary`, ancho fijo) vs. el ícono X de 12px
+   (`btn-icon`) que usa Ventas — el texto completo no cabía en el espacio
+   restante tras el nombre/detalle.
+3. **[Alto] Fila Cantidad/Monto/Descuento desalineada**: "Monto estimado
+   (MXN)" envolvía a 2 líneas mientras "Cantidad"/"Descuento" quedaban en
+   1 — corría el input de Monto más abajo que los otros 2, rompiendo la
+   línea base de la fila.
+
+**Fix** (`frontend/admin.html`): tarjeta reestructurada exactamente como
+Ventas (`.orden-inventario-seleccionado-info` con `<strong>`+`<span>`,
+botón `.btn-icon` con el mismo SVG de X que usa el resto del sitio) — cero
+CSS nuevo, solo reusar bien lo que ya existía. Label acortado a "Monto
+(MXN)" (scopeado a esta fila de 3 columnas de Pedidos, no toca el resto
+del sitio donde ese label vive en un campo de ancho completo y nunca se
+envuelve). **Verificado real** (sitio base, mismo producto "Agenda
+escolar institucional" de la captura del usuario): tarjeta compacta de 1
+línea, X alineada a la derecha, fila de 3 campos con la misma línea base,
+espacio vacío sobrante eliminado. Botón Quitar sigue funcional (vuelve a
+mostrar el buscador). E2E de Pedidos (7/7) sigue en verde.
+
+**Solo local, sin desplegar.**
+
+## Punto 512 — Homologar stepper de Cantidad al de Ventas + fix robusto de alineación (23 nov 2026, CERRADO, trabajo local)
+
+El usuario, tras la auditoría del Punto 511, pidió explícitamente
+homologar el stepper cuadrado de Pedidos (`.pedido-qty-stepper`, nuevo)
+al stepper circular real de Ventas (`.stepper-cantidad`, ya existente) —
+2 estilos de stepper en la misma app, mismo bug-shape de "reusar sin
+copiar la estructura real" que el Punto 511.
+
+- `frontend/admin.html`: markup reemplazado por `.stepper-cantidad`/
+  `.stepper-cantidad-btn` con los mismos 2 SVG (minus/plus) que usa
+  Ventas — `<input>` se queda `type="text" inputmode="numeric"` (nunca
+  `type="number"` como en Ventas, gotcha ya documentado: sanea valores
+  intermedios sin tecleo real; las reglas CSS de `.stepper-cantidad
+  input` aplican igual sobre texto).
+- **Efecto colateral real, encontrado al verificar**: el círculo de 40px
+  (vs. el cuadrado anterior de 30px) obligó a ensanchar la primera
+  columna de `.pedido-nuevo-row3` (104px→170px) — eso achicó la 3ra
+  columna lo suficiente para que "Descuento (opcional)" empezara a
+  envolver a 2 líneas, el MISMO bug de desalineación del Punto 511 pero
+  migrado de columna (antes era "Monto", ahora "Descuento"). Confirmado
+  real con `getBoundingClientRect()`: inputs con 17px de diferencia de
+  `top`.
+- **Fix robusto esta vez, no un parche de copy**: en vez de seguir
+  acortando el label que le tocara envolver cada vez que cambie el
+  ancho de columna, `.pedido-nuevo-row3 .field > label { min-height:
+  34px; }` reserva el mismo alto para los 3 labels sin importar si
+  envuelven a 1 o 2 líneas — los 3 inputs quedan siempre a la misma
+  altura. Se revirtió el acortamiento anterior ("Monto (MXN)" → "Monto
+  estimado (MXN)", copy original del resto del sitio) porque ya no hace
+  falta con el alto fijo. **Verificado real**: los 3 inputs
+  (`pedido-nuevo-producto-unidades`/`pedido-nuevo-cantidad`/
+  `pedido-nuevo-descuento`) a exactamente el mismo `top` (362px), stepper
+  visualmente idéntico al de Ventas. E2E de Pedidos (7/7) sigue en verde.
+- **Lección para la próxima vez que una fila de labels de longitud
+  variable se desalinee**: preferir un alto fijo en el label desde el
+  principio, no ir acortando el texto más largo — el acortamiento solo
+  mueve el problema al siguiente label más largo de la fila (pasó dos
+  veces seguidas en esta misma fila).
+
+**Solo local, sin desplegar.**
+
+## Punto 513 — Editar pedido desde el detalle + drag and drop entre columnas (23 nov 2026, CERRADO, trabajo local)
+
+El usuario pidió 2 funcionalidades nuevas con capturas reales: (1) poder
+editar la tarjeta/información de un pedido en cualquier momento (el
+modal de detalle era de solo lectura, solo "Cancelar"/"Marcar como
+Entregado"); (2) drag and drop de tarjetas entre columnas, ADEMÁS del
+`<select>` ya existente (no en su lugar).
+
+**Backend**: sin cambios — reusa 100% `PUT /api/admin/pedidos/:id`
+(editar) y `PUT /api/admin/pedidos/:id/mover` (drag and drop), ambos ya
+reales desde el Segmento 1. El candado de "pedido cerrado no se edita"
+(409 si `entregado`/`cancelado`) ya existía y sigue siendo la única
+fuente de verdad — el frontend solo refleja ese estado, nunca lo
+duplica.
+
+- **Editar desde el detalle** (`frontend/admin.js:abrirDetallePedido`):
+  con el pedido abierto (lateral), el modal ahora renderiza un formulario
+  real (Tipo segmentado, Nombre, Correo, Concepto, Cantidad con stepper
+  circular homologado al de Ventas, Monto, Descuento) en vez de texto
+  plano — botón nuevo "Guardar cambios" junto a "Cancelar pedido"/"Marcar
+  como Entregado". Con el pedido cerrado, se queda EXACTAMENTE igual que
+  antes (solo lectura, botón "Cerrar") — el 409 del backend nunca cambia.
+  `guardarEdicionPedido()` arma el payload preservando `producto_id` del
+  pedido ya cargado (el formulario no deja cambiar el producto del
+  catálogo, solo su cantidad/el resto de la info — omitir `producto_id`
+  en el PUT lo habría borrado, ya que `validarDatosPedido()` lo trata
+  como `null` si no llega). Modal ensanchado (`.pedido-detalle-modal-ancho`,
+  460px) por el mismo motivo que "Nuevo pedido" en el punto 511 — más
+  campos no caben en la base de 380px.
+- **Drag and drop** (`construirTarjetaPedido()`/`renderPedidos()`):
+  `draggable="true"` solo en tarjetas de las 3 columnas laterales
+  (`PEDIDOS_ESTADOS_LATERALES`) — Entregado/Cancelado nunca aceptan
+  arrastre, mismo candado real que ya rechaza `/mover` hacia esos 2
+  estados con 400 (exigen datos extra: venta real o motivo). Solo esas 3
+  columnas son zona de drop (`wireDropZonaPedido()`), con feedback visual
+  (`.is-dragover`, fondo + contorno punteado). Al soltar, reusa
+  `moverPedido(id, estado)` tal cual — cero lógica nueva de negocio, el
+  `<select>` de cada tarjeta sigue intacto como alternativa (pedido
+  explícito del usuario: "además del campo que ya tienes").
+- **Verificado real** (Chrome DevTools MCP, sitio base): edición de
+  PED-000001 (tipo→Pedido, nombre→"Cliente Editado E2E", cantidad 1→2 vía
+  stepper) persistida en BD (`tipo='pedido'`, `producto_cantidad=2.000`);
+  drag and drop real (`DragEvent`+`DataTransfer` reales, no clics
+  sintéticos) de "progreso"→"confirmar" confirmado en BD
+  (`estado='confirmar'`) y en el kanban (badge, columna, folio
+  correctos).
+- **2 tests E2E nuevos** en `e2e/tests/pedidos-kanban.spec.ts` ("detalle:
+  edita tipo, cliente, cantidad y monto de un pedido abierto"; "drag and
+  drop: arrastra una tarjeta de 'Pedido' a 'En progreso'"). **Gotcha real
+  encontrado al escribirlos**: `locator.dragTo()` de Playwright simula
+  `mousedown`+`mousemove`+`mouseup` — nunca dispara los eventos reales
+  `dragstart`/`dragover`/`drop` de la API HTML5 Drag and Drop
+  (`draggable="true"`), así que el primer intento con `dragTo()` no movía
+  nada (la tarjeta se quedaba en su columna, test falló con un mensaje
+  claro, no un timeout ambiguo). Fix: `page.evaluate()` disparando los 4
+  eventos reales con un `DataTransfer` real — mismo mecanismo ya
+  verificado a mano con Chrome DevTools MCP antes de escribir el test.
+  Suite completa de Pedidos: 9/9 en verde (7 de `pedidos-kanban.spec.ts`
+  + 2 de `admin-plan-gating.spec.ts`).
+
+**Solo local, sin desplegar.**
+
+## Punto 514
+
+**CRM (ficha de contacto de clientes + métricas de cartera) — segmento
+nuevo, Fase 1 (solo lectura), 2026-11-23.** Usuario pidió 9 propuestas
+visuales con `/prompt-master` + `ui-ux-pro-max`/`ux-copy`/`impeccable`
+(Artifact con 9 conceptos), eligió el concepto 2 "Panel dividido" +
+agregó un botón "Métricas" que cambia a una segunda vista (resumen 360)
+dentro del MISMO segmento — segundo Artifact con el mock funcional
+aprobado tal cual, luego implementado.
+
+**Gobierno de funcionalidades (regla no negociable, CLAUDE.md) — los 5
+elementos completos:**
+1. `crm_habilitado` nuevo en `control_tenants.tenants` (DEFAULT 0,
+   `control/scripts/ensureSchema.js:COLUMNAS_NUEVAS`) y en `planes`
+   (DEFAULT 0 + whitelist/mapeo/INSERT en `control/utils/planes.js`,
+   `COLUMNAS_PLANES_NUEVAS`) — funcionalidad nueva, nunca existió antes,
+   mismo criterio DEFAULT 0 que Promociones/Ticket de impresión al
+   nacer (NO el criterio "activo para todos" de Pedidos/CxC).
+2. Expuesta en `backend/utils/tenantContext.js` como `crmHabilitado`.
+3. `requiereFeature('crmHabilitado')` en `GET /api/admin/crm/contactos`,
+   antes de `requireAdminAuth`/`requireAdminArea('administrador','ventas')`.
+   Sin dependencia de Ventas/Pedidos (lee `usuarios` directo, funciona
+   aunque esos módulos estén apagados).
+4. Toggle en `/control`: `MODULOS_WIZARD_DEF` (frontend/control.js, tarjeta
+   top-level igual que Auditoría/Promociones, sin regla de dependencia en
+   `validarReglasDependencia`).
+5. Sin regla de dependencia que documentar (punto 4 de la regla de
+   gobierno) — CRM es independiente.
+
+**Gotcha real encontrado probando en Docker real, no por tests**:
+`backend/utils/tenantContext.js:resolverTenantPorSlug()` arma la fila de
+`tenants` con una lista EXPLÍCITA de columnas en el SELECT (no
+`SELECT *`) — agregar `crm_habilitado` a `COLUMNAS_NUEVAS` y a
+`tenantContext.js` (el objeto `req.tenant`) NO basta: si la columna no
+está también en esa lista del SELECT, `tenant.crm_habilitado` llega
+`undefined` para siempre sin importar lo que diga la BD, y el candado
+responde 404 aunque el flag esté en 1. Los mocks de Jest (que simulan la
+fila completa a mano) nunca lo habrían atrapado — solo apareció al
+probar con Chrome DevTools MCP contra Docker+MySQL reales. **Cualquier
+flag nuevo de tenant debe agregarse en 4 lugares, no 3**: `COLUMNAS_NUEVAS`
++ `tenantContext.js` (objeto expuesto) + **esta lista explícita del
+SELECT** + los otros consumidores reales de la fila completa
+(`control/utils/tenantEdicion.js`: base del tenant, base del plan,
+excepción explícita, `CAMPOS_GOBIERNO_AMPLIADO` del diff de auditoría, y
+el `UPDATE tenants SET ...` con su columna+placeholder+param) — los 4
+tocados en esta sesión, verificados con clics reales después del fix.
+
+**Backend**: `GET /api/admin/crm/contactos` — cruza `usuarios`
+(`perfil='cliente'`, la fuente real de "quién es el cliente") con
+`pedidos`/`ordenes_compra` por `LOWER(email)` (ninguna de las 2 tablas
+tiene FK a `usuarios`, mismo patrón ya usado para "correos-registrados").
+`segmento` es un cálculo de servidor documentado como heurística de
+primera pasada, no una regla de negocio ya validada: `inactivo`
+(`activo=0`) → `nuevo` (cero pedidos+ventas) → `en_riesgo` (>30 días sin
+actividad) → `recurrente` (10+ operaciones) → `activo` (resto). RFC
+sintético (`SINFISCAL-*`) nunca se expone como `identificador`
+(`isValidRFCRequerido()`, mismo criterio que el resto del repo).
+
+**Frontend**: vista nueva `crm` en el sidebar, grupo "Ventas y gastos"
+(entre Pedidos y Cuentas por cobrar — decisión de alcance, no se creó un
+grupo "Clientes" nuevo para no tocar el agrupamiento de CxC existente;
+el usuario puede pedir reubicarlo después). Dos vistas dentro del MISMO
+segmento (botones "Contactos"/"Métricas" en la misma barra, nunca una
+ruta aparte) — `construirEsqueletoCrm()`/`renderCrmVistaActual()` en
+`frontend/admin.js`. **Gotcha propio de esta sesión** (atrapado ANTES de
+dar el trabajo por terminado, probando en Docker real): cada botón de
+vista del sidebar necesita su PROPIO
+`els.btnVistaX.addEventListener('click', () => cambiarVistaPrincipal('x'))`
+registrado a mano (patrón ya documentado en CLAUDE.md para
+`mapaNavPorVista`/`GRUPOS_SIDEBAR_NAV`/`RESTRICCIONES_PERFIL`, pero esta
+CUARTA pieza — el listener en sí — no está en ningún mapa central, hay
+que agregarla aparte junto a sus hermanas alrededor de la línea 9696) —
+se agregó para `crm` después de verlo fallar en vivo (clic no hacía
+nada, sin error en consola).
+
+**Alcance deliberadamente recortado (fuera de v1)**: solo lectura — sin
+alta/edición/archivado de contacto desde este módulo (el alta de un
+cliente sigue siendo el flujo normal de Ventas/registro); los 4 íconos
+de acción del mock (editar/vincular/pausar/archivar) NO se construyeron,
+habrían requerido diseñar semántica de "archivar un cliente" nunca
+discutida con el usuario. Sin paginación real (`LIMIT 1000`, mismo
+criterio que Pedidos). Umbrales de segmento (30 días, 10 operaciones)
+son un primer corte razonable, no una decisión de negocio confirmada.
+
+**Probado**: 44 tests unitarios/integración nuevos o tocados
+(`backend/test/integration/crm.test.js` nuevo — 5 casos, incluida la
+clasificación de los 3 segmentos y el filtro de RFC sintético;
+`backend/test/unit/tenantContext.test.js` y
+`control/test/unit/planes.test.js` actualizados al nuevo campo) — suites
+completas en verde (backend 1432/1432, control 631/631). **Funcional
+real** contra Docker+MySQL reales (tenant `t1`, rebuild de
+backend/control/frontend): login real, clic real en "CRM", contacto real
+insertado a mano en `tenant_t1.usuarios` → aparece en "Contactos" con su
+ficha completa (stats, nota de "aún sin pedidos") y en "Métricas" (KPIs,
+donut por segmento, tabla de mayor valor) — capturas guardadas en el
+scratchpad de la sesión. Estado de `t1` restaurado exacto al terminar
+(`crm_habilitado` de vuelta a 0, contacto de prueba eliminado) para no
+afectar `admin-plan-gating.spec.ts`/`pedidos-kanban.spec.ts`.
+
+**Solo local, sin desplegar.**
+
+## Punto 515 — "Clientes (CRM)" (claridad de copy/ícono) + CRM pasa a activo por default en todos los planes salvo Solicita (23 nov 2026, CERRADO, trabajo local)
+
+Dos pedidos del usuario tras usar el punto 514 en vivo:
+
+**1. Claridad de copy/ícono (gente sin vocabulario técnico).** "CRM" a
+secas no decía nada → **"Clientes (CRM)"** en los 3 sitios visibles
+(`frontend/admin.html` sidebar desktop + menú móvil, `<h1>` de la vista
+en `frontend/admin.js`). Ícono de "Pedidos" (3 barras tipo kanban, no
+comunicaba "pedido") → **carrito de compras** (feather `shopping-cart`),
+elegido por el usuario de 4 alternativas (caja, clipboard, carrito,
+recibo+reloj) vía `AskUserQuestion`. `control.js` (catálogo interno de
+`/control`, feature flag `crm_habilitado`) se dejó sin tocar a propósito
+— es la etiqueta para el equipo de Clarvo configurando planes, no la
+vista del tenant.
+
+**2. Decisión de gobernanza: CRM deja de ser opt-in por plan.** El
+usuario decidió que "Clientes (CRM)" va habilitado en **TODOS los
+planes salvo CLARVO Solicita** — ya no es un flag que cada plan
+configura independiente como el resto del catálogo. Problema real: el
+punto 514 creó `crm_habilitado` con `DEFAULT 0` tanto en `planes` como
+en `tenants` — los 8 planes reales existentes (incluidos los 4 "CLARVO
+..." y 3 planes de prueba/custom) estaban en 0, y ningún tenant ya
+aprovisionado (incluido `t1`) podía ver el módulo aunque el usuario ya
+hubiera decidido que debía estar prendido.
+
+**Modelo de 2 capas, igual que cualquier flag de gobierno de este
+proyecto (CLAUDE.md)** — un backfill de catálogo NUNCA basta solo, hace
+falta el espejo en `tenants`:
+1. `UPDATE planes SET crm_habilitado = 1 WHERE nombre NOT LIKE
+   '%Solicita%'` — catálogo, para que cualquier plan asignado/reaplicado
+   desde ahora en adelante nazca con CRM activo salvo Solicita.
+2. `UPDATE tenants t JOIN planes p ON t.plan_id = p.id SET
+   t.crm_habilitado = p.crm_habilitado WHERE t.crm_habilitado <>
+   p.crm_habilitado` — la copia por tenant (`resolverPlanYFunciones()`
+   en `control/utils/tenantEdicion.js` solo la resincroniza al
+   reasignar/reaplicar un plan a mano, nunca sola) — sin este segundo
+   UPDATE, un tenant ya existente se habría quedado con el 404 pese a
+   que su plan ya decía `crm_habilitado=1` en el catálogo. Exactamente
+   el síntoma que el usuario reportó ("que se vea en el sitio
+   también").
+
+**Sentinel de una sola vez, nunca incondicional** (mismo criterio que
+cualquier backfill de `ensureSchema()`, CLAUDE.md): clave
+`crm_default_aplicado_v2` en `ajustes_globales` — después de aplicado,
+un operador puede apagar CRM a mano en cualquier plan (incluso uno que
+no sea Solicita) desde `/control` y ese valor nunca se vuelve a pisar en
+un restart futuro. **Gotcha propio de esta sesión**: la primera versión
+solo tocaba `planes` (clave `v1`) — al agregar el UPDATE de `tenants`
+después de que `v1` ya había quedado marcada aplicada en este mismo
+entorno, hubo que subir a `v2` (nunca se borra/reinicia el sentinel a
+mano — `control_app` no tiene `DELETE`). Si una sesión futura ve ambas
+claves (`v1` y `v2`) en `ajustes_globales`, es exactamente este rastro,
+no un error.
+
+Orden de arranque en `control/server.js:iniciar()` ajustado:
+`asegurarTablaAjustesGlobales()` ahora corre ANTES de
+`asegurarTablaPlanes()` (el backfill de arriba lee/escribe el sentinel
+en esa tabla) — antes era al revés, sin motivo que lo exigiera.
+
+**Probado**: 44 tests unitarios de `control` actualizados
+(`test/unit/ensureSchema.test.js`, nuevas aserciones sobre los 2
+UPDATE + el INSERT del sentinel, conteos de llamadas recalculados) +
+suite completa de `control` en verde (631/631). **Funcional real**
+contra Docker+MySQL reales: rebuild de `frontend` y `control`, verificado
+con MySQL real que los 8 planes quedaron en el valor correcto (Solicita
+en 0, el resto en 1) y que los tenants ya aprovisionados heredaron el
+valor de su plan (`t1`, plan "Plan Panadero" → `crm_habilitado=1`);
+clic real en `/t1/admin` → "Clientes (CRM)" carga contactos reales
+(200, antes 404) tras el TTL de 45s de `tenantContext.js`. Sin cambios a
+`admin-plan-gating.spec.ts`/`pedidos-kanban.spec.ts` (ninguno de los 2
+specs referencia CRM).
+
+**Solo local, sin desplegar.**

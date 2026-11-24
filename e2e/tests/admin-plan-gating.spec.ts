@@ -11,17 +11,66 @@
 // en su default real (true). Este spec NO apaga/prende flags por sí
 // mismo — solo verifica el estado ya preparado, para no pelearse con el
 // TTL de 45s de la caché de resolución de tenant (tenantContext.js).
+//
+// El tenant "t1" se perdió en algún reset de Docker previo al punto 508
+// (confirmado: no aparecía en `control_tenants.tenants`) — recreado en
+// esa misma fecha (PROJECT_STATE.md punto 508, Segmento 7, cierre de
+// deuda) vía `/internal/activar-tenant/t1` + `/internal/crear-admin-inicial/t1`
+// (mismo mecanismo real de onboarding, nunca el CLI
+// `provisionar-tenant.js` — ese script asume que `control_tenants` vive
+// en el MISMO servidor MySQL que las bases `tenant_*`, cosa que dejó de
+// ser cierta desde el Segmento 9b: hoy son 2 contenedores MySQL
+// distintos — correrlo tal cual habría creado una `control_tenants`
+// duplicada y desincronizada en el servidor equivocado). La fila de
+// `tenants` se insertó a mano con los mismos 3 flags en 0 que este spec
+// siempre esperó, cuenta `admin`/`admin` igual que antes.
 
 import { test, expect } from '@playwright/test';
 
 test.describe.configure({ mode: 'serial' });
 
 async function loginAdminTenant(page) {
+  // Viewport más alto que el default (720px): con varios overlays de
+  // bienvenida agregados en puntos posteriores a este spec (Términos,
+  // asistente de facturación, tour), una ventana baja deja encabezados
+  // de grupo del sidebar flotando sobre el nav — ruido ajeno a esta
+  // prueba, no un bug de gating.
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/t1/admin');
   await page.fill('#admin-user', 'admin');
   await page.fill('#admin-pass', 'admin');
   await page.click('#btn-login');
   await page.waitForSelector('#admin-dashboard:not([hidden])', { timeout: 10000 });
+
+  // Overlays de bienvenida/bloqueo agregados en puntos posteriores a este
+  // spec (orden real, CLAUDE.md punto 504): Términos → asistente de
+  // facturación → tour guiado. "admin"/"t1" es una cuenta fija de
+  // fixture — nunca debe quedar marcada como "ya aceptó"/"ya vio el
+  // tour" de forma permanente del lado del servidor por accidente, así
+  // que se resuelven aquí sin tocar ninguna decisión real de negocio.
+  const terminosGate = page.locator('#terminos-gate-overlay');
+  if (await terminosGate.isVisible().catch(() => false)) {
+    await page.locator('#terminos-gate-scroll').evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+      el.dispatchEvent(new Event('scroll'));
+    });
+    const nombreField = page.locator('#terminos-gate-nombre-field');
+    if (await nombreField.isVisible().catch(() => false)) {
+      await page.fill('#terminos-gate-nombre-input', 'E2E Admin T1');
+    }
+    await expect(page.locator('#terminos-gate-chk')).toBeEnabled({ timeout: 5000 });
+    await page.check('#terminos-gate-chk');
+    await page.click('#terminos-gate-btn');
+    await expect(terminosGate).toBeHidden({ timeout: 10000 });
+  }
+  const asistenteFacturacion = page.locator('#asistente-facturacion-overlay');
+  if (await asistenteFacturacion.isVisible().catch(() => false)) {
+    await page.click('#asistente-facturacion-no');
+  }
+  const tour = page.locator('#onboarding-tour-overlay');
+  if (await tour.isVisible().catch(() => false)) {
+    await page.click('#btn-onboarding-tour-saltar');
+  }
 }
 
 test('con gastos/inventarios/auditoría apagados por el plan: esos 3 botones del sidebar quedan ocultos', async ({ page }) => {
@@ -66,6 +115,14 @@ test('las tarjetas de autoservicio de Configuraciones también reflejan el plan 
   if (await avisoFiscal.isVisible().catch(() => false)) {
     await page.click('#btn-config-fiscal-faltante-cerrar');
   } else {
+    // El grupo "Cuenta" (dueño de Configuraciones) arranca colapsado en
+    // una sesión nueva de este fixture — expandirlo antes de clickear,
+    // o el botón queda clicado dentro de un acordeón de alto 0 (el nav
+    // "intercepta" el clic, ajeno a lo que prueba este spec).
+    const grupoCuenta = page.locator('.admin-sidebar-group-header[data-grupo="cuenta"]');
+    if ((await grupoCuenta.getAttribute('aria-expanded')) === 'false') {
+      await grupoCuenta.click();
+    }
     await page.click('#btn-vista-configuraciones');
   }
   await expect(page.locator('#config-modal-overlay')).toBeVisible();
