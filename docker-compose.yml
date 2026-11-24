@@ -606,6 +606,11 @@ services:
       PORTAL_HEALTH_URL: http://frontend:80/login
       CONTROL_HEALTH_URL: http://control:4001/health
       BACKEND_HEALTH_URL: http://backend:4000/api/health
+      # Opción B (sonda sintética de firma inválida, ver
+      # kerberos/utils/stripeProbe.js) — mismo host interno que
+      # CONTROL_HEALTH_URL, apuntando a la ruta real del webhook en vez
+      # del healthcheck genérico.
+      CONTROL_STRIPE_WEBHOOK_URL: http://control:4001/api/control/webhooks/stripe
     volumes:
       # Socket de Docker montado READ-ONLY — ver utils/dockerClient.js,
       # que solo permite GET (nunca start/stop/restart/exec). Esta es la

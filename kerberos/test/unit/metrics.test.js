@@ -190,10 +190,15 @@ describe('GET /api/kerberos/health', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(res.body.checks.map((c) => c.nombre)).toEqual(['backend', 'control', 'frontend']);
-    for (const check of res.body.checks) {
+    expect(res.body.checks.map((c) => c.nombre)).toEqual(['sitio', 'admin', 'portal', 'control', 'backend', 'stripe-webhook']);
+    // "stripe-webhook" no es un GET como los otros 5 (ver checkStripeWebhook()
+    // en routes/metrics.js) — sin ninguna corrida todavía de la sonda, su
+    // mensaje es "aún sin verificar", no "URL no configurada".
+    for (const check of res.body.checks.filter((c) => c.nombre !== 'stripe-webhook')) {
       expect(check).toMatchObject({ disponible: false, statusCode: null, latenciaMs: null, error: 'URL no configurada' });
     }
+    const stripeCheck = res.body.checks.find((c) => c.nombre === 'stripe-webhook');
+    expect(stripeCheck).toMatchObject({ disponible: false, statusCode: null, latenciaMs: null });
   });
 
   test('mide latencia real contra un servicio que sí responde', async () => {
@@ -238,7 +243,7 @@ describe('GET /api/kerberos/overview', () => {
       cpuHostNucleos: null,
       memHostTotalMb: null,
     });
-    expect(res.body.resumen.healthChecks).toHaveLength(3);
+    expect(res.body.resumen.healthChecks).toHaveLength(6);
   });
 
   test('toma núcleos y memoria del host desde /info', async () => {
@@ -261,6 +266,75 @@ describe('GET /api/kerberos/overview', () => {
 
     expect(res.status).toBe(503);
     expect(res.body).toEqual({ ok: false, error: 'No se pudo conectar con el motor de Docker.' });
+  });
+});
+
+describe('POST /api/kerberos/stripe-webhook/verificar (Opción B)', () => {
+  const secretoViejo = process.env.INTERNAL_CACHE_SECRET;
+  const urlVieja = process.env.CONTROL_STRIPE_WEBHOOK_URL;
+
+  afterEach(() => {
+    process.env.INTERNAL_CACHE_SECRET = secretoViejo;
+    process.env.CONTROL_STRIPE_WEBHOOK_URL = urlVieja;
+  });
+
+  test('sin CONTROL_STRIPE_WEBHOOK_URL/INTERNAL_CACHE_SECRET configurados: ok=false, error explícito', async () => {
+    delete process.env.CONTROL_STRIPE_WEBHOOK_URL;
+    delete process.env.INTERNAL_CACHE_SECRET;
+
+    const res = await request(crearApp()).post('/api/kerberos/stripe-webhook/verificar');
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.resultado.error).toMatch(/sin configurar/);
+  });
+
+  test('el "control" real responde 400 (firma inválida esperada): ok=true', async () => {
+    process.env.INTERNAL_CACHE_SECRET = 'secreto-de-prueba';
+    const servidor = require('http').createServer((req, res) => {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Firma inválida (sonda sintética — esperado).' }));
+    });
+    await new Promise((resolve) => servidor.listen(0, '127.0.0.1', resolve));
+    process.env.CONTROL_STRIPE_WEBHOOK_URL = `http://127.0.0.1:${servidor.address().port}/api/control/webhooks/stripe`;
+
+    try {
+      const res = await request(crearApp()).post('/api/kerberos/stripe-webhook/verificar');
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.resultado.statusCode).toBe(400);
+    } finally {
+      await new Promise((resolve) => servidor.close(resolve));
+    }
+  });
+
+  test('"control" responde 200 (el candado de firma se cayó): ok=false, falla real detectada', async () => {
+    process.env.INTERNAL_CACHE_SECRET = 'secreto-de-prueba';
+    const servidor = require('http').createServer((req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ received: true }));
+    });
+    await new Promise((resolve) => servidor.listen(0, '127.0.0.1', resolve));
+    process.env.CONTROL_STRIPE_WEBHOOK_URL = `http://127.0.0.1:${servidor.address().port}/api/control/webhooks/stripe`;
+
+    try {
+      const res = await request(crearApp()).post('/api/kerberos/stripe-webhook/verificar');
+      expect(res.body.ok).toBe(false);
+      expect(res.body.resultado.statusCode).toBe(200);
+      expect(res.body.resultado.error).toMatch(/inesperada/);
+    } finally {
+      await new Promise((resolve) => servidor.close(resolve));
+    }
+  });
+
+  test('"control" inalcanzable (puerto cerrado): ok=false, nunca lanza ni cuelga', async () => {
+    process.env.INTERNAL_CACHE_SECRET = 'secreto-de-prueba';
+    process.env.CONTROL_STRIPE_WEBHOOK_URL = 'http://127.0.0.1:1/api/control/webhooks/stripe';
+
+    const res = await request(crearApp()).post('/api/kerberos/stripe-webhook/verificar');
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.resultado.error).toBeTruthy();
   });
 });
 

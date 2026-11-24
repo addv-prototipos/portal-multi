@@ -692,10 +692,24 @@ app.post('/api/control/webhooks/stripe', asyncHandler(async (req, res) => {
     }
   }
   if (!event) {
-    console.error('Firma de webhook de Stripe inválida (probados', candidatos.length, 'secreto(s)):', ultimoError && ultimoError.message);
-    const { registrarFirmaInvalida } = require('./utils/stripeWebhookMonitor');
-    registrarFirmaInvalida({ mensaje: ultimoError && ultimoError.message }).catch(() => {});
-    return res.status(400).json({ error: 'Firma inválida.' });
+    // Sonda sintética de Kerberos (Opción B, ver kerberos/utils/stripeProbe.js):
+    // manda a propósito una firma inválida para comprobar, sin esperar
+    // ningún evento real de Stripe, que esta ruta sigue viva de punta a
+    // punta. Se reconoce con 2 señales — el header Y el secreto interno
+    // compartido — para que NUNCA nadie externo pueda apagar la alerta
+    // real con solo adivinar el nombre del header; solo un llamador que
+    // ya tiene INTERNAL_CACHE_SECRET puede silenciarla. Sigue respondiendo
+    // 400 igual (eso es justo lo que la sonda necesita comprobar) — lo
+    // único que cambia es que NO se manda el correo de "firma inválida"
+    // por esta causa, o la corrida periódica cada 5 min mandaría un
+    // correo de pánico falso cada vez que el cooldown de 1h expirara.
+    const esSondaInterna = req.get('X-Kerberos-Probe') === '1' && secretoInternoValido(req);
+    if (!esSondaInterna) {
+      console.error('Firma de webhook de Stripe inválida (probados', candidatos.length, 'secreto(s)):', ultimoError && ultimoError.message);
+      const { registrarFirmaInvalida } = require('./utils/stripeWebhookMonitor');
+      registrarFirmaInvalida({ mensaje: ultimoError && ultimoError.message }).catch(() => {});
+    }
+    return res.status(400).json({ error: esSondaInterna ? 'Firma inválida (sonda sintética — esperado).' : 'Firma inválida.' });
   }
 
   // Responde 200 de inmediato y procesa después — Stripe reintenta con

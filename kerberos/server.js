@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
 const { requireKerberosAuth, recargarAdminUsers, recargarKerberosUsers } = require('./utils/auth');
+const { iniciarSondaStripePeriodica } = require('./utils/stripeProbe');
 
 const app = express();
 app.disable('x-powered-by');
@@ -129,4 +130,9 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 4100;
 app.listen(PORT, () => {
   console.log(`Kerberos escuchando en puerto ${PORT}`);
+  // Sonda sintética del webhook de Stripe (Opción B) — primera corrida
+  // inmediata, luego cada 5 min. No-op silencioso si
+  // CONTROL_STRIPE_WEBHOOK_URL/INTERNAL_CACHE_SECRET no están configurados
+  // (ver utils/stripeProbe.js), nunca tumba el arranque del servicio.
+  iniciarSondaStripePeriodica();
 });

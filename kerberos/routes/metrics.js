@@ -4,6 +4,7 @@ const express = require('express');
 
 const { dockerRequest, dockerRequestRaw } = require('../utils/dockerClient');
 const { listarCorridasLimpieza } = require('../utils/limpiezaLog');
+const { correrSondaAhora, obtenerUltimoResultadoSonda } = require('../utils/stripeProbe');
 
 const TIMEOUT_HEALTH_MS = 2000;
 const LINEAS_LOG_DEFAULT = 200;
@@ -221,10 +222,39 @@ function revisarServicio(nombre, url) {
   });
 }
 
+// Adapta el resultado cacheado de la sonda de Stripe (ver utils/stripeProbe.js,
+// Opción B) a la misma forma que revisarServicio() — así pintarSalud() en el
+// dashboard lo renderiza sin saber que esta fila es distinta a las otras 5
+// (POST con firma inválida en vez de GET, verificado cada 5 min en vez de en
+// cada poll). Sin ninguna corrida todavía (recién arrancó el contenedor),
+// se reporta como "aún sin verificar" en vez de "caído" — nunca se le
+// adjudica una falla que todavía no se intentó comprobar.
+function checkStripeWebhook() {
+  const r = obtenerUltimoResultadoSonda();
+  if (!r) {
+    return {
+      nombre: 'stripe-webhook',
+      url: process.env.CONTROL_STRIPE_WEBHOOK_URL || null,
+      disponible: false,
+      statusCode: null,
+      latenciaMs: null,
+      error: 'Aún sin verificar (primera corrida en curso).',
+    };
+  }
+  return {
+    nombre: 'stripe-webhook',
+    url: process.env.CONTROL_STRIPE_WEBHOOK_URL || null,
+    disponible: r.ok,
+    statusCode: r.statusCode,
+    latenciaMs: r.latenciaMs,
+    error: r.error,
+  };
+}
+
 function revisarServiciosDelStack() {
   return Promise.all(
     SERVICIOS_HEALTH.map(({ nombre, variable }) => revisarServicio(nombre, process.env[variable] || ''))
-  );
+  ).then((checks) => checks.concat([checkStripeWebhook()]));
 }
 
 module.exports = function metricsRouter() {
@@ -265,6 +295,19 @@ module.exports = function metricsRouter() {
       }
       res.status(503).json({ ok: false, error: ERROR_DOCKER });
     }
+  });
+
+  // Disparo manual de la sonda de Stripe (Opción B) — pensado para el
+  // gate de deploy: en vez de esperar hasta 5 min a que corra sola, un
+  // script de despliegue llama esto justo después de recrear "control" y
+  // obtiene el resultado real de inmediato (la petición responde en
+  // cuanto la sonda termina, nunca antes). Mismo criterio de "nunca se
+  // queda colgado" que el resto de la Opción B: timeout propio de 4s
+  // dentro de sondaWebhookStripe(), así que esta ruta nunca cuelga más
+  // que eso.
+  router.post('/stripe-webhook/verificar', async (req, res) => {
+    const resultado = await correrSondaAhora();
+    res.json({ ok: resultado.ok, resultado });
   });
 
   router.get('/health', async (req, res) => {

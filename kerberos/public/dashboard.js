@@ -307,21 +307,26 @@
 
   // ---------- Estado general + salud de los servicios ----------
 
-  // 5 checks reales (ver SERVICIOS_HEALTH en kerberos/routes/metrics.js):
-  // sitio/admin/portal se verifican de punta a punta contra la URL
-  // pública real (clarvo.mx, a través de nginx); control y backend se
-  // verifican internos (su propio healthcheck, dentro de la red de
-  // Docker). Admin y portal de clientes comparten el mismo proceso
-  // "backend" por debajo, pero cada uno se revisa por SU PROPIA ruta
-  // (/admin, /login) — así un problema de ruteo/nginx específico de una
-  // de las dos superficies se detecta aunque el proceso backend siga
-  // vivo, en vez de asumir que "si backend responde, ambas funcionan".
+  // 6 checks reales (ver SERVICIOS_HEALTH + checkStripeWebhook() en
+  // kerberos/routes/metrics.js): sitio/admin/portal se verifican de punta
+  // a punta contra la URL pública real (clarvo.mx, a través de nginx);
+  // control y backend se verifican internos (su propio healthcheck,
+  // dentro de la red de Docker). Admin y portal de clientes comparten el
+  // mismo proceso "backend" por debajo, pero cada uno se revisa por SU
+  // PROPIA ruta (/admin, /login) — así un problema de ruteo/nginx
+  // específico de una de las dos superficies se detecta aunque el proceso
+  // backend siga vivo, en vez de asumir que "si backend responde, ambas
+  // funcionan". "stripe-webhook" es distinto a los otros 5: no es un GET
+  // de health-check normal, es la sonda sintética de firma inválida
+  // (Opción B, utils/stripeProbe.js) corrida cada 5 min, no en cada poll
+  // de este dashboard — ver checkStripeWebhook() para el porqué.
   var NOMBRE_SERVICIO = {
     sitio: 'Sitio (clarvo.mx)',
     admin: 'Admin',
     portal: 'Portal de clientes',
     control: 'Control',
     backend: 'Backend (API)',
+    'stripe-webhook': 'Webhook de Stripe',
   };
 
   function pintarEstadoGeneral(checks) {
