@@ -147,6 +147,21 @@ Un Centro de conocimiento contesta tus dudas sin que tengas que llamar a
 soporte. Tooltips en cada campo que no es obvio. Diseñado para que lo uses
 tú, el dueño del negocio — no un departamento de sistemas que no tienes.
 
+### 15. Cierras el trato antes de cobrarlo
+Un cliente que "lo va a pensar" ya no se te pierde en una nota de
+WhatsApp. Lo capturas como pedido o cotización, le das seguimiento en un
+tablero visual (Pedido → En progreso → Por confirmar), y en cuanto dice
+que sí, lo conviertes en venta real con un clic — sin volver a capturar
+nada de cero. Si el trato se cae, lo cancelas con el motivo a la vista,
+nunca lo borras: sabes exactamente cuántas ventas se te fueron este mes y
+por qué, no solo cuántas cerraste.
+
+### 16. Conoces a tus clientes, no solo sus tickets
+Cada cliente tiene su propia ficha — quién es, cuánto te ha comprado, qué
+tan seguido vuelve. Ya no dependes de acordarte "quién era ese que compra
+cada mes": lo ves en una pantalla, con el historial completo de su
+relación contigo, no solo su última venta.
+
 ---
 
 ## La transformación (esto es lo que realmente vendes)
@@ -183,6 +198,9 @@ y un negocio que administra al dueño.
 - "Tu celular ya es tu punto de venta. Apunta, escanea, cobra."
 - "No aprendes a usar CLARVO. Aprendes a administrar tu negocio mientras lo usas."
 - "Multi-caja incluido en todos los paquetes — cobra con 1 celular o con 10, nunca pagas por caja."
+- "Un 'lo voy a pensar' ya no se te pierde en WhatsApp — se vuelve un pedido con seguimiento real, hasta que te dice que sí."
+- "No solo vendes. Sabes por qué NO te compraron — y cuánto te costó esa venta que se cayó."
+- "Cada cliente tiene cara, no solo ticket. CLARVO te dice quién te compra y qué tan seguido."
 
 ---
 
@@ -202,6 +220,13 @@ verse, operar y decidir como un negocio grande, siendo chico.
 ---
 
 ## Próximamente — lo que viene en Clarvo (271-274, documentado 10 sep 2026)
+
+**Prueba de velocidad (23 nov 2026): esto ya no es roadmap, ya está
+vivo.** Pedidos (ítem 15 de arriba) y Clientes/CRM (ítem 16) ni siquiera
+estaban en la lista de abajo hace unas semanas — hoy ya se usan en
+producción. Si el mercado pide algo real, Clarvo no tarda meses en
+tenerlo: lo pide, se diseña, se prueba contra datos reales y sale. Eso es
+lo que compras además del producto — un equipo que te escucha y entrega.
 
 Clarvo crece con lo que el mercado pide. Esto ya está documentado en `PROJECT_STATE.md` y `pendientes.html` como pendientes con preguntas para definir antes de construir — no es humo, es roadmap con diseño pendiente:
 

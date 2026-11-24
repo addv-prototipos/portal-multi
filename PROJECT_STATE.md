@@ -32284,3 +32284,120 @@ Backend: 72/72 suites, 1433/1433 tests (incluye 2 nuevos: candado de
 Inventarios en Pedidos, `backend/test/integration/pedidos.test.js`).
 Control: 39/39 suites, 633/633 tests (incluye 2 nuevos: regla de
 dependencia Ventas+Inventarios, `control/test/unit/planes.test.js`).
+
+## Punto 518 — Opción B (sonda de firma inválida) para el webhook de Stripe + monitor nuevo en Kerberos (24 nov 2026, CERRADO, trabajo local)
+
+Pedido explícito del usuario, antes del próximo deploy a producción: una
+forma de validar que el webhook de Stripe sigue vivo **sin pasar Stripe a
+modo prueba** (ya se iba a usar reCAPTCHA en modo prueba, pero Stripe
+debía quedarse en modo real) y **sin que la validación se pueda quedar
+colgada esperando un evento real de Stripe**. Se presentaron 4 opciones
+(estructural vía API de Stripe, sonda de firma inválida, reconciliación
+de eventos vía `pending_webhooks`, evento sintético real acotado con
+timeout) — el usuario eligió la **Opción B** y pidió que Kerberos
+(`kerberos/`, app de monitoreo de infraestructura, solo lectura) también
+la corriera como monitor continuo, no solo como gate de deploy.
+
+**Mecanismo** (`kerberos/utils/stripeProbe.js`, nuevo): manda un
+`POST /api/control/webhooks/stripe` con firma HMAC deliberadamente
+inválida — espera EXACTAMENTE 400 "Firma inválida" (nunca espera ningún
+evento real de Stripe, nunca llama a la API de Stripe). Timeout propio de
+4s, así que nunca se cuelga más que eso. Cualquier respuesta distinta de
+400 es una falla real: 200 significaría que el candado de firma se cayó,
+502/504 infra rota, 503 Stripe sin configurar. Doble uso:
+- **Monitor continuo**: corre al arrancar Kerberos + cada 5 min, cacheado
+  en memoria, expuesto como 6to item en "Estado general de Clarvo"
+  (`kerberos/routes/metrics.js:checkStripeWebhook()`, reusa el render
+  genérico ya existente de `pintarSalud()` en el dashboard — solo hizo
+  falta agregar el nombre a mostrar en `NOMBRE_SERVICIO`).
+- **Gate de deploy**: `POST /kerberos/api/stripe-webhook/verificar`
+  (autenticado) dispara la sonda al instante y regresa el resultado real
+  — pensado para usarse justo después de recrear el contenedor `control`
+  en un despliegue, sin esperar hasta 5 min a que corra sola.
+
+**Bypass con candado propio** (`control/server.js`, dentro de
+`POST /api/control/webhooks/stripe`): la sonda se identifica con 2
+señales — header `X-Kerberos-Probe: 1` Y `X-Internal-Secret` real —
+ninguna sola basta. Sin este bypass, la corrida periódica cada 5 min
+habría disparado el correo real de "firma inválida"
+(`stripeWebhookMonitor.js:registrarFirmaInvalida`, cooldown de 1h) cada
+vez que el cooldown expirara — un correo de pánico falso sobre un webhook
+que en realidad está sano. Con el bypass: sigue respondiendo 400 igual
+(eso es justo lo que la sonda necesita comprobar), pero NUNCA manda el
+correo. Una firma inválida real (sin esas 2 credenciales) sigue logueando
+y alertando exactamente igual que antes — sin regresión, verificado con 4
+tests de integración nuevos (`control/test/integration/stripeWebhookOpcionB.test.js`)
+que prueban las 4 combinaciones (ninguna credencial, ambas, solo una,
+solo la otra).
+
+**Verificado real en Docker local**: sonda automática al levantar
+Kerberos (`docker logs clrv-kerberos` limpio, sin crash), disparo manual
+vía `curl -u admin:admin -X POST .../stripe-webhook/verificar` →
+`{"ok":true,"resultado":{"statusCode":400,...}}`, dashboard real
+mostrando "Webhook de Stripe · HTTP 400 · Disponible" como 6to ítem de
+"Estado general de Clarvo", y confirmado con un POST real (sin
+credenciales de sonda) a través de nginx que SÍ loguea
+"Firma de webhook de Stripe inválida" — la alerta real sigue viva, solo
+la sonda queda silenciada.
+
+Solo `docker-compose.yml` (dev) tocado para la nueva variable
+`CONTROL_STRIPE_WEBHOOK_URL` — nada en `VULTR/` ni producción todavía;
+el usuario pidió explícitamente no tocar producción hasta avisar (otra
+sesión trabajaba en paralelo sobre Reportes de Pedidos). Backend/control
+no se tocaron para este punto salvo el bypass de `control/server.js`.
+Control: 40/40 suites, 637/637 tests (4 nuevos). Kerberos: 15/15 tests
+(4 nuevos, `kerberos/test/unit/metrics.test.js`).
+
+## Punto 519 — "Ver detalle" por módulo en el asistente de planes de /control (24 nov 2026, CERRADO, trabajo local)
+
+El paso "Módulos" del asistente de planes (`frontend/control.js`,
+`MODULOS_WIZARD_DEF`) solo mostraba el nombre y una frase corta por
+tarjeta — nada decía que, por ejemplo, Ventas combinado con Inventarios
+también habilita Pedidos, o que activa automáticamente Resumen
+financiero y alimenta 3 pestañas de Reportes. El usuario pidió una forma
+de auditar "todo lo que incluye" cada módulo sin perder nada de vista, y
+confirmó la propuesta de **panel lateral fijo** (de 3 opciones
+presentadas en un Artifact) sobre acordeón-en-el-lugar o
+vista-previa-al-hover-más-matriz-de-auditoría.
+
+**Implementado** (`frontend/control.html` + `frontend/control.js` +
+`frontend/admin.css`, compartido con `/control` vía `admin-body`): un
+ícono ⓘ en cada una de las 10 tarjetas abre su detalle completo
+(`DETALLE_MODULO_WIZARD`, nuevo, contenido estático real por módulo — qué
+trae, qué habilita si también activas otro, qué se enciende automático,
+qué reportes alimenta) en un panel fijo a la derecha
+(`.planes-wizard-detalle-panel`) que nunca mueve la cuadrícula de
+tarjetas. Clic de nuevo sobre el mismo módulo cierra el panel (vuelve al
+estado vacío); clic sobre otro simplemente cambia el contenido mostrado.
+
+**Gotcha real resuelto** (ver CLAUDE.md, gotcha nuevo de este punto): la
+tarjeta era un solo `<button>` — no se puede anidar otro `<button>` para
+el ícono de detalle, así que se reestructuró a un `<div>` contenedor con
+2 `<button>` hermanos (alternar módulo / ver detalle). El atributo
+`data-modulo` se dejó a propósito en el `<div>` exterior porque
+`e2e/tests/control-planes-wizard.spec.ts` ya lo usa como selector
+(`.planes-wizard-modulo-card[data-modulo="..."]`) — el botón de alternar
+usa `data-toggle-modulo` aparte, para que el listener delegado nunca se
+enganche dos veces. **Verificado corriendo ese E2E real** (no asumido):
+el clic de la tarjeta y la cascada de "Resumen financiero se activó
+automáticamente" siguen funcionando idénticos a antes. Hallazgo aparte
+sin relación — ese mismo spec sigue esperando el título de paso
+"Dependientes" en el paso 3, pero el wizard real ya tiene 5 pasos
+("Reglas automáticas" en vez de "Dependientes") desde una sesión
+anterior — deuda de test preexistente, fuera de alcance de este punto,
+no corregida aquí.
+
+**Verificado con clics reales en Docker**: abrir Ventas → ver las 4
+secciones completas con el contenido real → cambiar a Gastos (el panel
+cambia, Ventas se des-marca) → alternar el checkbox de Auditoría (el
+panel de Gastos sigue abierto, sin disturbio) → clic de nuevo en Gastos
+(cierra, vuelve al estado vacío "Elige un módulo para ver todo lo que
+desbloquea").
+
+**Nota de atribución de git**: el CSS de este cambio (`frontend/admin.css`)
+quedó absorbido como colateral en el commit `f02b5f3` de otra sesión
+concurrente trabajando sobre el rediseño de Reportes de Pedidos (mismo
+riesgo ya documentado en el punto 466 de este archivo — dos sesiones
+compartiendo el mismo working tree) — el contenido es correcto y ya está
+en el repo, solo con el mensaje de commit de otra feature. `frontend/control.html`
+y `frontend/control.js` sí se commitearon limpios en `9a1b453`.
