@@ -3328,7 +3328,7 @@
 
   let moduloWizardDetalleActivo = null;
 
-  // Las 4 pestañas reales de la vista "Reportes" en /admin
+  // 5 de las 6 pestañas reales de la vista "Reportes" en /admin
   // (frontend/admin.js, PESTANAS_REPORTES) — independientes entre sí y de
   // resumen_financiero_habilitado (confirmado explícitamente por el
   // usuario, 2026-10-01).

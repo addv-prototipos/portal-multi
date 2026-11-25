@@ -24863,7 +24863,7 @@
       lead: 'Lo mínimo para dejar el panel operando el primer día.',
       pasos: [
         { t: 'Completa tus datos fiscales', d: 'Configuraciones → Configuraciones fiscales. Sin esto, tickets y facturas no se pueden generar.' },
-        { t: 'Da de alta a tu equipo', d: 'Usuarios → Crear usuario. Elige el perfil correcto (Administrador, Fiscal o Ventas) según lo que esa persona necesite hacer — cada perfil ve solo sus secciones.' },
+        { t: 'Da de alta a tu equipo', d: 'Usuarios → Crear usuario. Elige el perfil correcto (Administrador, Fiscal, Ventas o Inventario) según lo que esa persona necesite hacer — cada perfil ve solo sus secciones.' },
         { t: 'Revisa el checklist de Inicio', d: 'Aparece solo ahí hasta que completes sus 3-4 pasos según tu perfil — te va guiando, no hace falta memorizar nada.' },
         { t: 'Vuelve aquí cuando lo necesites', d: 'Este manual queda siempre a un clic, en el ícono de libro junto a "Cerrar sesión" — en cualquier vista, con cualquier perfil.' },
         { t: 'Repite el recorrido guiado', d: 'La primera vez que entraste, un recorrido con globos señaló las partes clave del panel para tu perfil — si quieres volver a verlo, aquí mismo. Solo disponible en escritorio.', accion: 'reiniciar-tour', textoAccion: 'Ver el recorrido de nuevo' },
@@ -24947,10 +24947,21 @@
       lead: 'Cotizaciones en kanban — no son una venta real hasta que llegan a "Entregado".',
       pasos: [
         { t: 'Las 5 columnas', d: 'Pedido → En progreso → Por confirmar → Entregado → Cancelado. Solo las 3 primeras se mueven libremente con el selector de cada tarjeta.' },
-        { t: 'Crear un pedido', d: 'Botón "+ Nuevo pedido" — concepto, monto estimado y, si tienes Inventarios activo, puedes tomar el producto o servicio directo del catálogo (sin apartar existencia todavía).' },
+        { t: 'Crear un pedido', d: 'Botón "+ Nuevo pedido" — concepto, monto estimado, y tomas el producto o servicio directo del catálogo de Inventarios (sin apartar existencia todavía) — Pedidos siempre requiere Ventas e Inventarios activos a la vez.' },
         { t: 'Marcar como Entregado', d: 'Abre el mismo formulario de "Registrar venta", precargado con los datos del pedido — ahí sí se captura método de pago, estado de cobro y entrega. Al guardar, el pedido queda vinculado a esa venta real.' },
         { t: 'Cancelar', d: 'Con motivo opcional — un pedido cancelado nunca se borra, queda visible para el reporte de motivos de cancelación.' },
         { t: 'Reportes de Pedidos', d: 'Dentro de Reportes → pestaña "Pedidos": pipeline, tasa de conversión, ciclo promedio de cierre y más — siempre separado del ingreso real.' },
+      ],
+    },
+    crm: {
+      flag: 'crmHabilitado',
+      titulo: 'Clientes (CRM)',
+      lead: 'Ficha de contacto de cada cliente y métricas de cartera, de solo lectura.',
+      pasos: [
+        { t: 'Buscar un cliente', d: 'El buscador de arriba filtra al instante por nombre, correo o RFC.' },
+        { t: 'Qué trae cada ficha', d: 'Datos de contacto, segmento (Nuevo, Activo, Recurrente, En riesgo, Inactivo), y 4 cifras: Pedidos, Ventas, Valor total y días desde su última actividad.' },
+        { t: 'Pestaña "Métricas"', d: 'Vista agregada de toda tu cartera — cuántos clientes hay en cada segmento y el valor total acumulado, sin tener que abrir ficha por ficha.' },
+        { t: 'Se alimenta solo', d: 'No se captura nada aquí a mano — el historial de Ventas y Pedidos de cada cliente arma su ficha automáticamente.' },
       ],
     },
     cxc: {
@@ -25001,9 +25012,9 @@
     reportes: {
       flag: ['reportesPorReporteHabilitado', 'reportesCortesHabilitado', 'reportesEliminadosHabilitado', 'reportesEstadoInventarioHabilitado', 'reportesEstadoTicketsHabilitado', 'pedidosHabilitado'],
       titulo: 'Reportes',
-      lead: '"Lectura de reportes" — todo lo que se archivó o eliminó, con auditoría.',
+      lead: '"Lectura de reportes" — historial, archivado/eliminado y el pulso de Pedidos/Tickets, todo de solo lectura.',
       pasos: [
-        { t: 'Las 4 pestañas', d: 'Por reporte (mensuales), Cortes (Corte del día de Ventas), Todo lo eliminado (ledger cruzado) y Estado del inventario.' },
+        { t: 'Las 6 pestañas', d: 'Por reporte (mensuales), Cortes (Corte del día de Ventas), Todo lo eliminado (ledger cruzado), Estado del inventario, Estado de tickets (solicitudes de facturación) y Pedidos (pipeline, conversión y cancelaciones).' },
         { t: 'Corte del día vs. cierre mensual', d: 'El corte es una consulta bajo demanda que tú generas; el cierre mensual es automático, el día 1 de cada mes, y archiva Ventas/Gastos del mes anterior.' },
         { t: 'Exportar', d: 'Cada tabla (Movimientos/Eliminados) tiene su propio botón de exportar a CSV o Excel.' },
         { t: 'Ver quién generó un reporte', d: 'Botón "Ver historial" cruza contra la auditoría del sistema — mejor esfuerzo, no siempre hay dato disponible.' },
@@ -25013,7 +25024,7 @@
       titulo: 'Usuarios y perfiles',
       lead: 'Quién entra al panel y qué puede hacer.',
       pasos: [
-        { t: 'Los 3 perfiles', d: 'Administrador (todo salvo Tickets/Constancias), Fiscal (solo Inicio/Tickets/Constancias/Configuraciones limitadas), Ventas (solo Ventas/Cuentas por cobrar/Gastos).' },
+        { t: 'Los 4 perfiles', d: 'Administrador (todo lo que tu plan incluye), Fiscal (Inicio/Tickets/Constancias/Configuraciones limitadas), Ventas (Ventas/Pedidos/Clientes CRM/Cuentas por cobrar/Gastos) e Inventario (solo Inventarios, con su propio "Inicio").' },
         { t: 'Crear un usuario', d: 'Botón "Crear usuario" — usuario, contraseña y perfil. El acceso es inmediato, sin correo de confirmación.' },
         { t: 'Restablecer contraseña', d: 'El propio usuario puede pedirlo desde la pantalla de login con "¿Olvidaste tu contraseña?" — llega un enlace de un solo uso, válido 30 minutos.' },
         { t: 'Suspender o reactivar una cuenta', d: 'Ícono de pausa junto a "Eliminar" — a diferencia de eliminar, no se borra nada: la cuenta simplemente no puede volver a iniciar sesión hasta que la reactives con el mismo botón (ahora en forma de check). No puedes suspender tu propia cuenta mientras la tienes iniciada.' },
@@ -25062,6 +25073,7 @@
         { t: '"Utilidad neta del mes"', d: 'La cifra más completa: ventas totales (con y sin facturar) menos gastos — separa el IVA cobrado antes de restar.' },
         { t: 'Gráficas y su detalle', d: 'Cada tarjeta tiene un ícono de expandir que la abre en grande, con más contexto y la leyenda como filtro clicable.' },
         { t: 'Personalizar tu tablero', d: 'Arrastra cualquier tarjeta para moverla o cambiar su ancho — se guarda automático, por usuario. Botón "Restablecer" regresa al orden original.' },
+        { t: 'Tarjetas de Pedidos (si tu plan lo incluye)', d: 'Pipeline, ingreso proyectado, tasa de conversión, ciclo promedio de cierre, valor perdido por cancelación y saldo de CxC originado en Pedidos — siempre separado del ingreso real de Ventas.' },
       ],
     },
     configuraciones: {
@@ -25145,6 +25157,11 @@
     // aplicarVisibilidadTarjetasDashboard: Pedidos depende de Ventas E
     // Inventarios (punto 517), nunca solo de su propio flag.
     if (catKey === 'pedidos' && (!planPermite('ventasHabilitado') || !planPermite('inventariosHabilitado'))) return false;
+    // Proveedores: kill switch del módulo (aún no lanzado, ver
+    // proveedoresPlanVisible() en admin.js — sidebar siempre oculto) —
+    // mismo criterio aquí, o el Centro de conocimiento promete una
+    // sección que no tiene ningún punto de entrada real en el panel.
+    if (catKey === 'proveedores') return false;
     const flags = Array.isArray(datos.flag) ? datos.flag : [datos.flag];
     return flags.some((f) => planPermite(f));
   }
@@ -25493,6 +25510,7 @@
       { selector: '.admin-sidebar-nav', titulo: 'Aquí navegas todo el panel', desc: 'Cada botón te lleva a una sección — Ventas, Cuentas por cobrar, Gastos, y más.' },
       { selector: '#btn-vista-ordenes', titulo: 'Registra tus ventas aquí', desc: 'Desde "Ventas" registras cada venta y controlas si ya se facturó.' },
       { selector: '#btn-vista-pedidos', titulo: 'Pedidos: cotiza antes de vender', desc: 'Un tablero para dar seguimiento a cotizaciones — nunca es una venta real ni afecta Cuentas por cobrar hasta que lo marcas como Entregado.' },
+      { selector: '#btn-vista-crm', titulo: 'Clientes (CRM)', desc: 'Ficha de cada cliente con su historial y segmento (Nuevo, Activo, Recurrente, En riesgo, Inactivo) — se alimenta sola de tus Ventas y Pedidos, nada que capturar a mano.' },
       { selector: '#btn-vista-promociones', titulo: 'Envía promociones a tus clientes', desc: 'Les llega en la campana de notificaciones de su portal, con sonido — mensaje, vigencia opcional, y puedes archivar/relanzar/eliminar después.' },
       { selector: '#btn-vista-lectura-reportes', titulo: 'Reportes', desc: 'Lo que se archivó o eliminó, con auditoría — cortes del día, cierres mensuales, estado del inventario y exportar a CSV/Excel.' },
       { selector: '#btn-vista-configuraciones', titulo: 'Configuraciones', desc: 'Ajustes que cambian todo el panel — datos fiscales, SMTP, interruptores de Ventas/Inventarios y más. Un buscador arriba filtra entre las secciones.' },
@@ -25500,9 +25518,10 @@
       TOUR_PASO_AYUDA,
     ],
     ventas: [
-      { selector: '.admin-sidebar-nav', titulo: 'Tus 3 secciones', desc: 'Ventas, Cuentas por cobrar y Gastos — todo lo que necesitas para tu día a día.' },
+      { selector: '.admin-sidebar-nav', titulo: 'Tus secciones', desc: 'Ventas, Pedidos, Clientes (CRM), Cuentas por cobrar y Gastos — todo lo que necesitas para tu día a día.' },
       { selector: '#btn-header-registrar-venta', titulo: 'Registra una venta nueva', desc: 'Este botón abre el formulario para capturar cada venta — vive aquí arriba, siempre a la mano sin importar en qué sección estés.' },
-      { selector: '#btn-vista-pedidos', titulo: 'Pedidos: cotiza antes de vender', desc: 'Un tablero para dar seguimiento a cotizaciones — nunca es una venta real hasta que lo marcas como Entregado.' },
+      { selector: '#btn-vista-pedidos', titulo: 'Pedidos: cotiza antes de vender', desc: 'Un tablero para dar seguimiento a cotizaciones — nunca es una venta real ni afecta Cuentas por cobrar hasta que lo marcas como Entregado.' },
+      { selector: '#btn-vista-crm', titulo: 'Clientes (CRM)', desc: 'La ficha de cada cliente — historial y segmento, se alimenta sola de tus Ventas y Pedidos.' },
       { selector: '#onboarding-checklist-card', titulo: 'Tus primeros pasos', desc: 'Esta tarjeta te va guiando — se oculta sola cuando terminas.' },
       TOUR_PASO_AYUDA,
     ],
