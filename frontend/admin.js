@@ -235,6 +235,16 @@
     btnNotifMarcarTodo: document.getElementById('btn-notif-marcar-todo'),
     notifLinkTickets: document.getElementById('notif-link-tickets'),
     notifLinkInventarios: document.getElementById('notif-link-inventarios'),
+    // Asistente de soporte (ícono de audífonos, solo cuenta raíz) —
+    // mismo patrón de wrap/panel que #notif-wrap de arriba.
+    soporteWrap: document.getElementById('soporte-wrap'),
+    btnSoporte: document.getElementById('btn-soporte'),
+    soporteBubble: document.getElementById('soporte-bubble'),
+    soportePanel: document.getElementById('soporte-panel'),
+    soportePanelSub: document.getElementById('soporte-panel-sub'),
+    btnSoporteCerrar: document.getElementById('btn-soporte-cerrar'),
+    soporteTranscript: document.getElementById('soporte-transcript'),
+    soporteControls: document.getElementById('soporte-controls'),
     // Menú móvil (launcher de íconos, reemplaza el nav de fila en <900px)
     btnMenuMovil: document.getElementById('btn-menu-movil'),
     adminMenuMovil: document.getElementById('admin-menu-movil'),
@@ -3272,6 +3282,12 @@
     anclarHistorialMovil();
     aplicarRestriccionesPerfil();
     aplicarPerfilesDisponiblesPorPlan();
+    // Ícono de soporte del header — se decide aparte de cargarMiCuenta()
+    // (esa es pesada y solo corre al visitar "Mi Cuenta"): este fetch es
+    // ligero y corre siempre al iniciar sesión para que el ícono
+    // aparezca/desaparezca desde el primer render, sin depender de que
+    // la persona abra Mi Cuenta primero.
+    cargarEstadoSoporteAsistente();
     // Punto 368: se precarga una vez por sesión (igual que
     // tenantFuncionesPlan arriba) para que construirHtmlTicket() tenga el
     // logo/textos configurados disponibles desde el primer ticket que se
@@ -8660,6 +8676,417 @@
     cambiarVistaPrincipal('inventarios');
   });
 
+  // ============================================================
+  // Asistente de soporte (ícono de audífonos, header) — SOLO cuenta
+  // raíz (ver cargarEstadoSoporteAsistente/soporteContactoActual
+  // arriba). Chat paso a paso: busca en preguntas frecuentes primero,
+  // confirma datos de contacto, y si no se resuelve levanta un ticket
+  // real por correo (POST /api/admin/soporte/ticket, re-validado en
+  // el backend — el ícono oculto aquí nunca es el candado real).
+  // ============================================================
+  const SOPORTE_FAQ = [
+    {
+      id: 'facturacion',
+      pregunta: 'No puedo generar/descargar una factura',
+      respuesta:
+        'Revisa que Facturación esté activa en Configuraciones → Datos fiscales y que el ticket tenga RFC real del cliente (no "SINFISCAL-"). Si ya revisaste eso y sigue sin funcionar, levanta tu soporte y lo revisamos.',
+    },
+    {
+      id: 'pedidos',
+      pregunta: 'No veo el módulo de Pedidos',
+      respuesta:
+        'Pedidos necesita que tu plan tenga Ventas E Inventarios activos al mismo tiempo. Revisa Configuraciones → Inventarios, o levanta tu soporte para revisar tu plan.',
+    },
+    {
+      id: 'usuarios',
+      pregunta: '¿Cuántos usuarios puedo crear?',
+      respuesta:
+        'El límite depende de tu plan — lo ves en Mi Cuenta → Plan de suscripción, junto al total de operadores activos.',
+    },
+    {
+      id: 'pago',
+      pregunta: 'Tengo una duda sobre mi cobro o suscripción',
+      respuesta:
+        'En Mi Cuenta → Plan de suscripción puedes ver tu plan, ciclo y próxima fecha de corte. Si el cobro no coincide con lo que esperas, levanta tu soporte y lo revisamos con detalle.',
+    },
+    {
+      id: 'inventarios',
+      pregunta: 'Mi inventario muestra existencias incorrectas',
+      respuesta:
+        'Revisa en Inventarios → Movimientos si hay una venta o ajuste reciente sin reflejar. Si el número sigue sin cuadrar, levanta tu soporte con el nombre del producto y lo revisamos.',
+    },
+    {
+      id: 'crm',
+      pregunta: '¿Qué hace el módulo de Clientes (CRM)?',
+      respuesta:
+        'Te deja ver el historial de compras y pedidos de cada cliente en un solo lugar, sin buscarlo ticket por ticket. Está en el sidebar como "Clientes".',
+    },
+  ];
+
+  let soporteEstado = null;
+
+  function soporteEscape(texto) {
+    const div = document.createElement('div');
+    div.textContent = texto == null ? '' : String(texto);
+    return div.innerHTML;
+  }
+
+  function soporteAgregarMensaje(rol, html) {
+    const div = document.createElement('div');
+    div.className = `soporte-msg es-${rol}`;
+    div.innerHTML = html;
+    els.soporteTranscript.appendChild(div);
+    els.soporteTranscript.scrollTop = els.soporteTranscript.scrollHeight;
+  }
+
+  function soporteMostrarControles(html) {
+    els.soporteControls.innerHTML = html;
+  }
+
+  function soporteReset() {
+    soporteEstado = {
+      nombre: (soporteContactoActual && soporteContactoActual.nombre) || '',
+      correo: (soporteContactoActual && soporteContactoActual.correo) || '',
+      telefono: (soporteContactoActual && soporteContactoActual.telefono) || '',
+      descripcion: '',
+      adjuntos: [],
+    };
+    els.soporteTranscript.innerHTML = '';
+    els.soportePanelSub.textContent = 'En línea';
+  }
+
+  function soporteIniciarConversacion() {
+    soporteReset();
+    soporteAgregarMensaje('bot', '<p>¡Hola! Soy el asistente de soporte de Clarvo. Elige un tema o escribe tu duda:</p>');
+    soporteMostrarControles(`
+      <div class="soporte-chips" id="soporte-chips-faq">
+        ${SOPORTE_FAQ.map((f) => `<button type="button" class="soporte-chip" data-faq="${f.id}">${soporteEscape(f.pregunta)}</button>`).join('')}
+      </div>
+      <div class="soporte-input-row">
+        <input type="text" id="soporte-input-libre" placeholder="O escribe tu duda aquí..." maxlength="300" />
+      </div>
+    `);
+    document.getElementById('soporte-chips-faq').addEventListener('click', (e) => {
+      const btn = e.target.closest('.soporte-chip');
+      if (!btn) return;
+      const faq = SOPORTE_FAQ.find((f) => f.id === btn.dataset.faq);
+      if (faq) soporteMostrarFaq(faq);
+    });
+    document.getElementById('soporte-input-libre').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target.value.trim()) {
+        soporteBuscarFaqLibre(e.target.value.trim());
+      }
+    });
+  }
+
+  function soporteBuscarFaqLibre(texto) {
+    soporteAgregarMensaje('usuario', soporteEscape(texto));
+    const normal = texto.toLowerCase();
+    const match = SOPORTE_FAQ.find((f) =>
+      normal
+        .split(/\s+/)
+        .some(
+          (palabra) =>
+            palabra.length > 3 &&
+            (f.pregunta.toLowerCase().includes(palabra) || f.respuesta.toLowerCase().includes(palabra))
+        )
+    );
+    if (match) {
+      soporteMostrarFaqRespuesta(match);
+    } else {
+      soporteAgregarMensaje(
+        'bot',
+        '<p>No encontré nada exacto sobre eso en nuestras preguntas frecuentes. Vamos a levantar tu soporte para que te atendamos directamente.</p>'
+      );
+      soporteIniciarTicket();
+    }
+  }
+
+  function soporteMostrarFaq(faq) {
+    soporteAgregarMensaje('usuario', soporteEscape(faq.pregunta));
+    soporteMostrarFaqRespuesta(faq);
+  }
+
+  function soporteMostrarFaqRespuesta(faq) {
+    soporteAgregarMensaje('bot', `<p>${soporteEscape(faq.respuesta)}</p>`);
+    soporteMostrarControles(`
+      <p style="margin:0 0 2px;font-size:11.5px;color:var(--color-ink-soft);">¿Esto resolvió tu duda?</p>
+      <div class="soporte-chips">
+        <button type="button" class="soporte-chip" id="soporte-faq-si">Sí, gracias</button>
+        <button type="button" class="soporte-chip" id="soporte-faq-no">No, sigo necesitando ayuda</button>
+      </div>
+    `);
+    document.getElementById('soporte-faq-si').addEventListener('click', () => {
+      soporteAgregarMensaje('usuario', 'Sí, gracias');
+      soporteAgregarMensaje('bot', '<p>¡Perfecto! Si surge algo más, aquí estaré.</p>');
+      soporteMostrarControles('');
+    });
+    document.getElementById('soporte-faq-no').addEventListener('click', () => {
+      soporteAgregarMensaje('usuario', 'No, sigo necesitando ayuda');
+      soporteIniciarTicket();
+    });
+  }
+
+  function soporteIniciarTicket() {
+    soporteAgregarMensaje(
+      'bot',
+      `
+      <p>Antes de continuar, confirma tus datos de contacto:</p>
+      <ul class="soporte-msg-datos">
+        <li><b>Nombre</b><span>${soporteEstado.nombre ? soporteEscape(soporteEstado.nombre) : '<em>sin capturar</em>'}</span></li>
+        <li><b>Correo</b><span>${soporteEstado.correo ? soporteEscape(soporteEstado.correo) : '<em>sin capturar</em>'}</span></li>
+        <li><b>Teléfono</b><span>${soporteEstado.telefono ? soporteEscape(soporteEstado.telefono) : '<em>sin capturar</em>'}</span></li>
+      </ul>
+      <p>¿Son correctos?</p>
+    `
+    );
+    soporteMostrarControles(`
+      <div class="soporte-chips">
+        <button type="button" class="soporte-chip" id="soporte-datos-si">Sí, son correctos</button>
+        <button type="button" class="soporte-chip" id="soporte-datos-no">No, quiero corregirlos</button>
+      </div>
+    `);
+    document.getElementById('soporte-datos-si').addEventListener('click', () => {
+      if (!soporteEstado.nombre || !soporteEstado.correo || !soporteEstado.telefono) {
+        soporteAgregarMensaje('usuario', 'Sí, son correctos');
+        soporteAgregarMensaje('bot', '<p>Antes de seguir necesito que completes el dato que falta:</p>');
+        soportePasoEditarDatos();
+        return;
+      }
+      soporteAgregarMensaje('usuario', 'Sí, son correctos');
+      soportePasoDescripcion();
+    });
+    document.getElementById('soporte-datos-no').addEventListener('click', () => {
+      soporteAgregarMensaje('usuario', 'No, quiero corregirlos');
+      soportePasoEditarDatos();
+    });
+  }
+
+  function soportePasoEditarDatos() {
+    soporteMostrarControles(`
+      <div class="soporte-input-row"><input type="text" id="soporte-edit-nombre" placeholder="Nombre" value="${soporteEscape(soporteEstado.nombre)}" maxlength="150" /></div>
+      <div class="soporte-input-row"><input type="email" id="soporte-edit-correo" placeholder="Correo" value="${soporteEscape(soporteEstado.correo)}" maxlength="200" /></div>
+      <div class="soporte-input-row"><input type="tel" id="soporte-edit-telefono" placeholder="Teléfono" value="${soporteEscape(soporteEstado.telefono)}" maxlength="20" /></div>
+      <div class="soporte-controles-fila"><button type="button" class="soporte-btn-enviar" id="soporte-edit-confirmar">Confirmar datos</button></div>
+    `);
+    document.getElementById('soporte-edit-confirmar').addEventListener('click', () => {
+      const nombre = document.getElementById('soporte-edit-nombre').value.trim();
+      const correo = document.getElementById('soporte-edit-correo').value.trim();
+      const telefono = document.getElementById('soporte-edit-telefono').value.trim();
+      if (!nombre || !correo || !telefono) {
+        showToast('Completa nombre, correo y teléfono.', true);
+        return;
+      }
+      soporteEstado.nombre = nombre;
+      soporteEstado.correo = correo;
+      soporteEstado.telefono = telefono;
+      soporteAgregarMensaje('usuario', `${soporteEscape(nombre)} · ${soporteEscape(correo)} · ${soporteEscape(telefono)}`);
+      soportePasoDescripcion();
+    });
+  }
+
+  function soporteArchivoABase64(archivo) {
+    return new Promise((resolve, reject) => {
+      const lector = new FileReader();
+      lector.onload = () => resolve(String(lector.result).split(',')[1] || '');
+      lector.onerror = () => reject(lector.error);
+      lector.readAsDataURL(archivo);
+    });
+  }
+
+  function soporteRenderAdjuntos() {
+    const cont = document.getElementById('soporte-adjuntos-lista');
+    if (!cont) return;
+    cont.innerHTML = soporteEstado.adjuntos
+      .map(
+        (a, i) => `
+        <span class="soporte-adjunto-chip">${soporteEscape(a.nombre)}
+          <button type="button" data-quitar="${i}" aria-label="Quitar adjunto">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </span>`
+      )
+      .join('');
+    cont.querySelectorAll('[data-quitar]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        soporteEstado.adjuntos.splice(Number(btn.dataset.quitar), 1);
+        soporteRenderAdjuntos();
+      });
+    });
+  }
+
+  function soportePasoDescripcion() {
+    soporteAgregarMensaje(
+      'bot',
+      '<p>Cuéntame qué pasó, con el mayor detalle posible. Puedes adjuntar hasta 3 capturas de pantalla.</p>'
+    );
+    soporteMostrarControles(`
+      <textarea id="soporte-descripcion" placeholder="Describe el problema o tu duda...">${soporteEscape(soporteEstado.descripcion)}</textarea>
+      <input type="file" id="soporte-adjuntos-input" accept="image/*" multiple hidden />
+      <button type="button" class="soporte-adjunto-btn" id="soporte-btn-adjuntar">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+        Adjuntar captura
+      </button>
+      <div class="soporte-adjuntos-lista" id="soporte-adjuntos-lista"></div>
+      <div class="soporte-controles-fila"><button type="button" class="soporte-btn-enviar" id="soporte-btn-continuar-desc">Continuar</button></div>
+    `);
+    soporteRenderAdjuntos();
+    const inputArchivo = document.getElementById('soporte-adjuntos-input');
+    document.getElementById('soporte-btn-adjuntar').addEventListener('click', () => inputArchivo.click());
+    inputArchivo.addEventListener('change', async () => {
+      const archivos = Array.from(inputArchivo.files || []);
+      for (const archivo of archivos) {
+        if (soporteEstado.adjuntos.length >= 3) {
+          showToast('Puedes adjuntar hasta 3 capturas.', true);
+          break;
+        }
+        if (!archivo.type.startsWith('image/')) {
+          showToast('Solo se aceptan imágenes.', true);
+          continue;
+        }
+        if (archivo.size > 5 * 1024 * 1024) {
+          showToast(`"${archivo.name}" pesa más de 5 MB.`, true);
+          continue;
+        }
+        try {
+          const contenidoBase64 = await soporteArchivoABase64(archivo);
+          soporteEstado.adjuntos.push({ nombre: archivo.name, tipo: archivo.type, contenidoBase64 });
+          soporteRenderAdjuntos();
+        } catch (err) {
+          showToast('No se pudo leer el archivo.', true);
+        }
+      }
+      inputArchivo.value = '';
+    });
+    document.getElementById('soporte-btn-continuar-desc').addEventListener('click', () => {
+      const texto = document.getElementById('soporte-descripcion').value.trim();
+      if (!texto) {
+        showToast('Describe qué pasó antes de continuar.', true);
+        return;
+      }
+      soporteEstado.descripcion = texto;
+      soporteAgregarMensaje('usuario', soporteEscape(texto).replace(/\n/g, '<br>'));
+      soportePasoResumen();
+    });
+  }
+
+  function soportePasoResumen() {
+    soporteAgregarMensaje(
+      'bot',
+      `
+      <p>Esto es lo que voy a enviar:</p>
+      <ul class="soporte-resumen-lista">
+        <li>Contacto: ${soporteEscape(soporteEstado.nombre)} · ${soporteEscape(soporteEstado.correo)} · ${soporteEscape(soporteEstado.telefono)}</li>
+        <li>Adjuntos: ${soporteEstado.adjuntos.length || 'ninguno'}</li>
+      </ul>
+      <p>¿Lo envío?</p>
+    `
+    );
+    soporteMostrarControles(`
+      <div class="soporte-controles-fila">
+        <button type="button" class="soporte-btn-secundario" id="soporte-btn-editar-desc">Editar descripción</button>
+        <button type="button" class="soporte-btn-enviar" id="soporte-btn-enviar-ticket">Enviar solicitud de soporte</button>
+      </div>
+    `);
+    document.getElementById('soporte-btn-editar-desc').addEventListener('click', () => soportePasoDescripcion());
+    document.getElementById('soporte-btn-enviar-ticket').addEventListener('click', soporteEnviarTicket);
+  }
+
+  async function soporteEnviarTicket() {
+    const btnEnviar = document.getElementById('soporte-btn-enviar-ticket');
+    if (btnEnviar) {
+      btnEnviar.disabled = true;
+      btnEnviar.textContent = 'Enviando...';
+    }
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const resp = await fetch(`${API_BASE}/admin/soporte/ticket`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify({
+          nombre: soporteEstado.nombre,
+          correo: soporteEstado.correo,
+          telefono: soporteEstado.telefono,
+          descripcion: soporteEstado.descripcion,
+          adjuntos: soporteEstado.adjuntos,
+        }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || 'No se pudo enviar tu solicitud.');
+      soporteAgregarMensaje(
+        'bot',
+        `
+        <p>Listo, quedó registrado con el folio <span class="soporte-folio">${soporteEscape(data.folio)}</span>.</p>
+        <p>Te contactaremos a ${soporteEscape(soporteEstado.correo)} en breve.</p>
+      `
+      );
+      els.soportePanelSub.textContent = `Folio ${data.folio}`;
+      soporteMostrarControles(
+        '<div class="soporte-controles-fila"><button type="button" class="soporte-btn-secundario" id="soporte-btn-cerrar-exito">Cerrar</button></div>'
+      );
+      document.getElementById('soporte-btn-cerrar-exito').addEventListener('click', soporteCerrarPanel);
+    } catch (err) {
+      soporteAgregarMensaje(
+        'bot',
+        `<p>${soporteEscape(err.message || 'No se pudo enviar tu solicitud. Intenta de nuevo en unos minutos.')}</p>`
+      );
+      soporteMostrarControles(
+        '<div class="soporte-controles-fila"><button type="button" class="soporte-btn-enviar" id="soporte-btn-reintentar">Reintentar</button></div>'
+      );
+      document.getElementById('soporte-btn-reintentar').addEventListener('click', soporteEnviarTicket);
+    }
+  }
+
+  // Motion 4 (elegida de 5 propuestas): la burbuja cae del ícono con
+  // gravedad y rebota en un piso virtual antes de que el panel abra
+  // justo en ese rebote (soporteBubbleCaida en admin.css). Solo se
+  // reproduce al ABRIR desde cerrado — un toggle a cerrado nunca la
+  // dispara de vuelta.
+  function soporteAbrirPanel() {
+    if (els.soportePanel.classList.contains('is-open')) {
+      soporteCerrarPanel();
+      return;
+    }
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    els.btnSoporte.classList.add('is-animating');
+    els.soporteBubble.classList.remove('is-falling');
+    void els.soporteBubble.offsetWidth; // fuerza reflow: permite repetir la animación en la siguiente apertura
+    els.soporteBubble.classList.add('is-falling');
+    soporteIniciarConversacion();
+    els.soportePanel.classList.toggle('sin-motion', reducedMotion);
+    els.soportePanel.classList.add('is-open');
+    els.btnSoporte.setAttribute('aria-expanded', 'true');
+    setTimeout(
+      () => {
+        els.btnSoporte.classList.remove('is-animating');
+      },
+      reducedMotion ? 0 : 900
+    );
+  }
+
+  function soporteCerrarPanel() {
+    els.soportePanel.classList.remove('is-open');
+    els.btnSoporte.setAttribute('aria-expanded', 'false');
+  }
+
+  els.btnSoporte.addEventListener('click', (e) => {
+    e.stopPropagation();
+    soporteAbrirPanel();
+  });
+  els.soportePanel.addEventListener('click', (e) => e.stopPropagation());
+  els.btnSoporteCerrar.addEventListener('click', (e) => {
+    e.stopPropagation();
+    soporteCerrarPanel();
+  });
+  document.addEventListener('click', () => soporteCerrarPanel());
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') soporteCerrarPanel();
+  });
+
   els.btnGuardarConfig.addEventListener('click', async () => {
     const authHeader = getAuthHeader();
     if (!authHeader) {
@@ -9833,6 +10260,34 @@
       }
     } catch (err) {
       showToast(err.message || 'No se pudo cargar Mi Cuenta.', true);
+    }
+  }
+
+  // Asistente de soporte (ícono de audífonos del header) — soporteDisponible
+  // es el candado real (ver GET /api/admin/mi-cuenta en el backend, nunca
+  // admin_users); esto solo decide si el ícono se pinta. También cachea
+  // nombre/correo/teléfono reales para prellenar la confirmación de datos
+  // sin un segundo fetch cuando la persona abra el chat.
+  let soporteContactoActual = null;
+  async function cargarEstadoSoporteAsistente() {
+    if (!els.soporteWrap) return;
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const resp = await fetch(`${API_BASE}/admin/mi-cuenta`, { headers: { Authorization: authHeader } });
+      if (!resp.ok) {
+        els.soporteWrap.hidden = true;
+        return;
+      }
+      const data = await resp.json();
+      const disponible = Boolean(data.soporteDisponible);
+      els.soporteWrap.hidden = !disponible;
+      soporteContactoActual = disponible && data.datos
+        ? { nombre: data.datos.nombre || '', correo: data.datos.email || '', telefono: data.datos.telefono || '' }
+        : null;
+    } catch (err) {
+      // Sin conexión: se queda oculto, nunca a medias (ni ícono sin datos).
+      els.soporteWrap.hidden = true;
     }
   }
 

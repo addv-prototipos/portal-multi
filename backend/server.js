@@ -292,6 +292,9 @@ app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
 const jsonLimiteAmplio = express.json({ limit: '30mb' });
 app.use('/internal/marca-logo', jsonLimiteAmplio);
 app.use('/internal/favicon', jsonLimiteAmplio);
+// Asistente de soporte (ícono de audífonos, solo cuenta raíz) — hasta 3
+// capturas de pantalla en base64, mismo motivo que marca-logo/favicon.
+app.use('/api/admin/soporte/ticket', jsonLimiteAmplio);
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 // Multi-tenant (segmento 3, ver PROJECT_STATE.md): resuelve `req.tenant` y
@@ -5279,6 +5282,12 @@ app.get(
       mecanismo: req.adminMecanismo,
       editable: editable && !!datos,
       datos,
+      // Ícono de soporte del header: a propósito MÁS angosto que
+      // `esCuentaRaiz` de abajo (que sí cuenta admin_users para "Datos de
+      // pago") — admin_users es el propio staff de Clarvo, no tiene
+      // sentido ofrecerle un botón para contactar a Clarvo. Solo la
+      // cuenta raíz real del tenant/sitio base (perfil_bd, es_cuenta_raiz=1).
+      soporteDisponible: editable && !!datos && esCuentaRaiz,
     };
 
     // Identidad de la empresa/tenant + conteo de operadores: solo
@@ -5569,6 +5578,105 @@ async function esRaizClienteReal(req) {
   const [filas] = await pool.query('SELECT es_cuenta_raiz FROM usuarios WHERE rfc = ? LIMIT 1', [req.adminUser]);
   return !!(filas[0] && filas[0].es_cuenta_raiz);
 }
+
+// Asistente de soporte (ícono de audífonos en el header, punto en curso):
+// mismo candado exacto que el gate de Términos y Condiciones de arriba
+// (esRaizClienteReal — nunca admin_users, es el propio staff de Clarvo) —
+// nunca confiar solo en que el frontend ocultó el ícono. Sin fila de BD
+// propia (mismo criterio que "Solicitar aclaraciones"): el folio se arma
+// del timestamp, no hay tabla nueva que mantener.
+app.post(
+  '/api/admin/soporte/ticket',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await esRaizClienteReal(req))) {
+      return res.status(403).json({ error: 'Esta opción solo está disponible para la cuenta raíz.' });
+    }
+
+    const body = req.body || {};
+    const nombre = sanitizeText(body.nombre, 150);
+    const correo = sanitizeText(body.correo, 200).toLowerCase();
+    const telefono = sanitizeText(body.telefono, 30);
+    const descripcion = sanitizeTextoLibre(body.descripcion, 4000);
+
+    if (!nombre) return res.status(400).json({ error: 'Falta el nombre de contacto.' });
+    if (!correo || !isValidEmail(correo)) {
+      return res.status(400).json({ error: 'El correo de contacto no es válido.' });
+    }
+    if (!telefono || !isValidTelefono(telefono)) {
+      return res.status(400).json({ error: 'El teléfono de contacto no es válido.' });
+    }
+    if (!descripcion) {
+      return res.status(400).json({ error: 'Describe tu duda o lo que pasó.' });
+    }
+
+    // Hasta 3 capturas, ~5 MB decodificados cada una (mismo criterio que
+    // IMAGEN_MAX_MB_MAX del resto del sitio, pero independiente: esto
+    // nunca compite con la cuota de disco del tenant, es un correo, no
+    // Garage) — el límite real de body ya lo cubre jsonLimiteAmplio
+    // (30mb) registrado arriba para esta misma ruta.
+    const adjuntosEntrada = Array.isArray(body.adjuntos) ? body.adjuntos.slice(0, 3) : [];
+    const adjuntosCorreo = [];
+    for (const adj of adjuntosEntrada) {
+      const base64 = typeof (adj && adj.contenidoBase64) === 'string' ? adj.contenidoBase64 : '';
+      if (!base64 || base64.length > 7_000_000) {
+        return res.status(400).json({ error: 'Una de las capturas es demasiado pesada (máximo ~5 MB cada una).' });
+      }
+      const tipo = sanitizeText(adj && adj.tipo, 60) || 'image/png';
+      if (!tipo.startsWith('image/')) {
+        return res.status(400).json({ error: 'Solo se aceptan imágenes como captura de pantalla.' });
+      }
+      const nombreArchivo = sanitizeText(adj && adj.nombre, 120) || 'captura.png';
+      adjuntosCorreo.push({ filename: nombreArchivo, content: Buffer.from(base64, 'base64'), contentType: tipo });
+    }
+
+    const folio = `SOP-${Date.now().toString(36).toUpperCase()}`;
+    const urlPortal = detectarUrlPortal(req);
+    const configGlobalSoporte = await getConfiguracionGlobal();
+    const colores = coloresCorreoTenant(req);
+
+    const { html, texto, adjuntos } = construirCorreoBase({
+      marca: marcaDelTenant(req),
+      logoUrl: logoUrlDelTenant(req, urlPortal, configGlobalSoporte),
+      colorPrimario: colores.primario,
+      colorAccent: colores.acento,
+      eyebrow: 'Solicitud de soporte',
+      titulo: `Folio ${folio}`,
+      filas: [
+        {
+          etiqueta: 'Empresa',
+          valor: escapeHtmlCorreo(req.tenant ? req.tenant.nombreEmpresa || req.tenant.slug : 'Sitio base'),
+        },
+        { etiqueta: 'Usuario', valor: escapeHtmlCorreo(req.adminUser) },
+        { etiqueta: 'Nombre de contacto', valor: escapeHtmlCorreo(nombre) },
+        { etiqueta: 'Correo de contacto', valor: escapeHtmlCorreo(correo) },
+        { etiqueta: 'Teléfono de contacto', valor: escapeHtmlCorreo(telefono) },
+      ],
+      parrafos: descripcion
+        .split('\n')
+        .map((linea) => linea.trim())
+        .filter(Boolean)
+        .map((linea) => escapeHtmlCorreo(linea)),
+    });
+
+    try {
+      await enviarCorreo({
+        destinatario: 'admin.proyectos@addv.mx',
+        asunto: `Soporte ${folio} — ${req.tenant ? req.tenant.slug : 'sitio base'}`,
+        cuerpo: texto,
+        html,
+        adjuntos: [...adjuntos, ...adjuntosCorreo],
+      });
+    } catch (err) {
+      console.error('No se pudo enviar la solicitud de soporte:', err.message);
+      // 500, nunca 502/503/504 — ver nota idéntica en "Solicitar aclaraciones".
+      return res.status(500).json({ error: 'No se pudo enviar tu solicitud. Intenta de nuevo en unos minutos.' });
+    }
+
+    res.json({ ok: true, folio });
+  })
+);
 
 app.get(
   '/api/admin/mi-cuenta/upscale/disponible',

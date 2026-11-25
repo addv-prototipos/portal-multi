@@ -461,6 +461,35 @@
           </div>
         </span>
         <span class="admin-user-label" id="admin-user-label"></span>
+        <!-- Asistente de soporte (audífonos) — SOLO cuenta raíz real del
+             tenant/sitio base (ver soporteDisponible en
+             GET /api/admin/mi-cuenta y esRaizClienteReal() en el backend,
+             nunca admin_users). Oculto por completo hasta que
+             cargarEstadoSoporteAsistente() confirme el candado. El panel
+             es HIJO de este wrapper, mismo patrón que #notif-wrap: se abre
+             siempre pegado al ícono, sin importar el ancho de pantalla. -->
+        <span class="admin-soporte-wrap" id="soporte-wrap" hidden>
+          <button type="button" class="admin-header-notif-btn admin-soporte-btn" id="btn-soporte" aria-label="Soporte" aria-haspopup="dialog" aria-expanded="false" data-tooltip="Soporte">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 18v-6a9 9 0 0 1 18 0v6" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+          </button>
+          <span class="soporte-bubble" id="soporte-bubble" aria-hidden="true">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 18v-6a9 9 0 0 1 18 0v6" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+          </span>
+          <div class="soporte-panel" id="soporte-panel" role="dialog" aria-label="Asistente de soporte" aria-modal="false">
+            <div class="soporte-panel-head">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-width="1.8"/><path d="M9.09 9a3 3 0 1 1 5.82 1c0 2-3 2-3 4" stroke-width="1.8" stroke-linecap="round"/><path d="M12 17h.01" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <div class="soporte-panel-head-text">
+                <h3>Asistente de soporte</h3>
+                <span class="soporte-panel-sub" id="soporte-panel-sub">En línea</span>
+              </div>
+              <button type="button" class="soporte-panel-close" id="btn-soporte-cerrar" aria-label="Cerrar">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div class="soporte-transcript" id="soporte-transcript" aria-live="polite"></div>
+            <div class="soporte-controls" id="soporte-controls"></div>
+          </div>
+        </span>
       </header>
 
       <main class="admin-main">

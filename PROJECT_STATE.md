@@ -32401,3 +32401,70 @@ riesgo ya documentado en el punto 466 de este archivo — dos sesiones
 compartiendo el mismo working tree) — el contenido es correcto y ya está
 en el repo, solo con el mensaje de commit de otra feature. `frontend/control.html`
 y `frontend/control.js` sí se commitearon limpios en `9a1b453`.
+
+## Punto 520 — Asistente de soporte (ícono de audífonos, solo cuenta raíz): fix de bug real + verificación funcional completa (25 nov 2026, CERRADO, trabajo local, sin commitear)
+
+Continuación de una sesión anterior (misma tarde) que se cortó por un
+crash de Bun (`Segmentation fault`, bug del runtime, no del código — el
+working tree quedó intacto, verificado con `git status`/`git diff` y
+`node --check` en los 2 `.js` tocados antes de seguir). El feature ya
+estaba completo en el código sin commitear
+(`backend/server.js`/`frontend/admin.html`/`admin.css`/`admin.js`): ícono
+de audífonos en el header de `/admin`, candado real
+`esRaizClienteReal()` (mismo gate que Términos y Condiciones) +
+`POST /api/admin/soporte/ticket`, y un chat guiado en el frontend
+(FAQ de 6 temas → confirmar datos de contacto → descripción + hasta 3
+capturas → resumen → envío real por correo con folio `SOP-<timestamp>`).
+
+**Bug real encontrado antes de probar, nunca llegó a producción**:
+`.admin-soporte-wrap { display: inline-flex; }` no tenía su contraparte
+`[hidden] { display: none; }` — mismo gotcha ya documentado en este
+archivo (punto 379, "`.algo[hidden]{display:none}` explícito es
+obligatorio en cualquier clase nueva con `display` distinto de `none`").
+Sin el fix, el ícono de soporte se habría visto para **cualquier**
+admin, no solo la cuenta raíz — el backend seguía bloqueando el POST
+real (403), pero el frontend habría ofrecido un botón visible a quien no
+debía verlo. Corregido en `frontend/admin.css` agregando la regla
+faltante, una línea.
+
+**Verificado con Playwright real (Edge, `channel: 'msedge'`, chromium no
+instalado en este entorno) contra Docker+MySQL reales** — no solo
+`node --check`:
+- Rebuild real de `backend`+`frontend` (los contenedores eran más viejos
+  que los archivos editados) + `restart frontend` después de recrear
+  `backend` (gotcha ya conocido de IP cacheada).
+- Tenant de prueba `t1`, cuenta raíz real (`rfc='ADMIN'`,
+  `es_cuenta_raiz=1`): login real → gate de Términos y Condiciones
+  (forzado por scroll programático, aceptado real) → asistente de
+  Facturación descartado ("Por ahora no") → ícono de soporte visible →
+  panel abre con la animación real (burbuja cae, rebota, panel abre en
+  el rebote) → clic en FAQ "No puedo generar/descargar una factura" →
+  "No, sigo necesitando ayuda" → el asistente detectó el teléfono
+  faltante (`ADMIN` no tiene teléfono capturado en BD) y **forzó la
+  edición de datos en vez de dejar pasar datos incompletos** (candado
+  cliente-side funcionando como se diseñó) → descripción + sin adjuntos
+  → resumen → enviar → **folio real devuelto** (`SOP-MWWDH7V3`) y mensaje
+  de éxito en el transcript, confirmando que el correo se envió de
+  verdad contra el SMTP configurado en este entorno.
+- Caso negativo, igual de importante: usuario operador NO-raíz
+  (`perfil='ventas'`, `es_cuenta_raiz=0`, creado solo para esta prueba y
+  borrado al terminar) — tras el fix, `#soporte-wrap` confirmado
+  `display: none` real vía `getComputedStyle`, ícono invisible. Antes
+  del fix esto habría fallado (visible pese a `hidden`).
+
+**Housekeeping de la prueba, ya revertido**: para loguear como la cuenta
+raíz real de `t1` se sobreescribió temporalmente su
+`usuarios.password_hash` — se restauró al password real que usa la
+suite E2E (`loginAdmin()`, contraseña `admin`, confirmado en
+`e2e/tests/facturacion-pausa-admin.spec.ts` y hermanos) antes de cerrar,
+para no romper esos tests en una corrida futura. El usuario operador de
+prueba (`rfc='OPER01'`) se borró por completo. Ningún dato de
+producción/Stripe/correo real tocado — todo contra el stack Docker
+local.
+
+**Pendiente, no es parte de este punto**: el trabajo sigue sin
+commitear (4 archivos modificados, ver `git status`) — queda a decisión
+del usuario cuándo commitear/desplegar. Los 8 mockups de "ícono de
+soporte" y los de "prueba gratis 10 días"/"Asistente V" de la misma
+tarde (ver memoria de sesión, `S2845`-`S2849`) son trabajo de diseño
+aparte, no tocado en este punto.
