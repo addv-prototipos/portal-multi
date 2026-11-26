@@ -20998,7 +20998,10 @@
     crmBusqueda = '';
     els.vistaCrm.innerHTML = `
       <div class="admin-toolbar">
-        <div class="admin-toolbar-title"><h1>Clientes (CRM)</h1></div>
+        <div class="admin-toolbar-title">
+          <h1>Clientes (CRM)</h1>
+          <span class="crm-estado-badge" id="crm-estado-badge" hidden><span class="dot"></span>Esperando clientes...</span>
+        </div>
         <div class="admin-toolbar-right">
           <div class="crm-view-switch" role="tablist" aria-label="Vista de Clientes (CRM)">
             <button type="button" class="crm-view-btn" id="crm-btn-contactos" aria-pressed="true">Contactos</button>
@@ -21024,6 +21027,8 @@
     const btnMetricas = document.getElementById('crm-btn-metricas');
     if (btnContactos) btnContactos.setAttribute('aria-pressed', String(crmVistaActual === 'contactos'));
     if (btnMetricas) btnMetricas.setAttribute('aria-pressed', String(crmVistaActual === 'metricas'));
+    const badgeEstado = document.getElementById('crm-estado-badge');
+    if (badgeEstado) badgeEstado.hidden = crmContactosCache.length > 0;
     const body = document.getElementById('crm-body');
     if (!body) return;
     if (crmVistaActual === 'metricas') {
