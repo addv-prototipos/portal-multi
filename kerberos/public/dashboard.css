@@ -359,6 +359,21 @@ table.ctr-table tbody tr.es-vacio:hover { background: none; }
 .ctr-ver-logs { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; }
 .ctr-ver-logs svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
+/* Poll de contenedores cada 6 s: una celda que cambió se ilumina un
+   instante en vez de redibujar la fila — el operador nunca pierde el
+   foco/scroll de lo que está viendo, solo ve qué dato se acaba de
+   actualizar. */
+table.ctr-table td.ctr-cambio {
+  animation: ctr-resalta 1.6s ease-out;
+}
+@keyframes ctr-resalta {
+  from { background: var(--accent-soft); }
+  to { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  table.ctr-table td.ctr-cambio { animation: none; background: var(--accent-soft); }
+}
+
 /* ===== Modal de bitácoras ===== */
 .modal-overlay {
   position: fixed;

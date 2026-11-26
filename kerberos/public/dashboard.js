@@ -65,9 +65,8 @@
     memHostTotalMb: null,
     latenciaPromedio: null,
     serie: [],
-    firmaContenedores: '',
+    datosContenedoresPorId: {},
     timer: null,
-    filaConFoco: null,
     limpiezaTimer: null,
     limpiezaCorridas: [],
     limpiezaPanelAbierto: false,
@@ -428,6 +427,63 @@
       '</tr>';
   }
 
+  // Resalta una celda que acaba de cambiar en vez de redibujar toda la
+  // fila: el operador puede estar leyendo o con el mouse encima de la
+  // tabla cuando llega el poll, y perder esa posición se siente como que
+  // "la pantalla le quita el foco" aunque no haya ningún <input> de por
+  // medio. Quitar y re-agregar la clase (con un reflow forzado en medio)
+  // reinicia la animación si la celda ya había cambiado en el poll
+  // anterior.
+  function resaltarCambio(celda) {
+    if (celda._timerResalte) clearTimeout(celda._timerResalte);
+    celda.classList.remove('ctr-cambio');
+    void celda.offsetWidth;
+    celda.classList.add('ctr-cambio');
+    celda._timerResalte = setTimeout(function () {
+      celda.classList.remove('ctr-cambio');
+      celda._timerResalte = null;
+    }, 1600);
+  }
+
+  // Actualiza una fila YA existente en el DOM in-place, celda por celda,
+  // comparando contra el último dato pintado — nunca con innerHTML. Así la
+  // fila nunca se destruye y reconstruye: el hover, el scroll de la
+  // tabla y el foco de teclado del operador se quedan exactamente donde
+  // estaban. Solo las celdas cuyo valor cambió de verdad se resaltan.
+  function actualizarFilaContenedor(tr, c, anterior) {
+    var est = describirEstado(c);
+    var idCorto = (c.id || '').slice(0, 12);
+
+    if (!anterior || anterior.estado !== c.estado || anterior.salud !== c.salud) {
+      var celdaDot = tr.children[0];
+      var dot = celdaDot.querySelector('.dot');
+      if (dot) dot.style.background = est.color;
+      var celdaEstado = tr.children[6];
+      var spanEstado = celdaEstado.querySelector('.ctr-estado');
+      if (spanEstado) spanEstado.textContent = est.texto;
+      resaltarCambio(celdaDot);
+      resaltarCambio(celdaEstado);
+    }
+    if (!anterior || anterior.nombre !== c.nombre) {
+      tr.children[1].textContent = c.nombre || '—';
+      tr.setAttribute('data-nombre', c.nombre || idCorto);
+      tr.setAttribute('aria-label', 'Ver bitácora de ' + (c.nombre || idCorto));
+      resaltarCambio(tr.children[1]);
+    }
+    if (!anterior || anterior.imagen !== c.imagen) {
+      tr.children[3].textContent = c.imagen || '—';
+      resaltarCambio(tr.children[3]);
+    }
+    if (!anterior || anterior.cpuPct !== c.cpuPct) {
+      tr.children[4].textContent = fmtPct(c.cpuPct);
+      resaltarCambio(tr.children[4]);
+    }
+    if (!anterior || anterior.memUsadaMb !== c.memUsadaMb) {
+      tr.children[5].textContent = fmtMb(c.memUsadaMb);
+      resaltarCambio(tr.children[5]);
+    }
+  }
+
   function pintarContenedores(contenedores) {
     els.ctrConteo.textContent = contenedores.length ? '— ' + contenedores.length : '';
 
@@ -450,18 +506,12 @@
       '<div class="item"><div class="l">Memoria sumada de contenedores</div>' +
         '<div class="n tabular">' + (hayMem ? fmtMb(memTotal) + memHostTexto : '—') + '</div></div>';
 
-    // Solo se reconstruye el cuerpo de la tabla si de verdad cambió algo:
-    // con polling cada 6 s, un innerHTML incondicional tiraría el foco del
-    // teclado y el hover del operador en medio de una lectura.
-    var firma = JSON.stringify(contenedores.map(function (c) {
-      return [c.id, c.nombre, c.imagen, c.estado, c.salud, c.cpuPct, c.memUsadaMb];
-    }));
-    if (firma === estado.firmaContenedores) return;
-    estado.firmaContenedores = firma;
-
     if (!contenedores.length) {
-      els.tbody.innerHTML = '<tr class="es-vacio"><td class="vacio" colspan="8">' +
-        'Docker no reportó ningún contenedor.</td></tr>';
+      if (Object.keys(estado.datosContenedoresPorId).length || !els.tbody.querySelector('tr.es-vacio')) {
+        els.tbody.innerHTML = '<tr class="es-vacio"><td class="vacio" colspan="8">' +
+          'Docker no reportó ningún contenedor.</td></tr>';
+      }
+      estado.datosContenedoresPorId = {};
       return;
     }
 
@@ -481,23 +531,45 @@
       return String(a.nombre || '').localeCompare(String(b.nombre || ''));
     });
 
-    els.tbody.innerHTML = filas.map(filaContenedor).join('');
+    var idsNuevos = filas.map(function (c) { return c.id; });
+    var filasActuales = els.tbody.querySelectorAll('tr[data-id]');
+    var idsActuales = Array.prototype.map.call(filasActuales, function (tr) {
+      return tr.getAttribute('data-id');
+    });
+    var mismoOrden = idsActuales.length === idsNuevos.length &&
+      idsActuales.every(function (id, i) { return id === idsNuevos[i]; });
 
-    // Devuelve el foco a la misma fila si el operador estaba navegando con
-    // teclado cuando llegó la actualización.
-    if (estado.filaConFoco) {
-      var filas = els.tbody.querySelectorAll('tr[data-id]');
-      for (var i = 0; i < filas.length; i++) {
-        if (filas[i].getAttribute('data-id') === estado.filaConFoco) {
-          filas[i].focus();
-          break;
-        }
+    if (mismoOrden) {
+      filas.forEach(function (c, i) {
+        actualizarFilaContenedor(filasActuales[i], c, estado.datosContenedoresPorId[c.id]);
+      });
+    } else {
+      // La lista de contenedores cambió de verdad (uno nuevo, uno que se
+      // detuvo, un reordenamiento) — aquí sí hace falta reconstruir la
+      // tabla completa. Si el operador tenía el foco de teclado DENTRO de
+      // la tabla justo en ese instante, se le regresa a la misma fila
+      // (si sigue existiendo) con preventScroll para que ni siquiera ese
+      // caso legítimo haga saltar la vista — nunca se mueve el foco si
+      // el operador no lo tenía puesto ahí en ese momento.
+      var activo = document.activeElement;
+      var filaActiva = activo && els.tbody.contains(activo) ? activo.closest('tr[data-id]') : null;
+      var idActivo = filaActiva ? filaActiva.getAttribute('data-id') : null;
+
+      els.tbody.innerHTML = filas.map(filaContenedor).join('');
+
+      if (idActivo) {
+        var nuevaFilaActiva = els.tbody.querySelector('tr[data-id="' + idActivo.replace(/"/g, '\\"') + '"]');
+        if (nuevaFilaActiva) nuevaFilaActiva.focus({ preventScroll: true });
       }
     }
+
+    var datosNuevos = {};
+    filas.forEach(function (c) { datosNuevos[c.id] = c; });
+    estado.datosContenedoresPorId = datosNuevos;
   }
 
   function vaciarContenedores() {
-    estado.firmaContenedores = '';
+    estado.datosContenedoresPorId = {};
     els.tbody.innerHTML = '<tr class="es-vacio"><td class="vacio" colspan="8">' +
       'Sin datos de contenedores por ahora.</td></tr>';
     els.ctrSummary.innerHTML = '';
@@ -570,11 +642,6 @@
     if (!fila) return;
     e.preventDefault();
     abrirLogs(fila.getAttribute('data-id'), fila.getAttribute('data-nombre'));
-  });
-
-  els.tbody.addEventListener('focusin', function (e) {
-    var fila = e.target.closest('tr[data-id]');
-    estado.filaConFoco = fila ? fila.getAttribute('data-id') : null;
   });
 
   els.btnCerrarLogs.addEventListener('click', cerrarLogs);

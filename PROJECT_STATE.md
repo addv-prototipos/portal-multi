@@ -32640,3 +32640,68 @@ de `sub_id` encontrado en dry-run antes del crash de esta sesión — no
 se tocó en este deploy. Los 2 tenants de prueba locales
 (`e2e-trial-*`) siguen sin limpiar en el stack Docker local, sin
 relación con producción.
+
+## Punto 522 — Kerberos: la tabla de Contenedores dejaba de leer foco/scroll en cada poll, solo con `firma` ya no bastaba (26 nov 2026, CERRADO, trabajo local)
+
+**Pedido del usuario** (con captura): la pestaña Contenedores del
+dashboard de Kerberos "se refresca o hace focus" cada poll (6 s),
+quitándole el foco de lo que está viendo — pidió que, si algún dato
+cambió, se muestre con un indicador visual (iluminación/resaltado) en
+vez de mover el foco.
+
+**Causa real** (`kerberos/public/dashboard.js:pintarContenedores`): el
+mecanismo de `firma` (comparar un JSON.stringify de todos los campos
+contra el poll anterior) ya existía — comentario del propio código
+decía explícitamente que evitaba el innerHTML incondicional — pero
+como CPU/memoria son métricas reales que casi siempre cambian de
+decimal, la firma prácticamente NUNCA coincide: la tabla se
+reconstruía completa (`els.tbody.innerHTML = ...`) en casi cada poll.
+Y el bloque que "restauraba" el foco tras esa reconstrucción llamaba
+`filas[i].focus()` **incondicionalmente** si `estado.filaConFoco`
+tenía algún valor (grabado una sola vez por un listener `focusin` y
+nunca limpiado) — sin verificar si el operador seguía realmente
+enfocado ahí. `.focus()` sin `{preventScroll:true}` hace que el
+navegador haga scroll-into-view del elemento, así que cualquier
+operador que alguna vez hubiera tabulado a una fila se encontraba la
+vista saltando de vuelta a esa fila cada 6 s, aunque llevara rato
+desplazado leyendo otra parte de la página — eso es el "me quita el
+foco" real, no un `<input>` robándose el foco de un formulario.
+
+**Fix**: se reemplazó el diff-por-firma-completa por diff celda por
+celda contra un snapshot por id (`estado.datosContenedoresPorId`):
+- Si el ORDEN de contenedores no cambió (caso normal, ~todos los
+  polls): se actualiza cada `<tr>` YA existente in-place
+  (`actualizarFilaContenedor`), comparando campo por campo
+  (estado/salud, nombre, imagen, CPU, memoria) — la fila nunca se
+  destruye, así que el hover, el scroll de la tabla y cualquier foco de
+  teclado real se quedan exactamente donde estaban, sin tocar nada.
+  Cada celda que sí cambió gana la clase `.ctr-cambio` (fondo
+  `--accent-soft` que se desvanece en 1.6 s vía CSS, removida por
+  `setTimeout` en JS — no depende de `animationend` ni de
+  `prefers-reduced-motion`, así que no se queda pegada si el sistema
+  tiene movimiento reducido).
+- Si el orden SÍ cambió (contenedor nuevo/detenido/reordenado — caso
+  raro): se reconstruye la tabla completa como antes, pero el foco solo
+  se restaura si `document.activeElement` está DE VERDAD dentro de la
+  tabla en ese instante (`els.tbody.contains(activo)`), y con
+  `{preventScroll:true}` — nunca se mueve el foco de un operador que no
+  lo tenía puesto ahí en ese momento, ni siquiera en el caso legítimo.
+- Se eliminó `estado.firmaContenedores`/`estado.filaConFoco` y el
+  listener `focusin` que los alimentaba (ya no hacen falta).
+
+**Verificado real** (rebuild + `docker compose up -d --force-recreate
+kerberos` + Chrome DevTools MCP, local): se enfocó una fila por
+teclado, se hizo scroll a `scrollY:650`, se instrumentó
+`HTMLElement.prototype.focus` y un `MutationObserver` sobre el tbody, y
+se esperaron 2 polls completos (13 s) — `scrollY` siguió en 650,
+`document.activeElement === la misma referencia de <tr>` (la fila
+nunca se destruyó), cero llamadas a `.focus()`, y 108 mutaciones de
+`class`/`childList` confirmando que las celdas con CPU/memoria
+cambiando sí se actualizaron y resaltaron. `node --check` limpio, sin
+errores en consola del navegador.
+
+**Archivos**: `kerberos/public/dashboard.js` (diff celda por celda +
+guard de foco), `kerberos/public/dashboard.css` (`.ctr-cambio` +
+`@keyframes ctr-resalta`, con fallback a `prefers-reduced-motion`).
+Sin desplegar a Vultr — solo rebuild local, pendiente de que el usuario
+pida el deploy.
