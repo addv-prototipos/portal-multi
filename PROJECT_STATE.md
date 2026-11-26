@@ -32775,5 +32775,26 @@ esquema, sin tocar `backend/`/`control/` — es un cambio de solo
 presentación sobre un dato que el backend ya exponía
 (`GET /api/admin/crm/contactos` devolviendo `[]`).
 
-**No desplegado a Vultr en esta sesión** — queda para el próximo deploy
-junto con lo demás pendiente, no se pidió desplegar ahora.
+**Desplegado a Vultr el mismo día** (commit `3b7f386`): runbook completo
+— backup real de MySQL (`primary`/`control`, tamaños reales verificados),
+`git archive HEAD` (solo `backend control frontend docker`, sin tocar
+working tree de otras sesiones), checksum `md5sum` de `admin.js`/
+`admin.css` idéntico servidor vs. `git show HEAD:...` antes de
+reconstruir, modo mantenimiento activo durante el swap de `frontend`
+(único servicio que cambió — `backend`/`control` no se tocaron),
+`docker build` + `docker service update --force clarvo_frontend`
+(convergió solo, sin necesidad de quitar el centinela — contenedor
+nuevo nace sin él). Smoke-test obligatorio corrido en modo prueba
+(Stripe `prueba` + llaves de prueba de reCAPTCHA documentadas por
+Google): `node VULTR/smoke-test-onboarding.js --borrar` dio alta real,
+activación 100% vía webhook sin intervención manual, y borrado del
+tenant de prueba — los 3 pasos en verde. Stripe y reCAPTCHA devueltos a
+producción y **verificados de verdad** (no solo "el comando no dio
+error"): `GET stripe-modo` → `{"modo":"produccion","llaveActivaUltimos4":"lcqh"}`
+(mismo sufijo que antes de tocar nada) + `recaptchaSiteKey` real
+(`...OKMNi4...`) confirmado horneado en el bundle
+`_astro/publicEnv.*.js` de `clarvo-site-web`. Limpieza de contenedores
+huérfanos corrida. `docker service ls` final: 8/8 servicios activos en
+`1/1` (más `garage-init`/`mysql-replica`, `0` réplicas a propósito).
+`https://clarvo.mx/` + `/login` + `/api/health` + `/kerberos`
+confirmados en 200/30x tras el redeploy.
