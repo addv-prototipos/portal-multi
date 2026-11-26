@@ -32703,5 +32703,13 @@ errores en consola del navegador.
 **Archivos**: `kerberos/public/dashboard.js` (diff celda por celda +
 guard de foco), `kerberos/public/dashboard.css` (`.ctr-cambio` +
 `@keyframes ctr-resalta`, con fallback a `prefers-reduced-motion`).
-Sin desplegar a Vultr — solo rebuild local, pendiente de que el usuario
-pida el deploy.
+
+**Desplegado a Vultr el mismo día** (commit `2944e0d`): cambio acotado
+100% a `kerberos/` (sin tocar backend/control/frontend, sin esquema,
+sin Stripe/reCAPTCHA de por medio) — se saltó a propósito el backup de
+MySQL y el modo mantenimiento del runbook general (no aplican a un
+cambio de solo lectura sin BD), pero sí se verificó checksum real
+(`md5sum` server vs `git show HEAD:...`, coincidencia exacta) antes de
+reconstruir la imagen `clrv-kerberos:latest` y forzar
+`docker service update --force clarvo_kerberos`. `https://clarvo.mx/kerberos/login.html`
++ sitio + `/admin` confirmados en 200 tras el redeploy.
