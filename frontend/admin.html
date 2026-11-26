@@ -5785,6 +5785,30 @@
     </div>
   </div>
 
+  <!-- Aviso de prueba por terminar (punto en curso, prueba gratis de 10
+       días) — mismo personaje/tono del Asistente de Facturación (avatar
+       "V" + "Clarvo"), pero a diferencia de ese SÍ es dismissable: el
+       usuario puede cerrarlo con "Después" y vuelve a aparecer en el
+       siguiente login mientras siga en prueba y a ≤3 días de terminar
+       (nunca "ya lo vi para siempre" — decisión explícita del usuario).
+       Se evalúa en cada login desde showDashboard(), con los datos que
+       ya trae GET /api/admin/login (suscripcionEstatus/ExpiraEn). -->
+  <div class="modal-overlay" id="aviso-pago-prueba-overlay" hidden>
+    <div class="modal asistente-facturacion-modal" role="alertdialog" aria-modal="true" aria-labelledby="aviso-pago-prueba-title">
+      <div class="asistente-facturacion-av">
+        <span class="asistente-facturacion-circ">V</span>
+        <span class="asistente-facturacion-nombre">Clarvo</span>
+      </div>
+      <h2 id="aviso-pago-prueba-title"></h2>
+      <p class="panel-subtitle">Agrega tu método de pago cuando quieras — tus datos y configuración se quedan exactamente como están, nada se pierde.</p>
+      <p class="field-error" id="aviso-pago-prueba-error" role="alert"></p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-aviso-pago-prueba-despues">Después</button>
+        <button type="button" class="btn btn-primary" id="btn-aviso-pago-prueba-agregar">Agregar método de pago</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Ver el Markdown completo de un reporte -->
   <div class="modal-overlay" id="ver-md-overlay" hidden>
     <div class="modal ver-md-modal" role="dialog" aria-modal="true" aria-labelledby="ver-md-title">

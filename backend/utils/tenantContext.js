@@ -260,6 +260,14 @@ async function resolverTenantMiddleware(req, res, next) {
       // recalcular fechas. Nunca afecta al portal de clientes — ver
       // suscripcionTenant.js, consumido SOLO por requireAdminAuth.
       suscripcionBloqueo: evaluarBloqueoSuscripcion(tenant),
+      // Punto en curso (prueba gratis de 10 días): expuestos tal cual
+      // (no solo el booleano "bloqueada" de arriba) para que el frontend
+      // pueda mostrar el aviso NO bloqueante de "faltan N días" antes de
+      // que `suscripcionBloqueo` se active — null/null es el default
+      // seguro de cualquier tenant sin suscripción configurada (nunca
+      // dispara el aviso).
+      suscripcionEstatus: tenant.suscripcion_estatus || null,
+      suscripcionExpiraEn: tenant.suscripcion_expira_en ? String(tenant.suscripcion_expira_en).slice(0, 10) : null,
     };
 
     // El pool del tenant se expone en `req.poolTenant` para que las rutas

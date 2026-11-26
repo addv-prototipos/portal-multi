@@ -417,6 +417,13 @@
     suscripcionPorVencerError: document.getElementById('suscripcion-por-vencer-error'),
     btnSuscripcionPorVencerCerrar: document.getElementById('btn-suscripcion-por-vencer-cerrar'),
     btnSuscripcionPorVencerReactivar: document.getElementById('btn-suscripcion-por-vencer-reactivar'),
+    // Prueba gratis 10 días (Asistente V) — recordatorio dismissable de
+    // agregar método de pago, ≤3 días antes de que termine la prueba.
+    avisoPagoPruebaOverlay: document.getElementById('aviso-pago-prueba-overlay'),
+    avisoPagoPruebaTitulo: document.getElementById('aviso-pago-prueba-title'),
+    avisoPagoPruebaError: document.getElementById('aviso-pago-prueba-error'),
+    btnAvisoPagoPruebaDespues: document.getElementById('btn-aviso-pago-prueba-despues'),
+    btnAvisoPagoPruebaAgregar: document.getElementById('btn-aviso-pago-prueba-agregar'),
     // Propuesta B8 (elegida, generaliza B5): modal con pestañas
     // disco/usuarios + D1 (subir de plan) en el mismo modal.
     upscaleModalOverlay: document.getElementById('upscale-modal-overlay'),
@@ -1733,7 +1740,7 @@
   // corriente (entonces el 402 deja de llegar y el muro nunca vuelve a
   // aparecer).
   const ICONO_ALERTA_MURO = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>';
-  const MOTIVOS_CRITICOS_MURO = new Set(['vencida', 'cancelada']);
+  const MOTIVOS_CRITICOS_MURO = new Set(['vencida', 'cancelada', 'prueba_vencida']);
 
   function mostrarMuroSuscripcion(data) {
     if (!els.suscripcionMuroOverlay) return;
@@ -4715,7 +4722,23 @@
     // encima.
     if (facturacionAsistentePendienteTrasTerminos) {
       facturacionAsistentePendienteTrasTerminos = false;
-      if (mostrarAsistenteFacturacionSiAplica()) return;
+      if (mostrarAsistenteFacturacionSiAplica()) {
+        // Hallazgo real (prueba E2E, punto en curso): este `return`
+        // descartaba en silencio un aviso de pago-prueba que ya se había
+        // diferido tras el gate de T&C (avisoPagoPruebaDiasPendienteTrasTerminos
+        // nunca se consumía) — nunca ocurre con el trial real de 10 días
+        // (día 0 siempre tiene 10 días restantes, fuera de la ventana
+        // ≤3 días), pero si algún día un trial arranca ya corto, o esta
+        // misma colisión se da por cualquier otro motivo, se transfiere
+        // aquí a la variable que resolverAsistenteFacturacion() SÍ
+        // consume al cerrarse (avisoPagoPruebaDiasPendiente, vía
+        // reanudarAvisosTrasOnboardingBloqueante()) en vez de perderse.
+        if (avisoPagoPruebaDiasPendienteTrasTerminos !== null) {
+          avisoPagoPruebaDiasPendiente = avisoPagoPruebaDiasPendienteTrasTerminos;
+          avisoPagoPruebaDiasPendienteTrasTerminos = null;
+        }
+        return;
+      }
     }
     if (tourPendienteTrasTerminos) {
       tourPendienteTrasTerminos = false;
@@ -4727,6 +4750,10 @@
       const texto = avisoSuscripcionPorVencerTextoPendienteTrasTerminos;
       avisoSuscripcionPorVencerTextoPendienteTrasTerminos = null;
       mostrarAvisoSuscripcionPorVencer(texto);
+    } else if (avisoPagoPruebaDiasPendienteTrasTerminos !== null) {
+      const dias = avisoPagoPruebaDiasPendienteTrasTerminos;
+      avisoPagoPruebaDiasPendienteTrasTerminos = null;
+      mostrarAvisoPagoPrueba(dias);
     }
   }
 
@@ -10864,6 +10891,53 @@
     mostrarAvisoSuscripcionPorVencer(texto);
   }
 
+  // Prueba gratis 10 días (Asistente V) — aviso dismissable a ≤3 días de
+  // que termine la prueba, pidiendo método de pago. A diferencia del
+  // aviso "por vencer" de arriba (solo se evalúa al visitar Mi Cuenta),
+  // este debe verse "cada que entre a la app" desde el primer login —
+  // se evalúa en renderOnboardingChecklist(), justo después de que
+  // iniciarTourBienvenidaSiAplica() ya resolvió si el tour/asistente de
+  // Facturación se abrieron en este mismo render (así los checks de
+  // "overlay abierto" de abajo reflejan el estado real, sin carrera).
+  // Una sola vez por sesión (recarga de página = nuevo login = vuelve a
+  // evaluarse) — el usuario pidió explícito que reaparezca en cada
+  // entrada mientras siga en prueba y a ≤3 días, nunca "ya lo vi para
+  // siempre".
+  let avisoPagoPruebaMostrado = false;
+  let avisoPagoPruebaDiasPendiente = null;
+  let avisoPagoPruebaDiasPendienteTrasTerminos = null;
+
+  function mostrarAvisoPagoPrueba(dias) {
+    if (!els.avisoPagoPruebaOverlay) return;
+    els.avisoPagoPruebaError.textContent = '';
+    els.avisoPagoPruebaTitulo.textContent = dias <= 0
+      ? '¡Tu prueba termina hoy!'
+      : `¡Ya casi! Faltan ${dias} día${dias === 1 ? '' : 's'} de tu prueba`;
+    els.avisoPagoPruebaOverlay.hidden = false;
+  }
+
+  function evaluarAvisoPagoPrueba(funciones) {
+    if (avisoPagoPruebaMostrado) return false;
+    if (!funciones || funciones.suscripcionEstatus !== 'prueba' || !funciones.suscripcionExpiraEn) return false;
+    const dias = diasHastaFecha(funciones.suscripcionExpiraEn);
+    if (dias === null || dias < 0 || dias > 3) return false;
+    avisoPagoPruebaMostrado = true;
+    if (terminosGateAbierta || terminosGateVerificando) {
+      avisoPagoPruebaDiasPendienteTrasTerminos = dias;
+      return false;
+    }
+    if (els.onboardingTourOverlay && !els.onboardingTourOverlay.hidden) {
+      avisoPagoPruebaDiasPendiente = dias;
+      return false;
+    }
+    if (els.asistenteFacturacionOverlay && !els.asistenteFacturacionOverlay.hidden) {
+      avisoPagoPruebaDiasPendiente = dias;
+      return false;
+    }
+    mostrarAvisoPagoPrueba(dias);
+    return true;
+  }
+
   async function reactivarSuscripcionAccion(boton) {
     if (!boton) return;
     boton.disabled = true;
@@ -11307,6 +11381,14 @@
   }
   if (els.btnSuscripcionPorVencerReactivar) {
     els.btnSuscripcionPorVencerReactivar.addEventListener('click', () => reactivarSuscripcionAccion(els.btnSuscripcionPorVencerReactivar));
+  }
+  if (els.btnAvisoPagoPruebaDespues) {
+    els.btnAvisoPagoPruebaDespues.addEventListener('click', () => {
+      els.avisoPagoPruebaOverlay.hidden = true;
+    });
+  }
+  if (els.btnAvisoPagoPruebaAgregar) {
+    els.btnAvisoPagoPruebaAgregar.addEventListener('click', () => iniciarCheckoutSuscripcion(els.btnAvisoPagoPruebaAgregar));
   }
   if (els.btnCancelacionDescuentoSi) els.btnCancelacionDescuentoSi.addEventListener('click', aceptarDescuentoRetencion);
   if (els.btnCancelacionDescuentoNo) els.btnCancelacionDescuentoNo.addEventListener('click', irAPasoEncuesta);
@@ -25889,6 +25971,7 @@
     if (!debeMostrarse) {
       if (tarjeta) tarjeta.hidden = true;
       iniciarTourBienvenidaSiAplica();
+      evaluarAvisoPagoPrueba(tenantFuncionesPlan);
       return;
     }
 
@@ -25941,6 +26024,7 @@
     tarjeta.hidden = false;
     tarjeta.innerHTML = contenidoHtml;
     iniciarTourBienvenidaSiAplica();
+    evaluarAvisoPagoPrueba(tenantFuncionesPlan);
   }
 
   // ---------- Recorrido de bienvenida: spotlight sobre elementos reales ----------
@@ -26211,10 +26295,16 @@
       // descarta en silencio en vez de encolarse — no vale la pena la
       // complejidad de un segundo blur apilado para este cruce.
       avisoSuscripcionPorVencerTextoPendiente = null;
+      avisoPagoPruebaDiasPendiente = null;
     } else if (avisoSuscripcionPorVencerTextoPendiente) {
       const texto = avisoSuscripcionPorVencerTextoPendiente;
       avisoSuscripcionPorVencerTextoPendiente = null;
       mostrarAvisoSuscripcionPorVencer(texto);
+      avisoPagoPruebaDiasPendiente = null;
+    } else if (avisoPagoPruebaDiasPendiente !== null) {
+      const dias = avisoPagoPruebaDiasPendiente;
+      avisoPagoPruebaDiasPendiente = null;
+      mostrarAvisoPagoPrueba(dias);
     }
   }
 

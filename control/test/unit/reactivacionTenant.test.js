@@ -177,6 +177,65 @@ describe('utils/reactivacionTenant.js', () => {
       expect(args.line_items[0].price_data.unit_amount).toBe(499000);
       expect(args.line_items[0].price_data.recurring.interval).toBe('year');
     });
+
+    // Punto en curso (prueba gratis de 10 días): "agregar método de pago"
+    // durante la prueba usa el MISMO checkout de reactivación, pero no
+    // debe cobrar hoy — Stripe debe recibir subscription_data.trial_end.
+    function fechaOffsetDias(dias) {
+      return new Date(Date.now() + dias * 86400000).toISOString().slice(0, 10);
+    }
+
+    test('tenant en prueba vigente (expira en el futuro): agrega subscription_data.trial_end', async () => {
+      const pool = mockPool();
+      const create = mockStripeSession();
+      pool.query.mockResolvedValueOnce([[
+        {
+          id: 7, slug: 'cliente1', nombre_empresa: 'Empresa Uno', plan_id: 3, suscripcion_ciclo: 'mensual',
+          plan_nombre: 'Crece', precio_mensual: 499, precio_anual: 4990,
+          suscripcion_estatus: 'prueba', suscripcion_expira_en: fechaOffsetDias(3),
+        },
+      ]]);
+
+      await crearCheckoutSessionReactivacion(7, { db: pool });
+
+      const [args] = create.mock.calls[0];
+      expect(args.subscription_data.trial_end).toEqual(expect.any(Number));
+      expect(args.subscription_data.trial_end * 1000).toBeGreaterThan(Date.now());
+    });
+
+    test('tenant en prueba YA vencida (expira en el pasado): no agrega trial_end, cobra de inmediato', async () => {
+      const pool = mockPool();
+      const create = mockStripeSession();
+      pool.query.mockResolvedValueOnce([[
+        {
+          id: 7, slug: 'cliente1', nombre_empresa: 'Empresa Uno', plan_id: 3, suscripcion_ciclo: 'mensual',
+          plan_nombre: 'Crece', precio_mensual: 499, precio_anual: 4990,
+          suscripcion_estatus: 'prueba', suscripcion_expira_en: fechaOffsetDias(-3),
+        },
+      ]]);
+
+      await crearCheckoutSessionReactivacion(7, { db: pool });
+
+      const [args] = create.mock.calls[0];
+      expect(args.subscription_data.trial_end).toBeUndefined();
+    });
+
+    test('tenant con suscripcion_estatus "pagada" (caso real de reactivación, no prueba): nunca agrega trial_end', async () => {
+      const pool = mockPool();
+      const create = mockStripeSession();
+      pool.query.mockResolvedValueOnce([[
+        {
+          id: 7, slug: 'cliente1', nombre_empresa: 'Empresa Uno', plan_id: 3, suscripcion_ciclo: 'mensual',
+          plan_nombre: 'Crece', precio_mensual: 499, precio_anual: 4990,
+          suscripcion_estatus: 'vencida', suscripcion_expira_en: fechaOffsetDias(-30),
+        },
+      ]]);
+
+      await crearCheckoutSessionReactivacion(7, { db: pool });
+
+      const [args] = create.mock.calls[0];
+      expect(args.subscription_data.trial_end).toBeUndefined();
+    });
   });
 
   describe('crearCheckoutSessionDesdeToken', () => {
@@ -262,6 +321,52 @@ describe('utils/reactivacionTenant.js', () => {
 
       await expect(manejarReactivacionConfirmada({ id: 'evt_1', metadata: { tenantId: '7' }, customer: null, subscription: null }, pool)).resolves.toBeUndefined();
     });
+
+    // Punto en curso (prueba gratis de 10 días): tarjeta agregada a MEDIO
+    // trial vigente — Stripe aún no cobró nada (trial_end futuro), así
+    // que esto NUNCA debe tocar suscripcion_estatus/fechas, solo guardar
+    // los identificadores de Stripe. Si lo hiciera, se perdería la fecha
+    // real de fin de prueba.
+    function fechaOffsetDias(dias) {
+      return new Date(Date.now() + dias * 86400000).toISOString().slice(0, 10);
+    }
+
+    test('tarjeta agregada a medio trial vigente: solo guarda stripe_customer_id/stripe_subscription_id, nunca toca estatus/fechas', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[
+          { id: 7, slug: 'cliente1', suscripcion_ciclo: 'mensual', suscripcion_estatus: 'prueba', suscripcion_expira_en: fechaOffsetDias(3) },
+        ]])
+        .mockResolvedValueOnce([{}]) // UPDATE tenants (solo stripe ids)
+        .mockResolvedValueOnce([{}]); // UPDATE reactivacion_tokens
+
+      const session = { id: 'evt_1', metadata: { tenantId: '7' }, customer: 'cus_abc', subscription: 'sub_abc' };
+      await manejarReactivacionConfirmada(session, pool);
+
+      const [sqlUpdate, paramsUpdate] = pool.query.mock.calls[1];
+      expect(sqlUpdate).toMatch(/UPDATE tenants SET stripe_customer_id = \?, stripe_subscription_id = \? WHERE id = \?/);
+      expect(sqlUpdate).not.toMatch(/suscripcion_estatus/);
+      expect(paramsUpdate).toEqual(['cus_abc', 'sub_abc', 7]);
+      expect(sumarCiclo).not.toHaveBeenCalled();
+      expect(reactivarTenant).toHaveBeenCalledWith('cliente1', { actor: 'stripe-webhook:reactivacion' }, pool);
+    });
+
+    test('trial ya vencido al confirmar (carrera rara): toma el camino normal, estatus "pagada" con fechas recalculadas', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[
+          { id: 7, slug: 'cliente1', suscripcion_ciclo: 'mensual', suscripcion_estatus: 'prueba', suscripcion_expira_en: fechaOffsetDias(-3) },
+        ]])
+        .mockResolvedValueOnce([{}])
+        .mockResolvedValueOnce([{}]);
+
+      const session = { id: 'evt_1', metadata: { tenantId: '7' }, customer: 'cus_abc', subscription: 'sub_abc' };
+      await manejarReactivacionConfirmada(session, pool);
+
+      const [sqlUpdate] = pool.query.mock.calls[1];
+      expect(sqlUpdate).toMatch(/suscripcion_estatus = 'pagada'/);
+      expect(sumarCiclo).toHaveBeenCalledWith(expect.any(String), 'mensual');
+    });
   });
 
   describe('archivarTrialsVencidosSinPago', () => {
@@ -274,6 +379,22 @@ describe('utils/reactivacionTenant.js', () => {
       expect(resultado).toEqual({ archivados: 0, total: 0 });
       expect(darDeBajaTenant).not.toHaveBeenCalled();
       expect(enviarCorreoBase).not.toHaveBeenCalled();
+    });
+
+    // Punto en curso: el filtro quedó quitado a propósito — el mismo job
+    // (y su correo de "avisar a quien no concretó") ahora también debe
+    // alcanzar a los trials nacidos del onboarding self-service, no solo
+    // a los manuales desde /control.
+    test('la query ya NO filtra por suscripcion_origen (alcanza trials de onboarding Y manuales)', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[]]);
+
+      await archivarTrialsVencidosSinPago(pool);
+
+      const [sql] = pool.query.mock.calls[0];
+      expect(sql).not.toMatch(/suscripcion_origen/);
+      expect(sql).toMatch(/suscripcion_estatus = 'prueba'/);
+      expect(sql).toMatch(/stripe_subscription_id IS NULL/);
     });
 
     test('archiva cada candidato con el motivo correcto y envía el correo con el link', async () => {

@@ -58,7 +58,19 @@ async function resolverPlanPorClave(planClave, db) {
 
 async function convertirBorrador(
   token,
-  { actor = 'onboarding-publico', db = obtenerPool(), stripeCustomerId = null, stripeSubscriptionId = null } = {}
+  {
+    actor = 'onboarding-publico',
+    db = obtenerPool(),
+    stripeCustomerId = null,
+    stripeSubscriptionId = null,
+    // Punto en curso (prueba gratis de 10 días, self-service): toda alta
+    // nueva arranca en prueba, sin tarjeta — nunca se cobra para llegar
+    // aquí. `esPrueba=false` (default) conserva el comportamiento
+    // histórico ("llegar aquí siempre significa que ya se cobró") para
+    // cualquier caller que todavía no pase esta opción.
+    esPrueba = false,
+    diasPrueba = null,
+  } = {}
 ) {
   const borrador = await obtenerBorradorInterno(token, db);
 
@@ -140,17 +152,21 @@ async function convertirBorrador(
   // ----- Paso 3b: inicializar la suscripción (punto 416, idempotente) -----
   // origenForzado='onboarding' protege la fecha de inicio del ciclo —
   // ningún guardado manual posterior desde /control podrá moverla (ver
-  // tenantSuscripcion.js). estatus='pagada' (cambiado del 'pendiente'
-  // original, punto Stripe): desde que se integró el cobro "primero
-  // pagar, luego aprovisionar", convertirBorrador() SOLO se invoca una
-  // vez que el pago ya se confirmó — o de forma síncrona (tarjeta exitosa
-  // al instante, en PasoPago/onContinuar) o desde el webhook de Stripe
-  // (OXXO/SPEI, checkout.session.completed/async_payment_succeeded). Por
-  // construcción, llegar aquí siempre significa que ya se cobró.
+  // tenantSuscripcion.js). Dos caminos:
+  //   - esPrueba=true (punto en curso, prueba gratis de 10 días):
+  //     estatus='prueba' — actualizarSuscripcionTenant() calcula sola
+  //     pruebaIniciaEn=hoy y expiraEn=hoy+diasPrueba la primera vez.
+  //     Nunca se cobró nada para llegar aquí.
+  //   - esPrueba=false (camino histórico, hoy sin caller real pero se
+  //     conserva): estatus='pagada' — convertirBorrador() solo se
+  //     invocaba una vez que el pago ya se había confirmado (tarjeta al
+  //     instante o webhook de Stripe).
   try {
     await actualizarSuscripcionTenant(
       borrador.slug,
-      { enPrueba: false, ciclo: borrador.ciclo || 'mensual', estatus: 'pagada' },
+      esPrueba
+        ? { enPrueba: true, diasPrueba: diasPrueba || 10, ciclo: borrador.ciclo || 'mensual', estatus: 'prueba' }
+        : { enPrueba: false, ciclo: borrador.ciclo || 'mensual', estatus: 'pagada' },
       { actor, db, origenForzado: 'onboarding' }
     );
   } catch (err) {

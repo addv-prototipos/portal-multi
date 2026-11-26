@@ -174,6 +174,8 @@ describe('utils/tenantContext.js', () => {
         crmHabilitado: false,
         ticketImpresionHabilitado: false,
         suscripcionBloqueo: { bloqueada: false },
+        suscripcionEstatus: null,
+        suscripcionExpiraEn: null,
       });
       expect(obtenerPoolTenant).toHaveBeenCalledWith(
         expect.objectContaining({ slug: 'cliente1', host: 'mysql', database: 'tenant_cliente1', user: 'app' })

@@ -34,6 +34,14 @@ jest.mock('../../utils/notificarBackend', () => {
   const real = jest.requireActual('../../utils/notificarBackend');
   return { crearAdminInicialFisico: jest.fn(), ErrorActivacionFisica: real.ErrorActivacionFisica };
 });
+// Punto en curso (prueba gratis de 10 días) — mockeado explícito para
+// poder afirmar sobre sus argumentos; sin este mock, el real corre contra
+// el `db` falso del test (sin sus propias queries configuradas) y el
+// `catch` best-effort de convertirBorrador() se lo traga en silencio —
+// la conversión seguiría "pasando" pero sin probar nada real del punto.
+jest.mock('../../utils/tenantSuscripcion', () => ({
+  actualizarSuscripcionTenant: jest.fn(),
+}));
 
 const { convertirBorrador } = require('../../utils/onboardingConversion');
 const { obtenerBorradorInterno, ErrorOnboarding } = require('../../utils/onboardingBorrador');
@@ -41,6 +49,7 @@ const { crearTenantIntake, ErrorIntakeTenant } = require('../../utils/tenantInta
 const { obtenerTenantPorSlug, activarTenant, ErrorTransicionTenant } = require('../../utils/tenantLifecycle');
 const { actualizarDatosTenant } = require('../../utils/tenantEdicion');
 const { crearAdminInicialFisico, ErrorActivacionFisica } = require('../../utils/notificarBackend');
+const { actualizarSuscripcionTenant } = require('../../utils/tenantSuscripcion');
 
 function mockDb() {
   return { query: jest.fn() };
@@ -201,5 +210,79 @@ describe('utils/onboardingConversion.js (Segmento B)', () => {
     const resultado = await convertirBorrador('tok123', { db });
     expect(resultado.slug).toBe('tacos-el-buen-sabor');
     expect(crearAdminInicialFisico).toHaveBeenCalled();
+  });
+
+  // Punto en curso: prueba gratis de 10 días, self-service, sin tarjeta.
+  test('esPrueba=true: actualizarSuscripcionTenant se llama con estatus "prueba" y diasPrueba default 10', async () => {
+    const db = mockDb();
+    obtenerBorradorInterno.mockResolvedValueOnce(filaBorradorCompleta());
+    obtenerTenantPorSlug.mockResolvedValueOnce(null);
+    crearTenantIntake.mockResolvedValueOnce(filaTenant({ estado: 'provisioning' }));
+    activarTenant.mockResolvedValueOnce(filaTenant({ estado: 'activo', plan_id: null }));
+    db.query.mockResolvedValueOnce([[{ id: 20, portal_clientes_habilitado: 1 }]]);
+    actualizarDatosTenant.mockResolvedValueOnce(filaTenant({ estado: 'activo', plan_id: 20 }));
+    actualizarSuscripcionTenant.mockResolvedValueOnce({});
+    crearAdminInicialFisico.mockResolvedValueOnce({ ok: true });
+    db.query.mockResolvedValueOnce([{}]);
+
+    await convertirBorrador('tok123', { db, esPrueba: true });
+
+    expect(actualizarSuscripcionTenant).toHaveBeenCalledWith(
+      'tacos-el-buen-sabor',
+      expect.objectContaining({ enPrueba: true, diasPrueba: 10, estatus: 'prueba', ciclo: 'mensual' }),
+      expect.objectContaining({ origenForzado: 'onboarding' })
+    );
+  });
+
+  test('esPrueba=true con diasPrueba explícito: se respeta en vez del default de 10', async () => {
+    const db = mockDb();
+    obtenerBorradorInterno.mockResolvedValueOnce(filaBorradorCompleta());
+    obtenerTenantPorSlug.mockResolvedValueOnce(filaTenant({ estado: 'activo', plan_id: 20 }));
+    db.query.mockResolvedValueOnce([[{ id: 20 }]]);
+    actualizarSuscripcionTenant.mockResolvedValueOnce({});
+    crearAdminInicialFisico.mockResolvedValueOnce({ ok: true });
+    db.query.mockResolvedValueOnce([{}]);
+
+    await convertirBorrador('tok123', { db, esPrueba: true, diasPrueba: 7 });
+
+    expect(actualizarSuscripcionTenant).toHaveBeenCalledWith(
+      'tacos-el-buen-sabor',
+      expect.objectContaining({ diasPrueba: 7 }),
+      expect.anything()
+    );
+  });
+
+  test('esPrueba=false (default, camino histórico): estatus "pagada", enPrueba false', async () => {
+    const db = mockDb();
+    obtenerBorradorInterno.mockResolvedValueOnce(filaBorradorCompleta());
+    obtenerTenantPorSlug.mockResolvedValueOnce(filaTenant({ estado: 'activo', plan_id: 20 }));
+    db.query.mockResolvedValueOnce([[{ id: 20 }]]);
+    actualizarSuscripcionTenant.mockResolvedValueOnce({});
+    crearAdminInicialFisico.mockResolvedValueOnce({ ok: true });
+    db.query.mockResolvedValueOnce([{}]);
+
+    await convertirBorrador('tok123', { db });
+
+    expect(actualizarSuscripcionTenant).toHaveBeenCalledWith(
+      'tacos-el-buen-sabor',
+      expect.objectContaining({ enPrueba: false, estatus: 'pagada' }),
+      expect.anything()
+    );
+  });
+
+  test('guarda stripeCustomerId/stripeSubscriptionId cuando se pasan (camino "agregar tarjeta durante la prueba")', async () => {
+    const db = mockDb();
+    obtenerBorradorInterno.mockResolvedValueOnce(filaBorradorCompleta());
+    obtenerTenantPorSlug.mockResolvedValueOnce(filaTenant({ estado: 'activo', plan_id: 20 }));
+    db.query.mockResolvedValueOnce([[{ id: 20 }]]);
+    actualizarSuscripcionTenant.mockResolvedValueOnce({});
+    db.query.mockResolvedValueOnce([{}]); // UPDATE tenants SET stripe_customer_id/stripe_subscription_id
+    crearAdminInicialFisico.mockResolvedValueOnce({ ok: true });
+    db.query.mockResolvedValueOnce([{}]); // UPDATE onboarding_borradores
+
+    await convertirBorrador('tok123', { db, stripeCustomerId: 'cus_123', stripeSubscriptionId: 'sub_456' });
+
+    const llamadaUpdateStripe = db.query.mock.calls.find(([sql]) => /stripe_customer_id/.test(sql));
+    expect(llamadaUpdateStripe[1]).toEqual(['cus_123', 'sub_456', 'tacos-el-buen-sabor']);
   });
 });

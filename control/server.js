@@ -84,7 +84,7 @@ const {
   ErrorOnboarding,
 } = require('./utils/onboardingBorrador');
 const { crearCheckoutSession, procesarEventoWebhook } = require('./utils/stripePagos');
-const { resolverPlanPorClave } = require('./utils/onboardingConversion');
+const { resolverPlanPorClave, convertirBorrador } = require('./utils/onboardingConversion');
 const stripeModo = require('./utils/stripeModo');
 const { ErrorUpscale, listarUpscale, crearUpscale, editarUpscale, archivarUpscale, reactivarUpscale } = require('./utils/upscale');
 const { getConfigMsi, setConfigMsi, metodosPagoInfo, listarCodigosDescuento, crearCodigoDescuento, desactivarCodigoDescuento, activarCodigoDescuento, eliminarCodigoDescuento, reemplazarCodigoDescuento } = require('./utils/stripeConfig');
@@ -608,6 +608,33 @@ app.post(
     }
     try {
       const resultado = await crearCheckoutSession(req.params.token);
+      res.json({ ok: true, ...resultado });
+    } catch (err) {
+      if (err instanceof ErrorOnboarding) return res.status(mapearErrorOnboarding(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+// Punto en curso (prueba gratis de 10 días, self-service): activa el
+// tenant SIN pasar por Stripe — toda alta nueva arranca en prueba, sin
+// tarjeta. Mismo candado que /pagar/:token (reCAPTCHA real, nunca
+// omitido) para que esta ruta pública no se vuelva una fábrica gratis de
+// tenants-spam — a diferencia de /pagar, aquí si acepta convertir
+// directo porque no hay nada que un atacante gane "saltándose un pago"
+// (no hay pago que saltarse, la prueba siempre es gratis). El resultado
+// es el mismo shape que /pagar + estado-pago ya resuelto, así que el
+// frontend puede ir derecho a "completado" sin tener que hacer polling.
+app.post(
+  '/api/public/onboarding/activar-prueba/:token',
+  onboardingPublicLimiter,
+  asyncHandler(async (req, res) => {
+    const verificacion = await verificarRecaptcha((req.body || {}).recaptchaToken, req.ip);
+    if (!verificacion.ok) {
+      return res.status(400).json({ error: 'No pudimos verificar que eres humano. Intenta de nuevo.' });
+    }
+    try {
+      const resultado = await convertirBorrador(req.params.token, { esPrueba: true, diasPrueba: 10 });
       res.json({ ok: true, ...resultado });
     } catch (err) {
       if (err instanceof ErrorOnboarding) return res.status(mapearErrorOnboarding(err)).json({ error: err.message });

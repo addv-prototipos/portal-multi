@@ -22,6 +22,19 @@ class ErrorReactivacion extends Error {
   }
 }
 
+// Medianoche (inicio de día) en CDMX del día SIGUIENTE a `expiraEn` —
+// mismo instante en que evaluarBloqueoSuscripcion() empezaría a
+// bloquear localmente (hoyStr > expiraEnSoloDia, ver
+// backend/utils/suscripcionTenant.js) — Stripe cobra EXACTO cuando el
+// bloqueo local arrancaría, ni antes ni después. México abolió el
+// horario de verano en 2022, así que un offset fijo UTC-6 es seguro
+// aquí (nunca se corre por DST).
+function trialEndUnixDesdeFecha(expiraEnYYYYMMDD) {
+  const [anio, mes, dia] = expiraEnYYYYMMDD.split('-').map(Number);
+  const inicioDiaSiguienteUTC = Date.UTC(anio, mes - 1, dia + 1, 6, 0, 0); // 00:00 CDMX = 06:00 UTC
+  return Math.floor(inicioDiaSiguienteUTC / 1000);
+}
+
 // Vigencia del link de correo — mismo número que
 // DIAS_RETENCION_BAJA_TRIAL_VENCIDO hoy, pero una constante propia a
 // propósito: son dos conceptos distintos (cuándo deja de servir el link
@@ -90,6 +103,7 @@ async function validarToken(token, db = obtenerPool()) {
 async function crearCheckoutSessionReactivacion(tenantId, { db = obtenerPool() } = {}) {
   const [filas] = await db.query(
     `SELECT t.id, t.slug, t.nombre_empresa, t.plan_id, t.suscripcion_ciclo,
+            t.suscripcion_estatus, t.suscripcion_expira_en,
             p.nombre AS plan_nombre, p.precio_mensual, p.precio_anual
        FROM tenants t LEFT JOIN planes p ON p.id = t.plan_id
       WHERE t.id = ?`,
@@ -117,6 +131,23 @@ async function crearCheckoutSessionReactivacion(tenantId, { db = obtenerPool() }
   // stripePagos.js:obtenerTaxRateIva), nunca un monto recalculado aquí.
   const taxRateId = await obtenerTaxRateIva(stripe);
 
+  // Punto en curso (prueba gratis de 10 días): si el tenant TODAVÍA está
+  // en prueba y no ha vencido, este checkout es "agregar método de pago"
+  // (día 7-9), no una reactivación real — Stripe no debe cobrar hoy,
+  // solo guardar la tarjeta y programar el primer cobro para el mismo
+  // instante en que la prueba terminaría localmente. Si ya venció o el
+  // estatus es otro (vencida/cancelada/pendiente, el caso real de
+  // reactivación), se cobra de inmediato como siempre — sin trial_end.
+  let trialEnd = null;
+  if (tenant.suscripcion_estatus === 'prueba' && tenant.suscripcion_expira_en) {
+    const expiraEnStr = String(tenant.suscripcion_expira_en).slice(0, 10);
+    const candidato = trialEndUnixDesdeFecha(expiraEnStr);
+    if (candidato * 1000 > Date.now()) trialEnd = candidato;
+  }
+
+  const subscriptionData = { metadata: { tipo: 'reactivacion', tenantId: String(tenant.id) } };
+  if (trialEnd) subscriptionData.trial_end = trialEnd;
+
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     allow_promotion_codes: true,
@@ -133,7 +164,7 @@ async function crearCheckoutSessionReactivacion(tenantId, { db = obtenerPool() }
       },
     ],
     metadata: { tipo: 'reactivacion', tenantId: String(tenant.id) },
-    subscription_data: { metadata: { tipo: 'reactivacion', tenantId: String(tenant.id) } },
+    subscription_data: subscriptionData,
     success_url: `${APP_BASE_URL}/${tenant.slug}/admin?reactivado=1`,
     cancel_url: `${APP_BASE_URL}/${tenant.slug}/admin`,
   });
@@ -157,7 +188,10 @@ async function manejarReactivacionConfirmada(session, db) {
     console.error('checkout.session de reactivación sin metadata.tenantId — no se puede reactivar nada con esto.', session.id);
     return;
   }
-  const [filas] = await db.query('SELECT id, slug, suscripcion_ciclo FROM tenants WHERE id = ?', [tenantId]);
+  const [filas] = await db.query(
+    'SELECT id, slug, suscripcion_ciclo, suscripcion_estatus, suscripcion_expira_en FROM tenants WHERE id = ?',
+    [tenantId]
+  );
   const tenant = filas[0];
   if (!tenant) {
     console.error(`Reactivación confirmada para tenant_id=${tenantId}, pero ya no existe.`, session.id);
@@ -166,19 +200,41 @@ async function manejarReactivacionConfirmada(session, db) {
 
   const stripeCustomerId = typeof session.customer === 'string' ? session.customer : session.customer?.id || null;
   const stripeSubscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id || null;
-  const ciclo = tenant.suscripcion_ciclo === 'anual' ? 'anual' : 'mensual';
-  const hoy = hoyYYYYMMDD();
-  const expiraEn = sumarCiclo(hoy, ciclo);
 
-  // suscripcion_origen NUNCA se toca aquí — sigue siendo 'manual', la
-  // verdad histórica de cómo nació este tenant, aunque ya esté pagando.
-  await db.query(
-    `UPDATE tenants
-        SET suscripcion_estatus = 'pagada', stripe_customer_id = ?, stripe_subscription_id = ?,
-            suscripcion_ciclo_inicia_en = ?, suscripcion_expira_en = ?
-      WHERE id = ?`,
-    [stripeCustomerId, stripeSubscriptionId, hoy, expiraEn, tenant.id]
-  );
+  // Punto en curso (prueba gratis): si la tarjeta se agregó a MEDIO
+  // trial vigente (crearCheckoutSessionReactivacion le puso trial_end a
+  // esta Subscription), todavía no se cobró nada — no adelantar
+  // suscripcion_estatus/expira_en/ciclo_inicia_en aquí, o se perdería la
+  // fecha real de fin de prueba (y se fijaría mal la ancla del ciclo de
+  // pago, antes de que exista un primer cobro real). Solo se guardan los
+  // identificadores de Stripe; invoice.payment_succeeded (ya cableado en
+  // webhooksSuscripcion.js) es quien de verdad mueve el estatus a
+  // 'pagada' con la fecha real, cuando Stripe cobre al llegar trial_end.
+  const expiraEnStr = tenant.suscripcion_expira_en ? String(tenant.suscripcion_expira_en).slice(0, 10) : null;
+  const siguePruebaVigente =
+    tenant.suscripcion_estatus === 'prueba' && expiraEnStr && hoyYYYYMMDD() <= expiraEnStr;
+
+  if (siguePruebaVigente) {
+    await db.query(
+      `UPDATE tenants SET stripe_customer_id = ?, stripe_subscription_id = ? WHERE id = ?`,
+      [stripeCustomerId, stripeSubscriptionId, tenant.id]
+    );
+  } else {
+    const ciclo = tenant.suscripcion_ciclo === 'anual' ? 'anual' : 'mensual';
+    const hoy = hoyYYYYMMDD();
+    const expiraEn = sumarCiclo(hoy, ciclo);
+
+    // suscripcion_origen NUNCA se toca aquí — sigue siendo 'manual' u
+    // 'onboarding', la verdad histórica de cómo nació este tenant, aunque
+    // ya esté pagando.
+    await db.query(
+      `UPDATE tenants
+          SET suscripcion_estatus = 'pagada', stripe_customer_id = ?, stripe_subscription_id = ?,
+              suscripcion_ciclo_inicia_en = ?, suscripcion_expira_en = ?
+        WHERE id = ?`,
+      [stripeCustomerId, stripeSubscriptionId, hoy, expiraEn, tenant.id]
+    );
+  }
 
   // Si estaba archivado (vino del link de 15 días), lo reactiva — si
   // seguía 'activo' (pagó desde el muro antes de que el job lo
@@ -195,9 +251,15 @@ async function manejarReactivacionConfirmada(session, db) {
 
 // Job automático (llamado desde un temporizador propio en
 // control/server.js:iniciar(), mismo patrón que purga/recordatorios).
-// Archiva cualquier trial MANUAL vencido sin pago (nunca tocó Stripe de
-// verdad) y manda el correo con el link de 15 días. Un tenant que falla
-// no detiene al resto del barrido.
+// Archiva cualquier trial vencido sin pago (nunca tocó Stripe de verdad
+// — `stripe_subscription_id IS NULL` es la señal real de "nunca agregó
+// tarjeta", sin importar si el trial nació manual desde /control u
+// onboarding self-service) y manda el correo con el link de 15 días —
+// mismo correo que de paso cubre el "avisar a quien no concretó la
+// compra" pedido para la prueba gratis de 10 días: cero campaña nueva
+// que construir, el mismo job ya alcanza ambos orígenes (antes solo
+// `suscripcion_origen='manual'`, filtro quitado a propósito en este
+// punto). Un tenant que falla no detiene al resto del barrido.
 async function archivarTrialsVencidosSinPago(db = obtenerPool()) {
   const hoy = hoyYYYYMMDD();
   const [candidatos] = await db.query(
@@ -205,7 +267,6 @@ async function archivarTrialsVencidosSinPago(db = obtenerPool()) {
        FROM tenants
       WHERE estado IN ('activo','suspendido')
         AND suscripcion_estatus = 'prueba'
-        AND suscripcion_origen = 'manual'
         AND stripe_subscription_id IS NULL
         AND suscripcion_expira_en IS NOT NULL
         AND suscripcion_expira_en < ?`,

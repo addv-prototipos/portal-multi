@@ -3993,6 +3993,13 @@ app.get('/api/admin/login', adminLoginLimiter, tenantAggregateAuthLimiter, requi
           reportesEstadoTicketsHabilitado: req.tenant.reportesEstadoTicketsHabilitado,
           promocionesHabilitado: req.tenant.promocionesHabilitado,
           ticketImpresionHabilitado: req.tenant.ticketImpresionHabilitado,
+          // Punto en curso (prueba gratis de 10 días): el frontend los usa
+          // para el aviso NO bloqueante de "faltan N días" (día 7-9) —
+          // separado de suscripcionBloqueo (que ya bloquea /admin con 402
+          // cuando aplica, ver auth.js). null/null = sin suscripción
+          // configurada, nunca dispara el aviso.
+          suscripcionEstatus: req.tenant.suscripcionEstatus,
+          suscripcionExpiraEn: req.tenant.suscripcionExpiraEn,
         }
       : null,
   });

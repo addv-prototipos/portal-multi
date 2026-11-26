@@ -290,7 +290,14 @@ async function procesarEventoWebhook(event, { db = obtenerPool() } = {}) {
       // OXXO/SPEI llega con 'unpaid' (el cliente solo generó la ficha, el
       // dinero no ha llegado) y el aviso real es
       // checkout.session.async_payment_succeeded más adelante.
-      if (session.payment_status === 'paid') {
+      // 'no_payment_required' (punto en curso, prueba gratis): se da
+      // cuando la Subscription tiene `trial_end` futuro — el monto
+      // debido HOY es $0 porque Stripe todavía no cobra nada, no porque
+      // el pago haya fallado o esté pendiente. Sin este valor, "agregar
+      // método de pago durante la prueba" se procesaría en silencio
+      // (yaProcesado() ya marcó el evento, y nunca llega un segundo
+      // evento que lo reintente).
+      if (session.payment_status === 'paid' || session.payment_status === 'no_payment_required') {
         await enrutarPagoConfirmado(session, db);
       }
       break;

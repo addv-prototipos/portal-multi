@@ -2421,6 +2421,40 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   resolver del overlay nuevo también llama al resume compartido
   (`reanudarAvisosTrasOnboardingBloqueante()`, extraído de
   `cerrarTourBienvenida()`) como fallback cuando el tour no abrió.
+- **El `return` del punto anterior (504) también descarta en silencio
+  CUALQUIER aviso nuevo que se agregue después a la cadena de
+  `reanudarAvisosTrasTerminos()` — no solo protege al tour, también
+  esconde la trampa** (punto 521, 2026-11-26, aviso de pago de la prueba
+  gratis de 10 días): el fix del punto 504 hace `return` apenas
+  `mostrarAsistenteFacturacionSiAplica()` muestra el modal, sin caer al
+  `if/else-if` de abajo — correcto para el tour (que de todas formas se
+  re-dispara aparte, ver el punto 504), pero CUALQUIER variable
+  `...PendienteTrasTerminos` nueva que se agregue a ese mismo
+  `if/else-if` (fiscal, suscripción por vencer, pago-prueba) nunca se
+  consume si coincide con el Asistente de Facturación en la misma
+  pasada — el valor queda diferido para siempre, `evaluarAvisoPagoPrueba()`
+  (o la función equivalente) nunca vuelve a decidir porque ya marcó su
+  propio flag de "ya until decidí" (`avisoPagoPruebaMostrado`) la
+  primera vez. Confirmado real con un trial de 10 días forzado a 2 días
+  desde el día 0 (nunca pasa con el trial real, que siempre arranca con
+  10 días — por eso nadie lo había visto): el aviso "¡Ya casi! Faltan N
+  días" se perdía en silencio tras aceptar T&C con el Asistente de
+  Facturación sin responder. Fix aplicado SOLO a la variable del
+  pago-prueba (`reanudarAvisosTrasTerminos()`, `frontend/admin.js`): si
+  `mostrarAsistenteFacturacionSiAplica()` muestra el modal, el valor de
+  `avisoPagoPruebaDiasPendienteTrasTerminos` se transfiere a
+  `avisoPagoPruebaDiasPendiente` (la variable que SÍ se consume al
+  cerrar ese modal, vía `reanudarAvisosTrasOnboardingBloqueante()`) antes
+  del `return`, en vez de perderse. **Mismo hueco sigue sin corregir
+  para fiscal y suscripción-por-vencer** — nunca se había necesitado
+  porque ninguno de los 2 puede coincidir con el Asistente de
+  Facturación en un día 0 real (fiscal sí podría, en teoría, si el admin
+  tarda en aceptar T&C Y ya tiene datos fiscales incompletos Y el
+  Asistente de Facturación sigue sin responder, los 3 a la vez) — si una
+  sesión futura agrega otra variable `...PendienteTrasTerminos` a esta
+  cadena, aplicar el mismo patrón de transferencia antes del `return`,
+  o mejor, generalizar las 3 variables sueltas a una sola cola — no se
+  hizo aquí por mantenerse dentro del alcance aprobado (solo el trial).
 - **Cualquier job largo en segundo plano que viva DENTRO del proceso de
   Node (no una cola externa) necesita autosanado por staleness, no solo
   un estado "en progreso"** (punto 458, 2026-10-30, patrón ya aplicado al

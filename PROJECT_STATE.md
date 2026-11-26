@@ -32468,3 +32468,132 @@ del usuario cuándo commitear/desplegar. Los 8 mockups de "ícono de
 soporte" y los de "prueba gratis 10 días"/"Asistente V" de la misma
 tarde (ver memoria de sesión, `S2845`-`S2849`) son trabajo de diseño
 aparte, no tocado en este punto.
+
+## Punto 521 — Prueba gratis de 10 días (self-service, sin tarjeta): implementación + prueba funcional real + 1 bug encontrado y corregido antes de desplegar (26 nov 2026, CERRADO)
+
+Continuación de la sesión del punto 520, cortada por un crash del IDE a
+mitad de una corrida de pruebas que tronó por falta de memoria — el
+usuario preguntó si eso había tocado producción justo antes del crash.
+Se levantaron 3 agentes para reconstruir el incidente antes de retomar
+(ver abajo) y después se corrió la prueba funcional real completa del
+feature nuevo.
+
+**Diagnóstico del crash (3 agentes en paralelo, claude-mem + Docker
+real + Jest real), ninguno encontró nada en producción**:
+- El OOM fue del proceso Jest/Node del host (o del propio IDE/WSL2), NO
+  de ningún contenedor Docker — los 8 contenedores inspeccionados
+  tenían `OOMKilled: false`, 0 restarts, todos sanos.
+- El backfill de IVA (`backfill-tax-rate-suscripciones.js`, pendiente
+  desde el punto 516) solo había corrido en **dry-run** — encontró 1
+  tenant con `sub_id` de modo prueba leído con llave live (mismatch),
+  se detuvo solo sin escribir nada. Sigue bloqueado, sin relación con
+  este punto.
+- Último commit real antes del crash: `863859e` (asistente de soporte,
+  punto 520, ya en prod). Todo el trial de 10 días seguía sin
+  commitear, solo local. Producción intacta.
+
+**Feature (diseño ya cerrado en una sesión previa, implementación local
+en esta)**: alta self-service sin tarjeta — cualquier onboarding nuevo
+puede activar un trial de 10 días vía
+`POST /api/public/onboarding/activar-prueba/:token`
+(`control/server.js`/`onboardingConversion.js`, mismo candado reCAPTCHA
+que `/pagar/:token`, pero sin cobrar nada). Piezas:
+- `convertirBorrador(token, {esPrueba:true, diasPrueba:10})` inicializa
+  `suscripcion_estatus='prueba'` + `expira_en=hoy+10` vía
+  `actualizarSuscripcionTenant()` — mismo mecanismo idempotente del
+  punto 416, sin tocar Stripe.
+- Backend (`tenantContext.js`/`server.js`) expone
+  `suscripcionEstatus`/`suscripcionExpiraEn` crudos en
+  `GET /api/admin/login` (dentro de `funciones`, no de `tenant` — ver
+  nota de verificación abajo) para que el frontend pinte el aviso NO
+  bloqueante sin esperar a que `suscripcionBloqueo` (punto 465, ya
+  existente, `motivo:'prueba_vencida'`) se active.
+- Aviso dismissable día 7-9 (`frontend/admin.js`/`admin.html`,
+  "Asistente V"): se evalúa en cada login mientras falten ≤3 días,
+  nunca "ya lo vi para siempre" (pedido explícito del usuario) —
+  reaparece en cada login/reload hasta que se agregue tarjeta o venza.
+- "Agregar método de pago" reusa
+  `crearCheckoutSessionReactivacion()` (`reactivacionTenant.js`, ya
+  existente para reactivaciones) — si el tenant sigue en prueba
+  vigente, le pone `trial_end` a la Subscription en vez de cobrar hoy;
+  `manejarReactivacionConfirmada()` NO adelanta `suscripcion_estatus` a
+  'pagada' en ese caso (solo guarda los IDs de Stripe) — es
+  `invoice.payment_succeeded` (webhook ya cableado) quien de verdad
+  cobra y mueve el estatus, cuando Stripe llegue al `trial_end` real.
+- `archivarTrialsVencidosSinPago()` (job periódico ya existente,
+  `reactivacionTenant.js`) perdió el filtro
+  `AND suscripcion_origen = 'manual'` — ahora cubre también los trials
+  self-service de este punto, mismo correo de 15 días reusado sin
+  campaña nueva.
+
+**Prueba funcional real (Docker+MySQL+Stripe test mode reales, Chrome
+DevTools MCP — no solo Jest mockeado)**: las imágenes de `control`/
+`backend`/`frontend` no traían el código nuevo (build cache viejo) —
+rebuild + `--force-recreate` de los 3, confirmado el código real dentro
+de cada contenedor (`docker exec ... grep`) antes de confiar en
+cualquier resultado.
+1. Tenant real aprovisionado de punta a punta vía los endpoints
+   públicos reales (`borrador` → `PUT` × 2 → `activar-prueba`) — BD
+   real: `estado=activo, suscripcion_estatus=prueba,
+   suscripcion_expira_en=hoy+10`.
+2. Aviso día 7-9: con `expira_en` a 2 días, aparece "¡Ya casi! Faltan 2
+   días de tu prueba" — dismiss ("Después") + reload → reaparece,
+   confirmado no es "visto para siempre".
+3. "Agregar método de pago" → Checkout real de Stripe (test mode)
+   confirmado por el propio Stripe: "2 días gratis", "Total adeudado
+   hoy: MXN 0.00", reanuda el "28 de noviembre de 2026" (exacto:
+   medianoche CDMX del día siguiente a `expira_en`, fórmula de
+   `trialEndUnixDesdeFecha()` correcta), IVA 16% desglosado (punto 516)
+   aplicado sobre el precio real del plan.
+4. Trial vencido sin pago: con `expira_en`=ayer, el job real
+   `archivarTrialsVencidosSinPago()` (corre solo, periódico, dentro de
+   `control/server.js:iniciar()`) archivó el tenant de prueba de
+   verdad — log real: `"Archivado automático de trials vencidos sin
+   pago: 1/1 archivado(s)."` — confirma que quitar el filtro de origen
+   sí amplía la cobertura del job. El correo de 15 días falló por SMTP
+   no configurado en este entorno local (limitación ya documentada,
+   `project_smtp_pruebas_reales.md`), no es bug del feature.
+
+**Bug real encontrado y corregido antes de desplegar — determinista,
+no es timing de prueba**: `reanudarAvisosTrasTerminos()`
+(`frontend/admin.js`) hacía `return` apenas el Asistente de Facturación
+se mostraba, saltándose por completo la rama que consumía
+`avisoPagoPruebaDiasPendienteTrasTerminos` — el aviso de pago-prueba
+diferido tras el gate de Términos y Condiciones se perdía en silencio
+si coincidía con el Asistente de Facturación sin responder en el mismo
+login. **No alcanzable con el trial real de 10 días en operación
+normal** (día 0 siempre tiene 10 días restantes, fuera de la ventana
+≤3 días; tanto T&C como el Asistente de Facturación son gates de una
+sola vez que ya se resuelven el día 0) — solo se disparó editando
+`suscripcion_expira_en` a mano para acelerar la prueba. Mismo hueco
+preexistente (no de esta sesión, no corregido aquí) también puede
+afectar los avisos de "datos fiscales faltantes" y "suscripción por
+vencer" si algún día coinciden con esta misma colisión — anotado para
+una sesión futura, fuera de alcance de este punto.
+
+Fix aplicado (aditivo, de bajo riesgo): si el Asistente de Facturación
+se muestra justo cuando el aviso de pago-prueba estaba diferido tras
+T&C, su valor se transfiere a la variable que
+`resolverAsistenteFacturacion()` SÍ consume al cerrarse
+(`avisoPagoPruebaDiasPendiente`, vía
+`reanudarAvisosTrasOnboardingBloqueante()`), en vez de perderse.
+Reproducido el escenario exacto con un segundo tenant de prueba (trial
+ya corto desde el día 0, antes del primer login) — confirmado que tras
+el fix el aviso sí aparece en el mismo punto donde antes se tragaba.
+
+**Nota de verificación, para no repetir la confusión**: el payload de
+`GET /api/admin/login` trae `suscripcionEstatus`/`suscripcionExpiraEn`
+dentro de `data.funciones`, **no** de `data.tenant` — un primer intento
+de inspección vía `fetch` en esta misma sesión asumió `data.tenant` y
+reportó `null`/`null` en falso, antes de confirmar la forma real del
+payload.
+
+**Housekeeping de la prueba**: 2 tenants de prueba
+(`e2e-trial-<timestamp>`, `e2e-trial-collision-<timestamp>`) quedaron
+en el stack local (uno archivado por el job real, el otro activo) —
+desechables, sin dato real, no limpiados a propósito por no arriesgar
+un script destructivo sin pedirlo. Ningún dato de producción/Stripe
+real tocado — todo contra Docker local + Stripe test mode.
+
+**Pendiente**: commitear + actualizar `CLAUDE.md`/`AGENTS.md` (este
+mismo cierre) + decidir con el usuario cuándo desplegar a producción.
