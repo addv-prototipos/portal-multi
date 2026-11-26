@@ -32798,3 +32798,38 @@ huérfanos corrida. `docker service ls` final: 8/8 servicios activos en
 `1/1` (más `garage-init`/`mysql-replica`, `0` réplicas a propósito).
 `https://clarvo.mx/` + `/login` + `/api/health` + `/kerberos`
 confirmados en 200/30x tras el redeploy.
+
+## Punto 524 — Badge "Esperando clientes..." junto al título de Clientes (CRM) (26 nov 2026, CERRADO, desplegado a Vultr)
+
+Pedido explícito del usuario (captura señalando el punto exacto junto al
+`<h1>`): un badge pequeño con punto navy pulsante + texto "Esperando
+clientes..." aparece junto al título `Clientes (CRM)`, visible SOLO
+mientras `crmContactosCache.length === 0` (mismo criterio que el estado
+vacío ilustrado del punto 523) — se oculta solo en cuanto hay al menos
+un cliente.
+
+**Implementación**: `frontend/admin.js` —
+`construirEsqueletoCrm()` agrega `<span class="crm-estado-badge"
+id="crm-estado-badge" hidden>` junto al `<h1>`;
+`renderCrmVistaActual()` (ya se llama en cada carga/cambio de pestaña)
+togglea `hidden` según el tamaño real de la caché. `frontend/admin.css`
+— `.crm-estado-badge`/`.crm-estado-badge .dot` reusan
+`--color-ink-soft`/`--color-accent`/`--color-bg`/`--color-border` ya
+existentes, con un pulso de opacidad (`crmEstadoPulso`) apagado bajo
+`prefers-reduced-motion: reduce`, mismo patrón que el resto de
+`/admin.css`.
+
+**Verificado real** (Playwright + Edge, tenant local `panes`, 0
+clientes): badge visible con el texto exacto, cero errores de consola,
+captura confirmando posición junto al título.
+
+**Desplegado a Vultr el mismo día** (commit `b4e5279`): mismo runbook
+completo que el punto 523 — backup real de MySQL, `git archive HEAD`,
+checksum idéntico servidor vs. local, modo mantenimiento durante el
+swap de `frontend` (único servicio tocado), smoke-test obligatorio en
+modo prueba (alta real + activación 100% vía webhook + borrado, verde),
+Stripe/reCAPTCHA restaurados a producción y verificados de verdad
+(`stripe-modo` → `produccion`/`lcqh` igual que antes; `recaptchaSiteKey`
+real confirmado en el bundle de `clarvo-site-web`), limpieza de
+huérfanos corrida. `docker service ls` 8/8 sano,
+`https://clarvo.mx/`+`/login`+`/api/health`+`/kerberos` en 200/30x.
