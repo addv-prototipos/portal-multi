@@ -401,6 +401,24 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   `/c/Windows/System32/OpenSSH/ssh.exe` (mismos flags `-i`) — funciona
   sin el bug. Detalle completo en memoria
   (`project_ssh_gitbash_hostbound_bug.md`).
+- **Cualquier ruta remota que empiece con `/` (un solo slash) pasada como
+  argumento de `ssh.exe`/`scp.exe` nativo (o de `docker exec ... sh -c`)
+  desde Git Bash se traduce a una ruta de Windows ANTES de llegar al
+  destino** (punto 521, 2026-11-26): MSYS/Git Bash convierte
+  automáticamente cualquier argumento que "parezca" una ruta POSIX
+  absoluta a su equivalente de Windows cuando el binario invocado es un
+  `.exe` nativo (no un binario MSYS) — `/opt/clarvo/scripts/x.sh` llega
+  al remoto como algo como `C:/Program Files/Git/opt/clarvo/scripts/x.sh`,
+  y el espacio sin escapar de "Program Files" trunca el comando en el
+  shell remoto: `bash: line 1: C:/Program: No such file or directory`,
+  sin relación aparente con la ruta real que se quiso ejecutar. Mismo
+  mecanismo con `docker exec <contenedor> sh -c "grep ... /usr/src/app/..."`
+  (la ruta DENTRO del `sh -c` también se traduce). **Fix, ya usado varias
+  veces en este repo**: doblar la primera barra (`//opt/clarvo/...`,
+  `//usr/src/app/...`) — MSYS no traduce una ruta que empieza con `//`.
+  Aplica a CUALQUIER ruta absoluta de este tipo pasada a un `.exe` nativo
+  desde Git Bash — `ssh.exe`, `scp.exe`, `docker.exe exec` — no solo al
+  caso puntual donde se detectó.
 - **Garage (`dxflrs/garage`): nunca copiar el `command:` de MinIO**
   (punto 442, 2026-10-29): la imagen no trae `ENTRYPOINT` (solo
   `CMD=[/garage server]`) — un `command:` en compose/stack REEMPLAZA el

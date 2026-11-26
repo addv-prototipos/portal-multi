@@ -32597,3 +32597,46 @@ real tocado — todo contra Docker local + Stripe test mode.
 
 **Pendiente**: commitear + actualizar `CLAUDE.md`/`AGENTS.md` (este
 mismo cierre) + decidir con el usuario cuándo desplegar a producción.
+
+**Desplegado a producción real (26 nov 2026, mismo día, commit
+`f9686a8`)**: runbook completo de `VULTR/README-VULTR.md` sin saltarse
+ningún paso — backup real de `mysql-primary`/`mysql-control` (tamaños
+verificados, no 0 bytes), `git archive HEAD` (nunca el working tree),
+modo mantenimiento activo antes de recrear nada, extracción + checksums
+md5 de 4 archivos clave coincidentes contra el commit, build+recreate
+real de `backend`/`control`/`frontend`, código del trial confirmado
+dentro de los 3 contenedores (`docker exec ... grep`). Stripe+reCAPTCHA
+a modo prueba → `smoke-test-onboarding.js --borrar` real contra
+`clarvo.mx` (PASS: tenant activado SOLO por el webhook) → **además**,
+activación real del trial de 10 días directo contra producción
+(`borrador`→`activar-prueba`), confirmada en la BD real de producción
+(`suscripcion_estatus='prueba'`, `expira_en=hoy+10`), tenant de prueba
+dado de baja + eliminado al terminar → Stripe+reCAPTCHA revertidos a
+producción real (confirmado: `modo:"produccion"`, mismos últimos 4
+dígitos de la llave real de antes, llave pública real de reCAPTCHA de
+vuelta en el bundle horneado de `clarvo-Site`) → limpieza de
+contenedores huérfanos corrida. Health checks en 200 todo el tiempo
+salvo un blip transitorio de unos segundos durante el propio restart de
+`control` (nunca visible al público, confirmado reintentando).
+
+**Gotcha real encontrado en este deploy**: invocar
+`/opt/clarvo/scripts/limpieza-docker.sh` vía `ssh.exe` desde Git Bash
+con la ruta tal cual (`/opt/...`) revienta con `bash: line 1:
+C:/Program: No such file or directory` — mismo mecanismo ya documentado
+para `docker exec` (MSYS traduce cualquier argumento que "parezca" una
+ruta POSIX absoluta a una ruta de Windows ANTES de pasárselo a un
+.exe nativo como `ssh.exe`, y como la traducción cae dentro de
+`C:\Program Files\...`, el espacio sin escapar trunca el comando en el
+shell remoto). Mismo fix que ya se usa para `docker exec` en este mismo
+punto: doblar la primera barra (`//opt/clarvo/...`) — MSYS no traduce
+una ruta que empieza con `//`. Aplica a CUALQUIER ruta absoluta pasada
+como argumento de un comando remoto vía `ssh.exe`/`scp.exe` desde Git
+Bash, no solo a `docker exec` — ampliar el gotcha ya existente en
+`CLAUDE.md` en vez de tratarlo como uno nuevo.
+
+**Pendiente, sin relación con este punto**: el backfill de IVA
+(`backfill-tax-rate-suscripciones.js`) sigue bloqueado por el mismatch
+de `sub_id` encontrado en dry-run antes del crash de esta sesión — no
+se tocó en este deploy. Los 2 tenants de prueba locales
+(`e2e-trial-*`) siguen sin limpiar en el stack Docker local, sin
+relación con producción.
