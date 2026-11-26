@@ -2621,6 +2621,26 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   va a funcionar en un servidor nuevo, confirmar con `SHOW GRANTS` los 3
   usuarios (`app`, `control_app`, `app_tenant_drop`), no solo que las
   variables de entorno tengan valor.
+- **El mismo hueco de `app_tenant_drop` también existe en el Docker
+  Desktop LOCAL de desarrollo, no solo en un servidor nuevo** (punto 521,
+  2026-11-26): confirmado real al limpiar 2 tenants de prueba del trial
+  de 10 días — `POST /api/control/tenants/<slug>/eliminar` respondía
+  `503` (interceptado por el `error_page 502/503/504` de nginx, mismo
+  gotcha de siempre) y el log real de `backend` mostraba
+  `Access denied for user 'app_tenant_drop'@'172.19.0.2' (using
+  password: YES)` — el usuario simplemente nunca se había creado en
+  `clrv-mysql-companies` desde que este stack local existe (nadie había
+  necesitado borrar un tenant de verdad hasta ahora). Mismo fix exacto
+  que en producción, corrido contra el MySQL local:
+  `CREATE USER IF NOT EXISTS 'app_tenant_drop'@'%' IDENTIFIED BY
+  '<DB_DROP_PASSWORD del .env>'; GRANT DROP ON \`tenant\_%\`.* TO
+  'app_tenant_drop'@'%'; FLUSH PRIVILEGES;` — confirmado con
+  `SHOW GRANTS` (solo DROP) y con un borrado real exitoso justo después.
+  Antes de dar por "raro"/"bug nuevo" un 503 en el borrado de un tenant
+  en CUALQUIER entorno (local o VPS), revisar primero los logs reales de
+  `backend` buscando `Access denied for user 'app_tenant_drop'` — es más
+  probable que sea este gap de aprovisionamiento manual nunca corrido
+  que un bug de código.
 - **`onboardingPublicLimiter` (40 req/15min por IP, 7 rutas del wizard
   público comparten el mismo balde) es real y se agota rápido probando
   en serio — y es de VENTANA FIJA, un pacing fijo no basta**: una alta
