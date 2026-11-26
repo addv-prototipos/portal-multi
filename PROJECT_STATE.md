@@ -32713,3 +32713,67 @@ cambio de solo lectura sin BD), pero sí se verificó checksum real
 reconstruir la imagen `clrv-kerberos:latest` y forzar
 `docker service update --force clarvo_kerberos`. `https://clarvo.mx/kerberos/login.html`
 + sitio + `/admin` confirmados en 200 tras el redeploy.
+
+## Punto 523 — Clientes (CRM): estado vacío ilustrado con 10 variantes aleatorias (26 nov 2026, CERRADO, trabajo local)
+
+Pedido explícito del usuario: el "Aún no hay clientes registrados." plano
+de `Clientes (CRM)` (ambas pestañas, Contactos y Métricas, cuando el
+tenant todavía no tiene ningún usuario `perfil='cliente'`) se reemplazó
+por un componente ilustrado — una de 10 ilustraciones de línea propias
+(mismo trazo navy de `/admin`, sin iconografía externa ni emojis) +
+una frase estoica real y atribuida (Epicteto, Marco Aurelio, Séneca),
+elegida al azar en cada render. Antes de implementar se presentó un
+Artifact con las 10 propuestas completas (maqueta fiel del encabezado y
+pestañas reales de Clientes (CRM)) para que el usuario viera el
+resultado antes de pedir "impleméntalas todas, aleatorias" — confirmó
+las 10 sin elegir una sola.
+
+**Temas y frases** (semilla, brújula, camino, anillos de crecimiento,
+promontorio/olas, colmena, reloj de arena, puerta entreabierta,
+constelación, manantial): ver el array completo
+`CRM_ILUSTRACIONES_VACIO` en `frontend/admin.js`, justo después de
+`crmBadgeSegmento()`.
+
+**Implementación**:
+- `frontend/admin.js`: `CRM_ILUSTRACIONES_VACIO` (10 objetos
+  `{ico, frase, autor}`) + `crmVacioIlustradoHtml()` (elige índice con
+  `Math.floor(Math.random() * 10)` y arma el bloque `<svg>` + `<blockquote>`).
+  Reemplaza el `return '<p class="crm-vacio">...'` en los dos puntos que
+  antes mostraban el texto plano: `renderCrmContactosHtml()` (0 contactos)
+  y `renderCrmMetricasHtml()` (total === 0) — mismo componente en ambos,
+  es el mismo estado ("aún no hay clientes"), no dos mensajes distintos.
+  La clase `.crm-vacio` (texto plano) se conservó sin tocar para el caso
+  de búsqueda sin coincidencias (`crmRenderListaItems`), que es un estado
+  semánticamente distinto (sí hay clientes, el filtro no encontró
+  ninguno) y a propósito no lleva ilustración.
+- `frontend/admin.css`: bloque nuevo al final del archivo —
+  `.crm-vacio-ilustrado`/`.crm-vacio-ico`/`.crm-vacio-quote` (reusan
+  `--color-accent`/`--color-accent-dark`/`--color-ink`/`--color-ink-soft`
+  ya redefinidos a navy bajo `.admin-body`, cero tokens/colores nuevos) +
+  10 animaciones `crm-vi-*` (sway, needle, drift, wave, orbit, fall, ajar,
+  pulse, ripple, grow — todas solo `transform`/`opacity`, bajo costo) con
+  su `@media (prefers-reduced-motion: reduce)` que las apaga todas de un
+  jalón, mismo patrón que el resto de `/admin.css`.
+
+**Verificado real** (Playwright + Edge del sistema, chromium no
+instalado en este entorno — mismo gotcha ya documentado — contra
+Docker+MySQL reales, nunca mocks): se usó el tenant local de prueba
+`panes` (`crm_habilitado=1`, 0 usuarios `perfil='cliente'`, dato
+confirmado por SQL directo antes de probar) — se le fijó una contraseña
+de prueba momentánea a su admin (`PAN`) solo para esta sesión de QA
+local (entorno 100% dev, no VPS). Se confirmaron las 3 superficies del
+estado vacío en vivo (carga inicial, recarga de página, cambio de
+pestaña Contactos→Métricas) con 3 ilustraciones distintas cada vez —
+random real, no un único valor fijo — y después se forzó
+`Math.random()` desde la página (sin tocar el código fuente) para
+renderizar las 10 variantes una por una y confirmar que ninguna rompe el
+SVG ni el layout. Cero errores de consola en las 13 renderizaciones
+combinadas. Capturas de las 10 revisadas una por una.
+
+**Archivos**: `frontend/admin.js`, `frontend/admin.css`. Sin cambios de
+esquema, sin tocar `backend/`/`control/` — es un cambio de solo
+presentación sobre un dato que el backend ya exponía
+(`GET /api/admin/crm/contactos` devolviendo `[]`).
+
+**No desplegado a Vultr en esta sesión** — queda para el próximo deploy
+junto con lo demás pendiente, no se pidió desplegar ahora.

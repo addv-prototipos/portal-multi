@@ -20852,6 +20852,128 @@
     return `<span class="crm-badge crm-seg-${segmento}">${meta.etiqueta}</span>`;
   }
 
+  // Estado vacío de Clientes (CRM): 10 ilustraciones de línea propias (mismo
+  // trazo que el resto de /admin, sin iconografía externa ni emojis) + una
+  // frase estoica real y atribuida. Se elige una al azar cada vez que este
+  // módulo se renderiza sin contactos — tanto en "Contactos" como en
+  // "Métricas" reusan el mismo componente, es el mismo estado ("aún no hay
+  // clientes"), no dos mensajes distintos. El filtro de búsqueda sin
+  // coincidencias (crmRenderListaItems) NO usa esto a propósito: ahí sí hay
+  // clientes, solo no coinciden con el texto buscado.
+  const CRM_ILUSTRACIONES_VACIO = [
+    {
+      ico: `<g class="crm-vi-sway">
+        <path class="vi-l" d="M50 76c-18 0-24-10-24-18h48c0 8-6 18-24 18z"/>
+        <path class="vi-l" d="M34 58c2-8 8-12 16-12s14 4 16 12"/>
+        <path class="vi-l" d="M50 46V20"/>
+        <path class="vi-l" d="M50 30c-4-8-12-10-18-7 1 7 8 12 18 10"/>
+        <circle class="vi-a" cx="50" cy="19" r="3.2"/>
+      </g>`,
+      frase: 'Así como no es posible que una higuera dé fruto de un momento a otro, tampoco lo es para un ser humano en un breve tiempo.',
+      autor: 'Epicteto, Enquiridión',
+    },
+    {
+      ico: `<circle class="vi-l" cx="50" cy="40" r="28"/>
+        <circle class="vi-l" cx="50" cy="40" r="20"/>
+        <g class="crm-vi-needle">
+          <path class="vi-a" d="M50 24l6 16-6-3-6 3z"/>
+          <path class="vi-l" d="M50 56l-5-16 5 3 5-3z"/>
+        </g>
+        <circle class="vi-a" cx="50" cy="40" r="2.6"/>
+        <line class="vi-l" x1="50" y1="8" x2="50" y2="14"/>
+        <line class="vi-l" x1="50" y1="66" x2="50" y2="72"/>
+        <line class="vi-l" x1="18" y1="40" x2="24" y2="40"/>
+        <line class="vi-l" x1="76" y1="40" x2="82" y2="40"/>`,
+      frase: 'No hay viento favorable para el que no sabe a qué puerto se dirige.',
+      autor: 'Séneca, Cartas a Lucilio',
+    },
+    {
+      ico: `<circle class="vi-a" cx="76" cy="20" r="7"/>
+        <path class="vi-l" d="M14 74c10-22 26-34 36-38M50 36c10 4 18 16 28 2"/>
+        <g class="crm-vi-drift">
+          <circle class="vi-a" cx="20" cy="70" r="2.4"/>
+          <circle class="vi-a" cx="32" cy="60" r="2.4"/>
+          <circle class="vi-a" cx="46" cy="48" r="2.4"/>
+        </g>`,
+      frase: 'Lo que se interpone en el camino se convierte en el camino.',
+      autor: 'Marco Aurelio, Meditaciones',
+    },
+    {
+      ico: `<g class="crm-vi-grow">
+        <path class="vi-l" d="M50 76a30 30 0 1 1 0-60"/>
+        <path class="vi-l" d="M50 66a20 20 0 1 1 0-40"/>
+        <path class="vi-as" d="M50 56a10 10 0 1 1 0-20"/>
+        <line class="vi-l" x1="50" y1="16" x2="50" y2="26"/>
+        <circle class="vi-a" cx="50" cy="46" r="3"/>
+      </g>`,
+      frase: 'No esperes la República de Platón; conténtate si algo pequeño avanza, y ten por no pequeño este resultado.',
+      autor: 'Marco Aurelio, Meditaciones',
+    },
+    {
+      ico: `<path class="vi-l" d="M40 70V34l12-18 12 18v36"/>
+        <g class="crm-vi-wave"><path class="vi-as" d="M10 62c6-4 10-4 16 0s10 4 16 0"/></g>
+        <g class="crm-vi-wave" style="animation-delay:-1.4s"><path class="vi-l" d="M58 68c6-4 10-4 16 0s10 4 16 0"/></g>`,
+      frase: 'Sé como el promontorio contra el cual rompen sin cesar las olas: él permanece firme, y en torno suyo el oleaje se calma.',
+      autor: 'Marco Aurelio, Meditaciones',
+    },
+    {
+      ico: `<path class="vi-l" d="M50 16l18 10v20l-18 10-18-10V26z"/>
+        <path class="vi-l" d="M50 30l9 5v10l-9 5-9-5V35z"/>
+        <g class="crm-vi-orbit">
+          <circle class="vi-a" cx="76" cy="26" r="2.6"/>
+          <path class="vi-l" d="M76 26l5 -2M76 26l5 2"/>
+        </g>
+        <g class="crm-vi-orbit" style="animation-direction:reverse; animation-duration:9s;">
+          <circle class="vi-a" cx="22" cy="54" r="2.3"/>
+        </g>`,
+      frase: 'Lo que no beneficia al enjambre, tampoco beneficia a la abeja.',
+      autor: 'Marco Aurelio, Meditaciones',
+    },
+    {
+      ico: `<path class="vi-l" d="M36 14h28M36 70h28M36 14c0 14 8 20 14 22-6 2-14 8-14 22M64 14c0 14-8 20-14 22 6 2 14 8 14 22"/>
+        <circle class="vi-a crm-vi-fall" cx="50" cy="38" r="2.2"/>
+        <path class="vi-as" d="M44 64c2-3 10-3 12 0"/>`,
+      frase: 'No es que tengamos poco tiempo, sino que perdemos mucho.',
+      autor: 'Séneca, Sobre la brevedad de la vida',
+    },
+    {
+      ico: `<path class="vi-l" d="M30 72V14h40v58"/>
+        <path class="vi-a" d="M70 14l10 60-10 4z" opacity=".15"/>
+        <g class="crm-vi-ajar">
+          <path class="vi-l" d="M34 70V18h26l10 4v48z"/>
+          <circle class="vi-a" cx="54" cy="46" r="1.8"/>
+        </g>`,
+      frase: 'No son las cosas las que perturban a los hombres, sino las opiniones que tienen sobre ellas.',
+      autor: 'Epicteto, Enquiridión',
+    },
+    {
+      ico: `<path class="vi-l" d="M20 60l24-10 18 16 22-30"/>
+        <circle class="vi-l" cx="20" cy="60" r="2.4"/>
+        <circle class="vi-l" cx="44" cy="50" r="2.4"/>
+        <circle class="vi-l" cx="62" cy="66" r="2.4"/>
+        <circle class="vi-a crm-vi-pulse" cx="84" cy="36" r="3.6"/>`,
+      frase: 'Decide primero quién quieres ser. Después, haz lo que tengas que hacer.',
+      autor: 'Epicteto, Enquiridión',
+    },
+    {
+      ico: `<circle class="vi-a" cx="34" cy="70" r="3"/>
+        <circle class="vi-as crm-vi-ripple" cx="34" cy="70" r="6"/>
+        <circle class="vi-as crm-vi-ripple" cx="34" cy="70" r="6" style="animation-delay:-1.1s"/>
+        <path class="vi-l" d="M34 67c6-14 20-20 34-20M68 47c6 0 10 4 10 10"/>`,
+      frase: 'Mientras aplazamos la vida, esta transcurre.',
+      autor: 'Séneca, Cartas a Lucilio',
+    },
+  ];
+
+  function crmVacioIlustradoHtml() {
+    const pick = CRM_ILUSTRACIONES_VACIO[Math.floor(Math.random() * CRM_ILUSTRACIONES_VACIO.length)];
+    return `
+      <div class="crm-vacio-ilustrado">
+        <svg class="crm-vacio-ico" viewBox="0 0 100 84" aria-hidden="true" focusable="false">${pick.ico}</svg>
+        <blockquote class="crm-vacio-quote">“${pick.frase}”<cite>— ${pick.autor}</cite></blockquote>
+      </div>`;
+  }
+
   async function cargarCrm() {
     const authHeader = getAuthHeader();
     if (!authHeader || !els.vistaCrm) return;
@@ -20924,7 +21046,7 @@
 
   function renderCrmContactosHtml() {
     if (crmContactosCache.length === 0) {
-      return '<p class="crm-vacio">Aún no hay clientes registrados.</p>';
+      return crmVacioIlustradoHtml();
     }
     const inicial = crmContactosCache.find((c) => c.id === crmContactoSeleccionadoId) || crmContactosCache[0];
     crmContactoSeleccionadoId = inicial.id;
@@ -21009,7 +21131,7 @@
   function renderCrmMetricasHtml() {
     const total = crmContactosCache.length;
     if (total === 0) {
-      return '<p class="crm-vacio">Aún no hay clientes registrados para calcular métricas.</p>';
+      return crmVacioIlustradoHtml();
     }
     const conteos = {};
     Object.keys(CRM_SEGMENTOS).forEach((s) => { conteos[s] = 0; });

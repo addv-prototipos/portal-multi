@@ -12430,3 +12430,50 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 .crm-dl-row .dot { width: 9px; height: 9px; border-radius: 2px; flex: none; }
 .crm-dl-row .n { flex: 1; color: var(--color-ink-soft); }
 .crm-dl-row .v { font-weight: 700; color: var(--color-ink); }
+
+/* Estado vacío ilustrado de Clientes (CRM): 10 variantes elegidas al azar
+   en admin.js (crmVacioIlustradoHtml). Mismo trazo navy que el resto de
+   /admin (--color-accent ya es navy aquí, ver .admin-body), sin colores
+   nuevos ni iconografía externa. */
+.crm-vacio-ilustrado {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 16px; padding: 44px 20px 36px; max-width: 420px; margin: 0 auto;
+}
+.crm-vacio-ico { width: 108px; height: 90px; color: var(--color-accent); overflow: visible; }
+.crm-vacio-ico .vi-l { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.crm-vacio-ico .vi-a { fill: var(--color-accent-dark); stroke: none; }
+.crm-vacio-ico .vi-as { fill: none; stroke: var(--color-accent-dark); stroke-width: 1.4; }
+.crm-vacio-quote {
+  margin: 0; font-size: 14.5px; line-height: 1.55; font-style: italic; font-weight: 600;
+  color: var(--color-ink); max-width: 36ch;
+}
+.crm-vacio-quote cite {
+  display: block; margin-top: 7px; font-size: 11.5px; font-style: normal; font-weight: 700;
+  letter-spacing: .02em; color: var(--color-accent);
+}
+
+.crm-vi-sway { animation: crmViSway 4.5s ease-in-out infinite; transform-origin: 50px 76px; }
+@keyframes crmViSway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+.crm-vi-needle { animation: crmViNeedle 5s ease-in-out infinite; transform-origin: 50px 40px; }
+@keyframes crmViNeedle { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(6deg); } }
+.crm-vi-drift { animation: crmViDrift 6s ease-in-out infinite; }
+@keyframes crmViDrift { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(5px); } }
+.crm-vi-wave { animation: crmViWave 5s ease-in-out infinite; }
+@keyframes crmViWave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+.crm-vi-orbit { animation: crmViOrbit 7s linear infinite; transform-origin: 50px 40px; }
+@keyframes crmViOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.crm-vi-fall { animation: crmViFall 2.6s ease-in infinite; }
+@keyframes crmViFall { 0% { transform: translateY(0); opacity: 0; } 10% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translateY(20px); opacity: 0; } }
+.crm-vi-ajar { animation: crmViAjar 5s ease-in-out infinite; transform-origin: 34px 44px; }
+@keyframes crmViAjar { 0%, 100% { transform: skewY(0deg); } 50% { transform: skewY(-1.5deg); } }
+.crm-vi-pulse { animation: crmViPulse 2.8s ease-in-out infinite; }
+@keyframes crmViPulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.crm-vi-ripple { animation: crmViRipple 3.2s ease-out infinite; transform-origin: 34px 70px; }
+@keyframes crmViRipple { 0% { opacity: .9; transform: scale(.4); } 100% { opacity: 0; transform: scale(1.6); } }
+.crm-vi-grow { animation: crmViGrow 4.5s ease-in-out infinite alternate; transform-origin: 50px 76px; }
+@keyframes crmViGrow { from { transform: scaleY(.94); } to { transform: scaleY(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-vi-sway, .crm-vi-needle, .crm-vi-drift, .crm-vi-wave, .crm-vi-orbit,
+  .crm-vi-fall, .crm-vi-ajar, .crm-vi-pulse, .crm-vi-ripple, .crm-vi-grow { animation: none; }
+}
