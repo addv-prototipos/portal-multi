@@ -32833,3 +32833,190 @@ Stripe/reCAPTCHA restaurados a producción y verificados de verdad
 real confirmado en el bundle de `clarvo-site-web`), limpieza de
 huérfanos corrida. `docker service ls` 8/8 sano,
 `https://clarvo.mx/`+`/login`+`/api/health`+`/kerberos` en 200/30x.
+
+## Punto 525 — Los CTA genéricos de `clarvo-Site` nunca disparaban el wizard (ni el trial del punto 521 ni nada) + bug propio + regresión de otra sesión encontrada y corregida antes de desplegar (26 nov 2026, CERRADO, desplegado a Vultr)
+
+Reporte del usuario con 2 capturas ("Comienza gratis" del hero/cierre y
+"Quiero mi prueba gratis" de la sección Solución): ninguno de esos
+botones disparaba el proceso de prueba gratis de 10 días del punto 521,
+ya desplegado el mismo día. Diagnóstico: los 3 eran `<a href="#planes">`
+de siempre — nunca estuvieron conectados a nada, solo hacían scroll a
+Planes. El único trigger real del wizard (evento
+`clarvo:abrir-onboarding`, `OnboardingModal.tsx`) vivía exclusivamente
+en los botones de tarjeta de plan de `PricingSection.astro`
+("Comenzar con `<Plan>`"), con su propio `planClave` ya resuelto —
+nunca fue un atajo genérico, por diseño original.
+
+**Decisión del usuario, explícita y acotada**: los 3 CTA genéricos deben
+abrir un selector de plan compacto; al elegir, entra directo a la
+prueba gratis de 10 días. El botón "Comienza ahora" del header (nav) y
+las tarjetas de plan de `PricingSection` ("Comenzar con `<Plan>`")
+**siguen siendo contratación directa** (pago real vía Stripe) — nunca
+se tocan.
+
+**Construido**: `src/components/site/PlanPicker.astro` (nuevo) — modal
+compacto que lee el mismo catálogo público (`GET /api/public/planes`)
+que `PricingSection`, lista los planes con nombre/precio/descripción, y
+al elegir uno dispara `clarvo:abrir-onboarding` con
+`{planClave, ciclo:"mensual", modo:"prueba"}`. Los 3 CTA pasaron de
+`<a href="#planes">` a `<button data-open-plan-picker>`. Montado una
+sola vez en `index.astro`.
+
+**Bug propio encontrado antes de probar**: el overlay llevaba
+`style="display:none"` inline + una clase `.is-open{display:flex}` en
+hoja de estilo — un inline style SIEMPRE gana sobre cualquier regla de
+clase, sin importar especificidad, así que el picker nunca se veía
+aunque el listener sí corría y el estado cambiaba bien (confirmado con
+`evaluate_script`: `classList` tenía `is-open`, `computedStyle.display`
+seguía en `none`). Fix: togglear `overlay.style.display` directo
+(`"flex"`/`"none"`), sin depender de ninguna clase CSS para mostrar/
+ocultar.
+
+**Regresión real de OTRA sesión, encontrada antes de comitear — nunca
+llegó a producción**: el working tree de `clarvo-Site` ya traía, sin
+commitear, el cableado real del backend del punto 521
+(`activarPruebaGratis`/`PasoActivarPrueba` en `OnboardingModal.tsx`) —
+pero esa sesión había **reemplazado por completo** el único paso final
+del wizard (antes `PasoPago`/`irAPagar`, Stripe Checkout real) por el
+nuevo paso de prueba gratis, sin ninguna rama para distinguir de dónde
+venía la apertura. Como el wizard es un componente ÚNICO compartido por
+los 3 CTA genéricos Y por las tarjetas de plan, comitear ese diff tal
+cual habría roto la contratación directa de pago para TODO el sitio
+(ningún "Comenzar con `<Plan>`" habría cobrado nunca, todos habrían
+terminado activando trial) — nadie lo había notado porque ningún CTA
+disparaba nada hasta este mismo punto. Confirmado con el usuario antes
+de tocar nada ajeno (`AskUserQuestion`): sí incluir el diff de la
+prueba gratis, pero restaurando el camino de pago en paralelo, nunca
+reemplazado.
+
+**Fix — dos caminos del mismo wizard, por `modo` del evento**:
+`clarvo:abrir-onboarding` ahora lleva `modo:"prueba"|"pago"` en su
+`detail`. `OnboardingModal.tsx` guarda `modoFlujo` (nuevo estado) al
+abrir y, en el paso final (`paso==="pago"`), renderiza
+`PasoActivarPrueba`/`activarPrueba()` (sin Stripe) si `modoFlujo==="prueba"`,
+o el `PasoPago`/`irAPagar()` original (Checkout real) si
+`modoFlujo==="pago"` — ambos restaurados textual del commit anterior al
+diff de la otra sesión (`git show HEAD:...` como referencia). El gate
+de mantenimiento (`resolverModoCobro()`/`PasoGateMantenimiento`, aviso
+cuando Stripe sigue en modo prueba) también se restauró, pero ahora
+**solo se consulta para `modoFlujo==="pago"`** — la prueba gratis nunca
+toca Stripe, así que nunca puede quedar atrapada detrás de ese aviso.
+`onboardingApi.ts` recuperó `modoCobro()`/`ModoCobro` (la otra sesión
+los había borrado junto con el gate). `PricingSection.astro` ahora
+manda `modo:"pago"` explícito en su `wireGrid()` — antes no mandaba
+`modo` porque no hacía falta (un solo camino existía).
+
+**Verificado real, ambos caminos, en los 3 entornos (dev local, build
+de producción con `npm run preview`, y `clarvo.mx` real)**: picker →
+"Paso 1 de 5" directo (sin gate, nunca toca Stripe) para los 3 CTA
+genéricos; tarjeta de plan → gate de mantenimiento (Stripe seguía en
+modo prueba por el deploy del punto 521 esa misma mañana) → "Continuar"
+→ wizard real paso 1, plan correcto — confirma que el camino de pago
+quedó intacto. `npm run build` limpio, cero referencias colgantes a los
+símbolos removidos por la otra sesión (`grep` de
+`modoCobro|gateMantenimiento|PasoGateMantenimiento|irAPagar|PasoPago`
+antes del fix).
+
+**Desplegado a Vultr** (commit `f594125`, rama `sitioOficial`,
+`clarvo-Site` — repo separado, fuera de Swarm, `docker compose` normal
+en `/opt/clarvo-site`, puerto 8090, ver `VULTR/README-VULTR.md`):
+`git -c core.autocrlf=false archive HEAD` (nunca el working tree) →
+`scp` → extracción con `rm -rf src` previo (único directorio tocado) →
+checksum md5 idéntico local/servidor en los 2 archivos clave →
+`docker compose build && up -d` → **smoke-test oficial con `--borrar`
+en modo prueba, PASS completo**: alta real desde `clarvo.mx` por el
+camino de pago (plan "solicita"), Checkout real de Stripe, webhook
+activó el tenant SOLO, tenant borrado al terminar — confirma de punta a
+punta que el `PasoPago`/`irAPagar` restaurado funciona igual que antes
+de la regresión. Verificado también a mano en `clarvo.mx` real (sin
+completar transacción) que ambos caminos abren el paso correcto antes y
+después del smoke-test. Stripe/reCAPTCHA revertidos a producción
+(`.env` reales restaurados desde backup temporal, nunca editados a
+mano; llave real de reCAPTCHA confirmada de vuelta en el bundle vía
+`docker exec clarvo-site-web grep`), backups temporales borrados,
+limpieza de contenedores corrida (~997MB liberados).
+
+**Fuera de alcance, avisado antes de no tocarlo**: "Comienza ahora" del
+header (`SiteHeader.astro`) sigue siendo scroll a `#planes` — nunca
+disparó el wizard, y el usuario confirmó dejarlo así.
+
+## Punto 526 — Incidente real en producción: Pedidos y CRM rotos en el tenant `mas-computo` por esquema desincronizado tras el punto 508 (27 nov 2026, CERRADO, corregido en Vultr + runbook de prevención)
+
+**Reporte del usuario**: captura de "Pedidos" en `/admin` mostrando
+"No se pudieron cargar los pedidos." en rojo plano, sin ningún
+diagnóstico ni opción de acción — más el aviso de que "CRM tampoco
+carga".
+
+**Diagnóstico real contra logs de producción** (`docker service logs
+clarvo_backend`, Vultr): ambos módulos fallaban por la MISMA causa —
+
+```
+Error: Table 'tenant_mas-computo.pedidos' doesn't exist
+code: 'ER_NO_SUCH_TABLE'
+```
+
+`GET /api/admin/pedidos` consulta directo la tabla `pedidos`;
+`GET /api/admin/crm/contactos` (punto 514) hace un `LEFT JOIN` contra
+una subquery que también lee de `pedidos` — con la tabla ausente, el
+`SELECT` completo de CRM revienta aunque CRM en sí no dependa del flag
+`pedidosHabilitado`. Un solo fix resuelve los dos síntomas.
+
+**Causa raíz**: `mas-computo` es el único tenant `activo` en producción
+hoy — su base física (`tenant_mas-computo`) se aprovisionó ANTES del
+punto 508 (21 nov 2026, cuando Pedidos se agregó a `ensureSchema()`).
+Confirmado el gotcha ya documentado en este archivo ("`ensureSchema()`
+corre en cada restart/deploy... las bases `tenant_*` de tenants YA
+aprovisionados nunca se vuelven a migrar solas"): nadie reinvocó
+`/internal/activar-tenant/mas-computo` tras ese deploy, así que
+`pedidos_habilitado=1` quedó activo en `control_tenants.tenants` sin que
+la tabla existiera físicamente en esa BD — el flag mentía sobre la
+realidad del esquema.
+
+**Fix aplicado** (verificado real, no solo "debería funcionar"):
+`POST /internal/activar-tenant/mas-computo` reinvocado a mano contra
+Vultr (`200 {"ok":true,"dbName":"tenant_mas-computo"}`) →
+`SHOW TABLES`/`information_schema.tables` confirmó `pedidos` y
+`pedido_historial` creadas → logs de `clarvo_backend` sin nuevos
+`ER_NO_SUCH_TABLE` desde entonces. Cero pérdida de datos (operación
+`CREATE TABLE IF NOT EXISTS`, idempotente).
+
+**Prevención estructural, pedida explícitamente por el usuario**
+("revisa cómo evitarlo en futuros despliegues... debe existir
+compatibilidad con los tenants activos"): script nuevo
+`VULTR/sincronizar-esquema-tenants.sh` — lee todos los slugs
+`estado='activo'` de `control_tenants.tenants` y reinvoca
+`/internal/activar-tenant/:slug` para cada uno, idempotente. Paso
+documentado como OBLIGATORIO en `VULTR/README-VULTR.md` (nueva sección)
+después de cualquier deploy cuyo diff toque `ensureSchema()`
+(`backend/db.js`): tabla nueva, `ALTER TABLE ADD COLUMN`, o `MODIFY
+COLUMN` de un `ENUM` (mismo criterio ya documentado para el caso ENUM
+del punto 502). Gotcha reforzado en `CLAUDE.md` con este caso real como
+segunda evidencia (la primera fue el aprovisionamiento físico del punto
+433/454).
+
+**Análisis de compatibilidad hacia atrás pedido por el usuario — regla
+general para cualquier deploy futuro**: una feature nueva que active un
+flag de gobierno (plan o backfill) para tenants YA existentes nunca debe
+asumir que el esquema físico de esos tenants ya está al día — el flag y
+la tabla física son 2 cosas que pueden desincronizarse (el flag vive en
+`control_tenants`, el esquema vive en cada `tenant_*`). Antes de
+cualquier deploy que:
+1. agregue tabla/columna/ENUM a `ensureSchema()`, **y**
+2. active (o deje heredado en `1`) un flag de gobierno para tenants ya
+   activos,
+
+correr `VULTR/sincronizar-esquema-tenants.sh` es parte del deploy, no un
+paso opcional posterior — el orden correcto es: desplegar código →
+resincronizar esquema de tenants activos → solo entonces considerar el
+deploy completo. Con pocos tenants activos (hoy: 1) el costo de este
+paso es trivial; el script está pensado para escalar sin depender de
+que alguien recuerde la lista de slugs activos.
+
+**Pendiente, fuera de alcance de este punto** (ver sesión de diseño en
+curso para mejorar UX de errores de carga en el frontend — 4 propuestas
+pedidas al usuario, aún sin elegir): el frontend hoy reduce CUALQUIER
+`!res.ok` de `cargarPedidos()`/`cargarCrm()`/etc. al mismo texto rojo
+plano, sin distinguir 404 (módulo apagado) de 500 (error real del
+servidor) ni ofrecer ninguna acción de recuperación — ese es un problema
+de UX general del sitio, no exclusivo de Pedidos/CRM, y se aborda por
+separado.

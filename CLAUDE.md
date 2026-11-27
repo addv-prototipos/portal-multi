@@ -793,7 +793,20 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   de verdad, esto es un paso de deploy obligatorio** (reinvocar por cada
   slug, o un script de migración masiva) que `docker compose up` por sí
   solo NO cubre — no asumir que un rebuild/restart normal ya propagó un
-  cambio de esquema a los tenants existentes.
+  cambio de esquema a los tenants existentes. **Incidente real que
+  confirma esta advertencia (punto 526, 27 nov 2026)**: el tenant
+  `mas-computo` en producción se quedó sin las tablas
+  `pedidos`/`pedido_historial` del punto 508 — Pedidos Y CRM (que hace
+  `LEFT JOIN` contra `pedidos` aunque CRM no dependa de ese flag)
+  reventaron en vivo con `ER_NO_SUCH_TABLE`, mientras
+  `control_tenants.tenants.pedidos_habilitado` seguía en `1` (el flag no
+  sabe que el esquema físico quedó atrás). El "script de migración
+  masiva" mencionado arriba ya existe: `VULTR/sincronizar-esquema-tenants.sh`
+  — lee los slugs `activo` reales y reinvoca el endpoint por cada uno.
+  Correrlo es ahora un paso documentado en `VULTR/README-VULTR.md`
+  después de CUALQUIER deploy que toque `ensureSchema()` — nunca confiar
+  en que "pocos tenants activos" hace innecesario el paso, el mismo
+  descuido es el que causó este incidente con uno solo.
 - **NUNCA subir un `.env` de `VULTR/` a producción sin diffearlo primero
   contra el que YA está corriendo en el servidor** (punto 496, incidente
   real, 2026-11-12): el `.env` local gitignored puede divergir del
@@ -1243,6 +1256,28 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   probar en vivo: `.portal-notif-wrap { display: inline-flex; }` sin su
   `[hidden]` explícito habría dejado la campana del portal de cliente
   SIEMPRE visible sin importar el atributo `hidden` en el DOM.
+- **Un `style="display:none"` INLINE en el HTML le gana a CUALQUIER
+  regla CSS de clase, sin importar especificidad — toggear una clase
+  `.is-open{display:flex}` contra eso nunca abre nada** (punto 525,
+  2026-11-26, `clarvo-Site/PlanPicker.astro`): el overlay nacía con
+  `style="display:none;"` como baseline (mismo patrón usado en otros
+  overlays del sitio, pensado para que no ocupe layout antes de
+  hidratar JS) — el script sí corría bien (`classList.add("is-open")`
+  se confirmó real con `evaluate_script`), pero el inline style, al
+  vivir en el atributo `style` del elemento (la capa de mayor
+  precedencia en CSS, por encima de cualquier selector por más
+  específico que sea), nunca se dejaba pisar por la regla de la hoja de
+  estilo — el modal quedaba invisible para siempre con
+  `getComputedStyle(el).display === "none"` pese al `classList`
+  correcto. Fix: cuando el estado base de visibilidad se fija con
+  `style="display:none"` inline, el toggle de apertura/cierre debe
+  tocar `el.style.display` DIRECTO (`"flex"`/`"none"`), nunca una clase
+  CSS — o, alternativa, nunca usar `style=` inline para el estado base
+  y dejar que una clase controle todo desde el inicio. Antes de dar un
+  overlay/modal nuevo por "no abre" tras confirmar que el JS sí corrió
+  (estado/clase cambiando bien), revisar si el elemento tiene un
+  `style=` inline de por medio — es la explicación más probable, antes
+  que sospechar del propio listener.
 - **Carpeta `calidad/` (punto 414, 2026-10-23)**: los informes tipo
   SonarQube/auditoría (`eval.html`, `sonar.html`, `sonar_1.1.html`,
   `sonar_1.2.html`) viven ahí, no en la raíz — moverlos con `git mv` no
@@ -2698,6 +2733,24 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   futura encuentra código "ya commiteado" en `git log` que no reconoce
   haber revisado/probado antes, no asumir que ya pasó por su propio
   ciclo completo de prueba — puede ser colateral de otra sesión.
+  **Mismo riesgo, versión SIN commitear (punto 525, 2026-11-26,
+  `clarvo-Site`)**: un diff de otra sesión que llevaba HORAS en el
+  working tree sin commitear (`activarPruebaGratis` del punto 521) no
+  solo AGREGABA el paso final nuevo del wizard de onboarding —
+  **REEMPLAZABA por completo** el paso final viejo
+  (`PasoPago`/`irAPagar`, Stripe Checkout real), sin ninguna rama que
+  distinguiera entre quien abrió el wizard. Como ese wizard es un
+  componente ÚNICO compartido por el flujo de prueba gratis Y por el de
+  contratación directa, comitearlo tal cual habría apagado el cobro
+  real del sitio para TODOS los visitantes la próxima vez que alguien
+  tocara ese repo — nadie lo había notado porque, hasta ese mismo
+  punto, ningún CTA genérico disparaba el wizard en absoluto (bug
+  aparte, mismo punto). Antes de comitear un diff ajeno encontrado sin
+  terminar, no basta con leer qué AGREGA — hay que confirmar si algo
+  que SIRVE A OTRO camino ya existente (otro caller del mismo
+  componente/función) quedó reemplazado en vez de extendido, sobre todo
+  si ese diff toca el único paso compartido de un flujo con múltiples
+  puntos de entrada.
 - **Un KPI que necesita serie histórica pero solo tiene el dato de HOY:
   snapshot-por-UPSERT hacia adelante, nunca fabricar el pasado** (punto
   467, "Financiero" de `/control`): `control_utilidad_mensual` guarda un

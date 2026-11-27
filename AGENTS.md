@@ -362,7 +362,14 @@ solo la frase en español de la UI.
   la base de un tenant ya existente hasta reinvocar ese endpoint con
   `X-Internal-Secret` (idempotente) — en producción real con tenants
   activos, esto es un paso de deploy obligatorio que un `docker compose
-  up` normal no cubre.
+  up` normal no cubre. **Incidente real (punto 526, 27 nov 2026)**: el
+  tenant `mas-computo` se quedó sin `pedidos`/`pedido_historial` del
+  punto 508 — Pedidos y CRM reventaron en producción con
+  `ER_NO_SUCH_TABLE` pese a que el flag `pedidos_habilitado` seguía en
+  `1`. Script de prevención ya listo: `VULTR/sincronizar-esquema-tenants.sh`
+  (reinvoca el endpoint para todos los tenants `activo`) — correrlo es
+  paso obligatorio de deploy documentado en `VULTR/README-VULTR.md`
+  después de cualquier cambio a `ensureSchema()`.
 - **Candado de feature-flag por tenant**: `backend/utils/requiereFeature.js`
   (punto 347) — responde **404, nunca 403**, un tenant sin el módulo se
   comporta como si la ruta no existiera (mismo criterio que la
