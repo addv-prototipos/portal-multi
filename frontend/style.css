@@ -1281,3 +1281,30 @@ a.btn {
   color: var(--color-ink);
 }
 .sk-retry-inline-bloque .sk-reportar-btn { color: var(--color-ink-soft); }
+
+/* Estado vacío a panel completo (propuesta B, punto 529) — reservado
+   para cuando el módulo ENTERO no respondió (ej. el tablero de Pedidos),
+   nunca para un error parcial que convive con filtros/toolbar todavía
+   visibles (eso sigue siendo .sk-retry-inline de arriba). */
+.sk-empty-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 48px 20px 40px;
+  gap: 4px;
+}
+.sk-empty-error-icono {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.sk-empty-error-titulo { font-size: 17px; font-weight: 700; color: var(--color-ink); margin: 0 0 6px; }
+.sk-empty-error-texto { font-size: 13.8px; color: var(--color-ink-soft); max-width: 36ch; margin: 0 0 20px; }
+.sk-empty-error-acciones { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }

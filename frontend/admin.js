@@ -20900,14 +20900,26 @@
       const res = await fetchConReintentoSilencioso(`${API_BASE}/admin/pedidos`, { headers: { Authorization: authHeader } });
       if (res.status === 401) { clearSession(); showLogin(); return; }
       if (!res.ok) {
-        Esqueleto.aplicarErrorInline(els.pedidosError, 'No se pudieron cargar los pedidos.', cargarPedidos, { modulo: 'pedidos', codigo: String(res.status) });
+        Esqueleto.aplicarErrorEstadoVacio(els.pedidosError, {
+          titulo: 'Pedidos no respondió esta vez',
+          mensaje: 'Tus pedidos y cotizaciones siguen guardados — el problema es solo para mostrarlos aquí.',
+          reintentar: cargarPedidos,
+          modulo: 'pedidos',
+          codigo: String(res.status),
+        });
         return;
       }
       const data = await res.json();
       pedidosCache = data.pedidos || [];
       renderPedidos();
     } catch (_) {
-      Esqueleto.aplicarErrorInline(els.pedidosError, 'No se pudo conectar con el servidor.', cargarPedidos, { modulo: 'pedidos', codigo: 'red' });
+      Esqueleto.aplicarErrorEstadoVacio(els.pedidosError, {
+        titulo: 'Pedidos no respondió esta vez',
+        mensaje: 'Tus pedidos y cotizaciones siguen guardados — el problema es solo para mostrarlos aquí.',
+        reintentar: cargarPedidos,
+        modulo: 'pedidos',
+        codigo: 'red',
+      });
     }
   }
 
@@ -21114,7 +21126,13 @@
       if (res.status === 401) { clearSession(); showLogin(); return; }
       const errorEl = document.getElementById('crm-error');
       if (!res.ok) {
-        Esqueleto.aplicarErrorInline(errorEl, 'No se pudieron cargar los contactos.', cargarCrm, { modulo: 'crm', codigo: String(res.status) });
+        Esqueleto.aplicarErrorEstadoVacio(errorEl, {
+          titulo: 'Clientes (CRM) no respondió esta vez',
+          mensaje: 'Tus contactos siguen guardados — el problema es solo para mostrarlos aquí.',
+          reintentar: cargarCrm,
+          modulo: 'crm',
+          codigo: String(res.status),
+        });
         return;
       }
       const data = await res.json();
@@ -21123,7 +21141,13 @@
       renderCrmVistaActual();
     } catch (_) {
       const errorEl = document.getElementById('crm-error');
-      Esqueleto.aplicarErrorInline(errorEl, 'No se pudo conectar con el servidor.', cargarCrm, { modulo: 'crm', codigo: 'red' });
+      Esqueleto.aplicarErrorEstadoVacio(errorEl, {
+        titulo: 'Clientes (CRM) no respondió esta vez',
+        mensaje: 'Tus contactos siguen guardados — el problema es solo para mostrarlos aquí.',
+        reintentar: cargarCrm,
+        modulo: 'crm',
+        codigo: 'red',
+      });
     }
   }
 

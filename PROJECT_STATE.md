@@ -33147,3 +33147,54 @@ alcance de este punto.
 **Pendiente**: desplegar a Vultr — este punto solo se probó local;
 igual que el punto 527, requiere permiso explícito aparte antes de
 tocar producción.
+
+**Actualización**: desplegado a Vultr el mismo día (27 nov 2026) — ver
+cierre al final de este punto en el historial de deploys; checksums
+verificados en los 6 archivos tocados, `POST
+/mas-computo/api/admin/reportar-error` probado real contra producción
+(`200 {"ok":true,"folio":"RPT-20261127-723312"}`, sin excepción en
+logs — SMTP real de prod sí está configurado).
+
+## Punto 529 — Propuesta B aplicada: estado vacío a panel completo para Pedidos y CRM (27 nov 2026, CERRADO, solo local)
+
+Único tratamiento del artifact de 4 propuestas que faltaba. El usuario
+pidió explícitamente "aplica B también".
+
+**Alcance, decidido con el mismo criterio que recomendaba el artifact**:
+B es SOLO para cuando el MÓDULO ENTERO no respondió (sin ninguna
+tabla/toolbar de por medio) — Pedidos (tablero kanban) y Clientes/CRM,
+los 2 únicos loaders núcleo que ya usaban `aplicarErrorInline()` en vez
+de `aplicarErrorTabla()`. Los 7 loaders restantes (Ventas, Gastos,
+Inventarios, Tickets, Usuarios, Auditoría, CxC) **se quedan con A**
+(banner compacto dentro de la tabla) — ahí los filtros/toolbar siguen
+visibles arriba, así que un estado vacío a pantalla completa desplazaría
+controles que el usuario SÍ puede seguir usando (ej. cambiar un filtro
+mientras se resuelve).
+
+**Implementado**: `Esqueleto.aplicarErrorEstadoVacio(contenedor,
+{titulo, mensaje, reintentar, modulo, codigo})` (`frontend/skeleton.js`)
+— ícono circular (mismo tono `--color-warn-soft`/`--color-warn` que
+`.aviso-cuota`), título, copy tranquilizador ("tus pedidos/contactos
+siguen guardados — el problema es solo para mostrarlos aquí"), y 2
+botones REALES (`.btn.btn-primary`/`.btn.btn-secondary`, ya globales del
+sitio, no los compactos de A) — "Reintentar ahora" y "Avísame cuando se
+resuelva". Mismo mecanismo de reporte que A/C (el segundo botón dispara
+el mismo `CustomEvent('sk:reportar-error')`, reusa el modal del punto
+528 sin cambios). CSS nuevo en `style.css`:
+`.sk-empty-error`/`.sk-empty-error-icono`/`.sk-empty-error-titulo`/
+`.sk-empty-error-texto`/`.sk-empty-error-acciones`.
+
+`cargarPedidos()` y `cargarCrm()` (`frontend/admin.js`) cambiaron sus 2
+ramas de error (status no-ok y catch de red) de `aplicarErrorInline` a
+`aplicarErrorEstadoVacio`, con copy específico por módulo.
+
+**Probado real** (Chrome DevTools MCP, tenant `panes` local): banner
+inyectado en Pedidos se ve idéntico al mockup de la propuesta B (ícono,
+título, copy, 2 botones) — clic real en "Avísame cuando se resuelva"
+abrió el modal de diagnóstico correcto (Empresa/Módulo/Código/Hora),
+clic en "Actualizar" limpió el estado y recargó los 40 pedidos reales
+sin problema. Sin errores de consola. Sin cambios de backend en este
+punto (solo `skeleton.js`/`admin.js`/`style.css`) — no requiere
+reconstruir `backend`, solo `frontend`.
+
+**Pendiente**: desplegar a Vultr — requiere permiso explícito aparte.

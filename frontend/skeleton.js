@@ -132,6 +132,58 @@
   }
 
   /**
+   * Estado vacío a panel completo (propuesta B, punto 529) — para cuando
+   * el MÓDULO ENTERO no respondió (ej. el tablero de Pedidos, sin ninguna
+   * tabla/toolbar de por medio), nunca para un error parcial dentro de
+   * una vista que sigue mostrando sus filtros (eso sigue siendo
+   * aplicarErrorTabla()/aplicarErrorInline(), propuesta A). Mismo
+   * mecanismo de reporte (CustomEvent), pero con más espacio para
+   * tranquilizar: título + copy + 2 botones reales (.btn ya global del
+   * sitio, no los compactos de A).
+   */
+  function aplicarErrorEstadoVacio(contenedor, opciones) {
+    if (!contenedor) return;
+    var opts = opciones || {};
+    var titulo = opts.titulo || 'Esto no respondió';
+    var mensaje = opts.mensaje || 'Vuelve a intentarlo en un momento.';
+    var textoReintentar = opts.textoReintentar || 'Reintentar ahora';
+    var textoReportar = opts.textoReportar || 'Avísame cuando se resuelva';
+    contenedor.innerHTML =
+      '<div class="sk-empty-error">' +
+      '<div class="sk-empty-error-icono" aria-hidden="true">' +
+      '<svg width="26" height="26" viewBox="0 0 24 24" fill="none">' +
+      '<path d="M3 12a9 9 0 0115.3-6.4M21 12a9 9 0 01-15.3 6.4M3 16v-4h4M21 8v4h-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</svg></div>' +
+      '<h4 class="sk-empty-error-titulo">' + titulo + '</h4>' +
+      '<p class="sk-empty-error-texto">' + mensaje + '</p>' +
+      '<div class="sk-empty-error-acciones">' +
+      '<button type="button" class="btn btn-primary sk-empty-error-retry">' + textoReintentar + '</button>' +
+      (opts.modulo
+        ? '<button type="button" class="btn btn-secondary sk-empty-error-reportar" data-sk-modulo="' + opts.modulo + '" data-sk-codigo="' + (opts.codigo || '') + '">' + textoReportar + '</button>'
+        : '') +
+      '</div></div>';
+    if (typeof opts.reintentar === 'function') {
+      var boton = contenedor.querySelector('.sk-empty-error-retry');
+      if (boton) boton.addEventListener('click', opts.reintentar);
+    }
+    var btnReportar = contenedor.querySelector('.sk-empty-error-reportar');
+    if (btnReportar) {
+      btnReportar.addEventListener('click', function () {
+        document.dispatchEvent(
+          new CustomEvent('sk:reportar-error', {
+            detail: {
+              modulo: btnReportar.getAttribute('data-sk-modulo'),
+              codigo: btnReportar.getAttribute('data-sk-codigo') || '',
+              mensaje: mensaje,
+              reintentar: typeof opts.reintentar === 'function' ? opts.reintentar : null,
+            },
+          })
+        );
+      });
+    }
+  }
+
+  /**
    * Prende/apaga el shimmer sobre los números KPI (.inicio-stat-numero o
    * .credito-kpi-valor) dentro de un contenedor — el texto real sigue
    * detrás sin tocarse, el render normal de cada vista lo actualiza
@@ -148,6 +200,7 @@
     quitarEsqueletoTabla: quitarEsqueletoTabla,
     aplicarErrorTabla: aplicarErrorTabla,
     aplicarErrorInline: aplicarErrorInline,
+    aplicarErrorEstadoVacio: aplicarErrorEstadoVacio,
     marcarKpisCargando: marcarKpisCargando
   };
 })();
