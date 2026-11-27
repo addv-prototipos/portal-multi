@@ -33020,3 +33020,49 @@ plano, sin distinguir 404 (módulo apagado) de 500 (error real del
 servidor) ni ofrecer ninguna acción de recuperación — ese es un problema
 de UX general del sitio, no exclusivo de Pedidos/CRM, y se aborda por
 separado.
+
+## Punto 527 — Propuesta D aplicada: reintento silencioso para cargas de módulo (`frontend/admin.js`, 27 nov 2026, CERRADO)
+
+Tras el artifact de 4 propuestas del punto 526, el usuario eligió la D
+("reintento inteligente") y pidió generalizarla como helper reusable
+sitewide, no solo para Pedidos.
+
+**Implementado**: `fetchConReintentoSilencioso(url, opciones, {intentos})`
+(`frontend/admin.js`, justo después de `getAuthHeader()`) — envuelve
+`fetch()` y reintenta en silencio, con backoff (400ms × intento), SOLO
+cuando el status es transitorio (`502`/`503`/`504`) o hay una excepción
+de red; nunca reintenta `401`/`403`/`404`/`400` (no son transitorios:
+permisos, feature apagada o dato mal formado — reintentarlos no cambia
+el resultado). Devuelve el mismo objeto `res` de siempre, así que cada
+caller no cambia ninguna lógica downstream (401/`!res.ok`/`.json()`
+siguen igual) — solo la línea `fetch(...)` se reemplaza por
+`fetchConReintentoSilencioso(...)`.
+
+**Conectado a los 9 loaders "núcleo" del panel** (los que el propio
+usuario nombró como ejemplo — "Ventas, CRM, Gastos, etc." — más
+Pedidos, el caso que originó el punto 526): `cargarPedidos`,
+`cargarCrm`, `cargarOrdenes` (Ventas), `cargarGastos`,
+`cargarInventarios`, `cargarTickets`, `cargarUsuarios`,
+`cargarAuditoria`, `cargarCxcBase` (2 fetches en paralelo) y
+`cargarCxcCobradasPagina`. **Deliberadamente NO conectado** a los ~45
+loaders restantes de `admin.js` (config/ajustes, catálogos, reportes
+puntuales, subidas de imagen) — son de menor tráfico/criticidad y
+ampliar ahí es trabajo futuro de bajo riesgo, no bloqueante.
+**Nunca conectado a ninguna operación de escritura** (POST/PUT de
+"Registrar venta", "Guardar", etc.) — reintentar una mutación en
+silencio podría duplicar la acción; el candado es intencional, no un
+olvido.
+
+**Probado real** (Playwright/Chrome DevTools MCP, tenant `panes` local,
+login con `ADMIN_USERS=admin:admin`): Pedidos (40 pedidos, kanban),
+Clientes CRM (estado vacío con ilustración), Ventas (1 venta real),
+Gastos (estado vacío), Inventarios — las 5 vistas cargaron con los 9
+endpoints en `200`, cero errores de consola, cero regresión en el
+camino feliz (la ruta de reintento nunca se activó porque ningún
+backend devolvió 502/503/504 durante la prueba, que es justo el
+comportamiento esperado).
+
+**Pendiente, sin pedir todavía**: las propuestas A/B/C del mismo
+artifact (banner inline, estado vacío sitewide, modal con folio) siguen
+sin implementarse — D se aplicó sola porque fue la única aprobada
+explícitamente.

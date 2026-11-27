@@ -2205,6 +2205,35 @@
     return token ? `Bearer ${token}` : null;
   }
 
+  // Reintento silencioso para cargas de módulo (propuesta D, punto 526):
+  // la mayoría de fallas de un fetch son blips transitorios de red o un
+  // 502/503/504 de un segundo (nginx recreando "backend" tras un deploy,
+  // por ejemplo) — mostrarle al usuario un error por eso es una falsa
+  // alarma. Reintenta solo, en silencio, con backoff antes de devolver
+  // la respuesta final. NUNCA reintenta 401/403/404/400 (esos no son
+  // transitorios: son permisos, feature apagada, o un dato mal formado
+  // — reintentarlos no cambia el resultado) — vía JSON ni cuerpo propio
+  // de esta función, el caller sigue leyendo `res` exactamente igual que
+  // con un `fetch()` normal.
+  const CODIGOS_TRANSITORIOS_RETRY = [502, 503, 504];
+  async function fetchConReintentoSilencioso(url, opciones, { intentos = 3 } = {}) {
+    let ultimoError = null;
+    for (let intento = 1; intento <= intentos; intento += 1) {
+      try {
+        const res = await fetch(url, opciones);
+        const esUltimoIntento = intento === intentos;
+        if (!CODIGOS_TRANSITORIOS_RETRY.includes(res.status) || esUltimoIntento) {
+          return res;
+        }
+      } catch (err) {
+        ultimoError = err;
+        if (intento === intentos) throw ultimoError;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 400 * intento));
+    }
+    throw ultimoError || new Error('No se pudo conectar con el servidor.');
+  }
+
   // Imágenes de producto (punto 159, Segmento B): son endpoints admin
   // protegidos por Basic Auth manual (sin diálogo nativo del navegador),
   // así que un <img src="..."> normal nunca manda el header
@@ -11682,7 +11711,7 @@
     params.set('limite', els.auditoriaFiltroLimite.value || '100');
 
     try {
-      const resp = await fetch(`${API_BASE}/admin/auditoria?${params.toString()}`, {
+      const resp = await fetchConReintentoSilencioso(`${API_BASE}/admin/auditoria?${params.toString()}`, {
         headers: { Authorization: authHeader },
       });
       if (resp.status === 401) {
@@ -12425,7 +12454,7 @@
       if (actualizadoPor) params.set('actualizado_por', actualizadoPor);
       if (state.vistaTickets === 'papelera') params.set('papelera', 'true');
       const query = params.toString() ? `?${params.toString()}` : '';
-      const res = await fetch(`${API_BASE}/admin/tickets${query}`, {
+      const res = await fetchConReintentoSilencioso(`${API_BASE}/admin/tickets${query}`, {
         headers: { Authorization: authHeader },
       });
       if (res.status === 401) {
@@ -14293,7 +14322,7 @@
     Esqueleto.aplicarEsqueletoTabla(els.ordenesTableBody, 6);
     try {
       const params = construirParamsOrdenes();
-      const res = await fetch(`${API_BASE}/admin/ordenes-compra?${params.toString()}`, {
+      const res = await fetchConReintentoSilencioso(`${API_BASE}/admin/ordenes-compra?${params.toString()}`, {
         headers: { Authorization: authHeader },
       });
       if (res.status === 401) {
@@ -15028,7 +15057,7 @@
     try {
       const perfil = els.usuariosFiltroPerfil.value;
       const query = perfil ? `?perfil=${encodeURIComponent(perfil)}` : '';
-      const res = await fetch(`${API_BASE}/admin/usuarios${query}`, {
+      const res = await fetchConReintentoSilencioso(`${API_BASE}/admin/usuarios${query}`, {
         headers: { Authorization: authHeader },
       });
       if (res.status === 401) {
@@ -19906,7 +19935,7 @@
       if (els.gastosFiltroHasta.value) params.set('fecha_hasta', els.gastosFiltroHasta.value);
       if (els.gastosBusqueda.value.trim()) params.set('busqueda', els.gastosBusqueda.value.trim());
 
-      const res = await fetch(`${API_BASE}/admin/gastos?${params.toString()}`, {
+      const res = await fetchConReintentoSilencioso(`${API_BASE}/admin/gastos?${params.toString()}`, {
         headers: { Authorization: authHeader },
       });
       if (res.status === 401) {
@@ -20769,7 +20798,7 @@
     if (!authHeader) return;
     els.pedidosError.textContent = '';
     try {
-      const res = await fetch(`${API_BASE}/admin/pedidos`, { headers: { Authorization: authHeader } });
+      const res = await fetchConReintentoSilencioso(`${API_BASE}/admin/pedidos`, { headers: { Authorization: authHeader } });
       if (res.status === 401) { clearSession(); showLogin(); return; }
       if (!res.ok) { els.pedidosError.textContent = 'No se pudieron cargar los pedidos.'; return; }
       const data = await res.json();
@@ -20979,7 +21008,7 @@
     if (!authHeader || !els.vistaCrm) return;
     construirEsqueletoCrm();
     try {
-      const res = await fetch(`${API_BASE}/admin/crm/contactos`, { headers: { Authorization: authHeader } });
+      const res = await fetchConReintentoSilencioso(`${API_BASE}/admin/crm/contactos`, { headers: { Authorization: authHeader } });
       if (res.status === 401) { clearSession(); showLogin(); return; }
       const errorEl = document.getElementById('crm-error');
       if (!res.ok) { if (errorEl) errorEl.textContent = 'No se pudieron cargar los contactos.'; return; }
@@ -22093,8 +22122,8 @@
     if (!authHeader) { showLogin(); return false; }
     try {
       const [resPend, resCobr] = await Promise.all([
-        fetch(`${API_BASE}/admin/ordenes-compra?estado_pago=pendiente&por_pagina=${CXC_BASE_TOPE}`, { headers: { Authorization: authHeader } }),
-        fetch(`${API_BASE}/admin/ordenes-compra?estado_pago=pagada&por_pagina=${CXC_BASE_TOPE}`, { headers: { Authorization: authHeader } }),
+        fetchConReintentoSilencioso(`${API_BASE}/admin/ordenes-compra?estado_pago=pendiente&por_pagina=${CXC_BASE_TOPE}`, { headers: { Authorization: authHeader } }),
+        fetchConReintentoSilencioso(`${API_BASE}/admin/ordenes-compra?estado_pago=pagada&por_pagina=${CXC_BASE_TOPE}`, { headers: { Authorization: authHeader } }),
       ]);
       if (resPend.status === 401 || resCobr.status === 401) { clearSession(); showLogin(); return false; }
       if (!resPend.ok || !resCobr.ok) return false;
@@ -22126,7 +22155,7 @@
     const fVto = els.cxcFiltroVencimiento ? els.cxcFiltroVencimiento.value : '';
     if (fVto) params.set('vencimiento', fVto);
     try {
-      const res = await fetch(`${API_BASE}/admin/ordenes-compra?${params.toString()}`, { headers: { Authorization: authHeader } });
+      const res = await fetchConReintentoSilencioso(`${API_BASE}/admin/ordenes-compra?${params.toString()}`, { headers: { Authorization: authHeader } });
       if (res.status === 401) { clearSession(); showLogin(); return false; }
       if (!res.ok) return false;
       const data = await res.json();
@@ -23117,7 +23146,7 @@
       if (vistaInventarios === 'activos' && invFiltroStock) params.set('stock', invFiltroStock);
       params.set('por_pagina', '200');
 
-      const res = await fetch(`${API_BASE}/admin/inventarios/productos?${params.toString()}`, {
+      const res = await fetchConReintentoSilencioso(`${API_BASE}/admin/inventarios/productos?${params.toString()}`, {
         headers: { Authorization: authHeader },
       });
       if (res.status === 401) {
