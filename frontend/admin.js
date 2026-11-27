@@ -158,6 +158,18 @@
     btnConfirmAceptar: document.getElementById('btn-confirm-aceptar'),
     compraConfirmadaOverlay: document.getElementById('compra-confirmada-overlay'),
     compraConfirmadaTexto: document.getElementById('compra-confirmada-texto'),
+    // Reporte de error de carga (propuesta C, punto 528)
+    reporteErrorModalOverlay: document.getElementById('reporte-error-modal-overlay'),
+    reporteErrorTenant: document.getElementById('reporte-error-tenant'),
+    reporteErrorModulo: document.getElementById('reporte-error-modulo'),
+    reporteErrorCodigo: document.getElementById('reporte-error-codigo'),
+    reporteErrorHora: document.getElementById('reporte-error-hora'),
+    reporteErrorContacto: document.getElementById('reporte-error-contacto'),
+    reporteErrorError: document.getElementById('reporte-error-error'),
+    reporteErrorExito: document.getElementById('reporte-error-exito'),
+    reporteErrorFolioTexto: document.getElementById('reporte-error-folio-texto'),
+    btnReporteErrorCerrar: document.getElementById('btn-reporte-error-cerrar'),
+    btnReporteErrorEnviar: document.getElementById('btn-reporte-error-enviar'),
     // Vista previa del documento
     previewOverlay: document.getElementById('preview-overlay'),
     previewTitle: document.getElementById('preview-title'),
@@ -9756,6 +9768,89 @@
     if (accion) await accion();
   });
 
+  // ---------- Reporte de error de carga (propuesta C, punto 528) ----------
+  // skeleton.js dispara 'sk:reportar-error' en `document` (sin depender de
+  // admin.js, ver su cabecera) — este es el ÚNICO listener que lo escucha,
+  // registrado una sola vez aquí. Cualquier vista con el banner de
+  // Esqueleto.aplicarErrorTabla()/aplicarErrorInline() ya pasando
+  // {modulo, codigo} queda conectada sola, sin tocar nada por vista.
+  const MODULO_REPORTE_NOMBRE = {
+    pedidos: 'Pedidos',
+    crm: 'Clientes (CRM)',
+    ventas: 'Ventas',
+    gastos: 'Gastos',
+    inventarios: 'Inventarios',
+    tickets: 'Tickets',
+    usuarios: 'Usuarios',
+    auditoria: 'Auditoría',
+    cxc: 'Cuentas por cobrar',
+  };
+  let reporteErrorDiagnosticoActual = null;
+
+  function abrirReporteError({ modulo, codigo, reintentar }) {
+    const ahora = new Date();
+    reporteErrorDiagnosticoActual = { modulo, codigo: codigo || '', reintentar };
+    els.reporteErrorTenant.textContent = TENANT_SLUG || 'Sitio base';
+    els.reporteErrorModulo.textContent = MODULO_REPORTE_NOMBRE[modulo] || modulo;
+    els.reporteErrorCodigo.textContent = codigo || 'Sin código';
+    els.reporteErrorHora.textContent = ahora.toLocaleString('es-MX');
+    els.reporteErrorContacto.value = (els.micuentaEmail && els.micuentaEmail.value) || '';
+    els.reporteErrorError.textContent = '';
+    els.reporteErrorExito.hidden = true;
+    els.btnReporteErrorEnviar.hidden = false;
+    els.btnReporteErrorEnviar.disabled = false;
+    els.reporteErrorModalOverlay.hidden = false;
+  }
+
+  document.addEventListener('sk:reportar-error', (ev) => {
+    const detalle = ev.detail || {};
+    if (!detalle.modulo) return;
+    abrirReporteError(detalle);
+  });
+
+  function cerrarReporteError() {
+    els.reporteErrorModalOverlay.hidden = true;
+    reporteErrorDiagnosticoActual = null;
+  }
+  els.btnReporteErrorCerrar.addEventListener('click', cerrarReporteError);
+
+  els.btnReporteErrorEnviar.addEventListener('click', async () => {
+    const diagnostico = reporteErrorDiagnosticoActual;
+    if (!diagnostico) return;
+    const contacto = els.reporteErrorContacto.value.trim();
+    if (!contacto) {
+      els.reporteErrorError.textContent = 'Escribe un correo o teléfono donde avisarte.';
+      return;
+    }
+    els.reporteErrorError.textContent = '';
+    els.btnReporteErrorEnviar.disabled = true;
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/reportar-error`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify({
+          modulo: diagnostico.modulo,
+          codigo: diagnostico.codigo,
+          contacto,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.reporteErrorError.textContent = data.error || 'No se pudo enviar el reporte — intenta de nuevo.';
+        els.btnReporteErrorEnviar.disabled = false;
+        return;
+      }
+      els.reporteErrorFolioTexto.textContent = `Reporte enviado — folio ${data.folio}. Te avisaremos a "${contacto}" en cuanto esté resuelto.`;
+      els.reporteErrorExito.hidden = false;
+      els.btnReporteErrorEnviar.hidden = true;
+    } catch (_) {
+      els.reporteErrorError.textContent = 'No se pudo conectar con el servidor.';
+      els.btnReporteErrorEnviar.disabled = false;
+    }
+  });
+
   // ---------- Eliminar (borrado lógico) ----------
 
   function confirmarEliminar(id, nombre) {
@@ -11719,7 +11814,11 @@
         showLogin();
         return;
       }
-      if (!resp.ok) throw new Error('No se pudo cargar la auditoría.');
+      if (!resp.ok) {
+        const errorCarga = new Error('No se pudo cargar la auditoría.');
+        errorCarga.codigoHttp = resp.status;
+        throw errorCarga;
+      }
       const data = await resp.json();
       const registros = data.registros || [];
 
@@ -11751,7 +11850,7 @@
       });
       Esqueleto.quitarEsqueletoTabla(els.auditoriaTableBody);
     } catch (err) {
-      Esqueleto.aplicarErrorTabla(els.auditoriaTableBody, 8, err.message || 'No se pudo cargar la auditoría.', cargarAuditoria);
+      Esqueleto.aplicarErrorTabla(els.auditoriaTableBody, 8, err.message || 'No se pudo cargar la auditoría.', cargarAuditoria, { modulo: 'auditoria', codigo: err.codigoHttp ? String(err.codigoHttp) : 'red' });
     }
   }
 
@@ -12463,14 +12562,14 @@
         return;
       }
       if (!res.ok) {
-        Esqueleto.aplicarErrorTabla(els.ticketsTableBody, 9, 'No se pudieron cargar los tickets.', cargarTickets);
+        Esqueleto.aplicarErrorTabla(els.ticketsTableBody, 9, 'No se pudieron cargar los tickets.', cargarTickets, { modulo: 'tickets', codigo: String(res.status) });
         return;
       }
       const data = await res.json();
       renderTickets(data.tickets || []);
       Esqueleto.quitarEsqueletoTabla(els.ticketsTableBody);
     } catch (err) {
-      Esqueleto.aplicarErrorTabla(els.ticketsTableBody, 9, 'No se pudo conectar con el servidor.', cargarTickets);
+      Esqueleto.aplicarErrorTabla(els.ticketsTableBody, 9, 'No se pudo conectar con el servidor.', cargarTickets, { modulo: 'tickets', codigo: 'red' });
     }
   }
 
@@ -14331,7 +14430,7 @@
         return;
       }
       if (!res.ok) {
-        Esqueleto.aplicarErrorTabla(els.ordenesTableBody, 6, 'No se pudieron cargar las ventas.', cargarOrdenes);
+        Esqueleto.aplicarErrorTabla(els.ordenesTableBody, 6, 'No se pudieron cargar las ventas.', cargarOrdenes, { modulo: 'ventas', codigo: String(res.status) });
         return false;
       }
       const data = await res.json();
@@ -14341,7 +14440,7 @@
       Esqueleto.quitarEsqueletoTabla(els.ordenesTableBody);
       return true;
     } catch (err) {
-      Esqueleto.aplicarErrorTabla(els.ordenesTableBody, 6, 'No se pudo conectar con el servidor.', cargarOrdenes);
+      Esqueleto.aplicarErrorTabla(els.ordenesTableBody, 6, 'No se pudo conectar con el servidor.', cargarOrdenes, { modulo: 'ventas', codigo: 'red' });
       return false;
     }
   }
@@ -15066,7 +15165,7 @@
         return;
       }
       if (!res.ok) {
-        Esqueleto.aplicarErrorTabla(els.usuariosTableBody, 5, 'No se pudieron cargar los usuarios.', cargarUsuarios);
+        Esqueleto.aplicarErrorTabla(els.usuariosTableBody, 5, 'No se pudieron cargar los usuarios.', cargarUsuarios, { modulo: 'usuarios', codigo: String(res.status) });
         return;
       }
       const data = await res.json();
@@ -15074,7 +15173,7 @@
       Esqueleto.quitarEsqueletoTabla(els.usuariosTableBody);
       cargarCuotaUsuarios();
     } catch (err) {
-      Esqueleto.aplicarErrorTabla(els.usuariosTableBody, 5, 'No se pudo conectar con el servidor.', cargarUsuarios);
+      Esqueleto.aplicarErrorTabla(els.usuariosTableBody, 5, 'No se pudo conectar con el servidor.', cargarUsuarios, { modulo: 'usuarios', codigo: 'red' });
     }
   }
 
@@ -19945,7 +20044,7 @@
       }
       if (!res.ok) {
         Esqueleto.marcarKpisCargando(els.gastosResumenWrap, false);
-        Esqueleto.aplicarErrorTabla(els.gastosTableBody, 7, 'No se pudieron cargar los gastos.', cargarGastos);
+        Esqueleto.aplicarErrorTabla(els.gastosTableBody, 7, 'No se pudieron cargar los gastos.', cargarGastos, { modulo: 'gastos', codigo: String(res.status) });
         return;
       }
       const data = await res.json();
@@ -19957,7 +20056,7 @@
       Esqueleto.marcarKpisCargando(els.gastosResumenWrap, false);
     } catch (err) {
       Esqueleto.marcarKpisCargando(els.gastosResumenWrap, false);
-      Esqueleto.aplicarErrorTabla(els.gastosTableBody, 7, 'No se pudo conectar con el servidor.', cargarGastos);
+      Esqueleto.aplicarErrorTabla(els.gastosTableBody, 7, 'No se pudo conectar con el servidor.', cargarGastos, { modulo: 'gastos', codigo: 'red' });
     }
   }
 
@@ -20800,12 +20899,15 @@
     try {
       const res = await fetchConReintentoSilencioso(`${API_BASE}/admin/pedidos`, { headers: { Authorization: authHeader } });
       if (res.status === 401) { clearSession(); showLogin(); return; }
-      if (!res.ok) { els.pedidosError.textContent = 'No se pudieron cargar los pedidos.'; return; }
+      if (!res.ok) {
+        Esqueleto.aplicarErrorInline(els.pedidosError, 'No se pudieron cargar los pedidos.', cargarPedidos, { modulo: 'pedidos', codigo: String(res.status) });
+        return;
+      }
       const data = await res.json();
       pedidosCache = data.pedidos || [];
       renderPedidos();
     } catch (_) {
-      els.pedidosError.textContent = 'No se pudo conectar con el servidor.';
+      Esqueleto.aplicarErrorInline(els.pedidosError, 'No se pudo conectar con el servidor.', cargarPedidos, { modulo: 'pedidos', codigo: 'red' });
     }
   }
 
@@ -21011,14 +21113,17 @@
       const res = await fetchConReintentoSilencioso(`${API_BASE}/admin/crm/contactos`, { headers: { Authorization: authHeader } });
       if (res.status === 401) { clearSession(); showLogin(); return; }
       const errorEl = document.getElementById('crm-error');
-      if (!res.ok) { if (errorEl) errorEl.textContent = 'No se pudieron cargar los contactos.'; return; }
+      if (!res.ok) {
+        Esqueleto.aplicarErrorInline(errorEl, 'No se pudieron cargar los contactos.', cargarCrm, { modulo: 'crm', codigo: String(res.status) });
+        return;
+      }
       const data = await res.json();
       crmContactosCache = data.contactos || [];
       crmContactoSeleccionadoId = crmContactosCache.length ? crmContactosCache[0].id : null;
       renderCrmVistaActual();
     } catch (_) {
       const errorEl = document.getElementById('crm-error');
-      if (errorEl) errorEl.textContent = 'No se pudo conectar con el servidor.';
+      Esqueleto.aplicarErrorInline(errorEl, 'No se pudo conectar con el servidor.', cargarCrm, { modulo: 'crm', codigo: 'red' });
     }
   }
 
@@ -21038,7 +21143,7 @@
           </div>
         </div>
       </div>
-      <p class="field-error" id="crm-error" role="alert"></p>
+      <div class="field-error" id="crm-error" role="alert"></div>
       <div id="crm-body"></div>
     `;
     document.getElementById('crm-btn-contactos').addEventListener('click', () => {
@@ -22174,7 +22279,7 @@
     const okCobradas = cxcVista === 'cobradas' ? await cargarCxcCobradasPagina() : true;
     if (okBase === false || okCobradas === false) {
       Esqueleto.marcarKpisCargando(els.cxcKpis, false);
-      Esqueleto.aplicarErrorTabla(els.cxcTableBody, 9, 'No se pudieron cargar las cuentas por cobrar.', cargarCxc);
+      Esqueleto.aplicarErrorTabla(els.cxcTableBody, 9, 'No se pudieron cargar las cuentas por cobrar.', cargarCxc, { modulo: 'cxc' });
       return;
     }
     renderCxc();
@@ -23162,7 +23267,7 @@
         return;
       }
       if (!res.ok) {
-        Esqueleto.aplicarErrorTabla(els.invTableBody, 12, 'No se pudieron cargar los productos.', cargarInventarios);
+        Esqueleto.aplicarErrorTabla(els.invTableBody, 12, 'No se pudieron cargar los productos.', cargarInventarios, { modulo: 'inventarios', codigo: String(res.status) });
         return;
       }
       const data = await res.json();
@@ -23176,7 +23281,7 @@
         { etiqueta: 'Buscar', valor: els.invBusqueda.value.trim(), campos: [els.invBusqueda] },
       ]);
     } catch (err) {
-      Esqueleto.aplicarErrorTabla(els.invTableBody, 12, 'No se pudo conectar con el servidor.', cargarInventarios);
+      Esqueleto.aplicarErrorTabla(els.invTableBody, 12, 'No se pudo conectar con el servidor.', cargarInventarios, { modulo: 'inventarios', codigo: 'red' });
     }
   }
 

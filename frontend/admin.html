@@ -1901,7 +1901,7 @@
             <button type="button" class="btn btn-primary" id="btn-nuevo-pedido">+ Nuevo pedido</button>
           </div>
         </div>
-        <p class="field-error" id="pedidos-error" role="alert"></p>
+        <div class="field-error" id="pedidos-error" role="alert"></div>
         <div class="pedidos-kanban" id="pedidos-kanban"></div>
       </div>
 
@@ -5415,6 +5415,37 @@
       <div class="btn-row">
         <button type="button" class="btn btn-secondary" id="btn-confirm-cancelar">Cancelar</button>
         <button type="button" class="btn btn-danger" id="btn-confirm-aceptar">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reporte de error de carga (propuesta C, punto 528) — se abre desde
+       "Reportar problema" (skeleton.js dispara el evento sk:reportar-error,
+       ver admin.js). Diagnóstico autollenado (empresa/módulo/código/hora);
+       lo único que pide confirmar es el contacto, prellenado con el correo
+       de Mi Cuenta cuando ya se cargó. -->
+  <div class="modal-overlay" id="reporte-error-modal-overlay" hidden>
+    <div class="modal reporte-error-modal" role="dialog" aria-modal="true" aria-labelledby="reporte-error-modal-title">
+      <h2 id="reporte-error-modal-title">Reportar problema</h2>
+      <p>Esto se adjunta automático — solo confirma a dónde te avisamos cuando esté resuelto.</p>
+      <dl class="reporte-error-diagnostico">
+        <div><dt>Empresa</dt><dd id="reporte-error-tenant">—</dd></div>
+        <div><dt>Módulo</dt><dd id="reporte-error-modulo">—</dd></div>
+        <div><dt>Código</dt><dd id="reporte-error-codigo">—</dd></div>
+        <div><dt>Hora</dt><dd id="reporte-error-hora">—</dd></div>
+      </dl>
+      <div class="field">
+        <label for="reporte-error-contacto">Correo o teléfono de contacto</label>
+        <input type="text" id="reporte-error-contacto" autocomplete="off" />
+      </div>
+      <p class="field-error" id="reporte-error-error" role="alert"></p>
+      <div class="reporte-error-exito" id="reporte-error-exito" hidden role="status" aria-live="polite">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="reporte-error-folio-texto"></span>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-reporte-error-cerrar">Cerrar</button>
+        <button type="button" class="btn btn-primary" id="btn-reporte-error-enviar">Enviar reporte</button>
       </div>
     </div>
   </div>

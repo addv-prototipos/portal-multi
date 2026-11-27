@@ -33066,3 +33066,84 @@ comportamiento esperado).
 artifact (banner inline, estado vacío sitewide, modal con folio) siguen
 sin implementarse — D se aplicó sola porque fue la única aprobada
 explícitamente.
+
+## Punto 528 — Propuestas A y C aplicadas: banner "Reportar problema" + modal de diagnóstico con folio (27 nov 2026, CERRADO, solo local — pendiente de decisión sobre despliegue a Vultr)
+
+Tras el punto 527 (solo D), el usuario pidió explícitamente "aplica A y C
+también". Implementación real, no solo visual:
+
+**Backend** (`backend/server.js`) — `POST /api/admin/reportar-error`
+(`adminApiLimiter` + `requireAdminAuth`, sin `requiereFeature`: debe
+funcionar sin importar qué módulo falló). Valida `modulo` contra una
+whitelist de 9 valores (los mismos 9 loaders núcleo del punto 527),
+genera un folio (`RPT-YYYYMMDD-<6 hex>`, sin tabla propia — ver
+limitación abajo) y envía un correo branded
+(`construirCorreoBase`/`enviarCorreo`, mismo cascarón que el resto del
+sitio) a `soporte@addv.mx` (constante `CORREO_SOPORTE_TEMPORAL`, MISMO
+canal temporal que ya usaba `admin.js` para la guía de Gmail — cuando
+exista el definitivo, cambiar ambas constantes a la vez). El envío es
+best-effort: si el SMTP no está configurado, se loguea el error pero la
+respuesta sigue siendo `{ok:true, folio}` — el admin nunca debe ver un
+500 solo por estar reportando un problema.
+
+**Frontend** — extendido el mecanismo YA existente de
+`Esqueleto.aplicarErrorTabla()` (`frontend/skeleton.js`, usado por ~10
+loaders desde antes de este punto) en vez de construir uno nuevo:
+- `aplicarErrorTabla(tbody, columnas, mensaje, reintentar, {modulo, codigo})`
+  ahora agrega un botón "Reportar problema" junto a "Reintentar" cuando
+  viene `modulo`. Nueva función hermana `aplicarErrorInline(contenedor, ...)`
+  con la misma firma para vistas que NO son tabla (Pedidos, CRM) — mismo
+  HTML interno, mismo mecanismo de evento.
+- **Desacoplo real, no solo de nombre**: `skeleton.js` sigue con "cero
+  dependencia de admin.js" (ver su propia cabecera) — el clic en
+  "Reportar problema" dispara un `CustomEvent('sk:reportar-error')` en
+  `document`; `admin.js` es quien escucha ese evento UNA sola vez y abre
+  el modal. Sin ese listener (ej. otra página que cargue skeleton.js sin
+  admin.js), el botón simplemente no hace nada — nunca un error.
+- Modal `#reporte-error-modal-overlay` (`frontend/admin.html`, mismo
+  patrón `.modal-overlay`/`.modal` que `#confirm-modal-overlay`):
+  diagnóstico autollenado (empresa=`TENANT_SLUG`, módulo, código, hora)
+  + campo de contacto editable (prellenado con `els.micuentaEmail.value`
+  si Mi Cuenta ya cargó) + estado de éxito con el folio real devuelto
+  por el backend.
+- `pedidos-error`/`crm-error` cambiaron de `<p class="field-error">` a
+  `<div class="field-error">` — un `<p>` no puede contener el `<div>` de
+  acciones (Reintentar+Reportar) sin que el navegador cierre el párrafo
+  antes de tiempo; confirmado que ningún CSS dependía del tag `p`
+  específicamente (`grep "p\.field-error"` solo encontró la regla de
+  `.modal`, que no aplica a estos 2 ids).
+- CSS nuevo en `style.css` (compartido, no solo `/admin`):
+  `.sk-retry-acciones` (agrupa los 2 botones), `.sk-reportar-btn`
+  (enlace secundario, nunca compite visualmente con "Reintentar"),
+  `.sk-retry-inline-bloque` (variante con fondo/borde para las vistas
+  no-tabla). CSS del modal en `admin.css`
+  (`.reporte-error-modal`/`.reporte-error-diagnostico`/`.reporte-error-exito`).
+
+**Probado real** (Chrome DevTools MCP, tenant `panes` local): banner
+inyectado en Pedidos (variante bloque) y en Ventas (variante tabla,
+incluida la fila con scroll horizontal ya preexistente) — clic real en
+"Reportar problema" abrió el modal con el diagnóstico correcto en ambos
+casos (`Empresa: panes`, `Módulo: Pedidos`/`Ventas`, `Código: 500`/`503`,
+hora real); clic real en "Enviar reporte" con contacto real devolvió
+`200 {"ok":true,"folio":"RPT-20261127-A1081F"}` sin ningún error en
+logs de `backend` (SMTP local sí está configurado, sin excepción
+capturada); validación de contacto vacío mostró el `.field-error` rojo
+correctamente (confirma que el gotcha de especificidad `.modal
+p.field-error` de este mismo archivo sigue aplicando bien). Click real
+en "Reintentar" confirmado disparando el callback correcto; "Actualizar"
+real limpió el banner inyectado y recargó los datos reales sin
+problema. Suite Jest completa: 1432/1433 (el único rojo,
+`docsEnabled.test.js`, es el gotcha YA documentado de timeout por
+cold-start de `jest.resetModules()` — pasa limpio solo con
+`--testTimeout=30000`, no es una regresión de este cambio).
+
+**Limitación conocida, aceptada a propósito**: el folio es una
+referencia estable para buscar en el correo de soporte, NO un ticket con
+estado consultable — no hay tabla ni panel para ver "mis reportes
+enviados" todavía. Si se necesita eso en el futuro, es una decisión de
+producto nueva (tabla + vista en `/admin` o en `/control`), fuera de
+alcance de este punto.
+
+**Pendiente**: desplegar a Vultr — este punto solo se probó local;
+igual que el punto 527, requiere permiso explícito aparte antes de
+tocar producción.

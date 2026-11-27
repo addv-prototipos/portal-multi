@@ -1250,3 +1250,34 @@ a.btn {
 }
 .sk-retry-btn:hover { filter: brightness(0.96); }
 .sk-retry-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* Agrupa Reintentar + Reportar problema (punto 528) — nunca se separan
+   en 2 filas distintas, aunque el texto del mensaje envuelva a 2 líneas. */
+.sk-retry-acciones { display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+.sk-reportar-btn {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.sk-reportar-btn:hover { color: var(--color-accent-dark); }
+.sk-reportar-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* Variante "bloque" (propuesta A) — para vistas que NO son tabla
+   (Pedidos, CRM): mismo contenido que .sk-retry-inline, pero con su
+   propio fondo/borde para que se lea como aviso, no como una fila suelta
+   dentro de un <p> vacío. */
+.sk-retry-inline-bloque {
+  background: var(--color-error-soft);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  color: var(--color-ink);
+}
+.sk-retry-inline-bloque .sk-reportar-btn { color: var(--color-ink-soft); }

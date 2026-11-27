@@ -46,22 +46,89 @@
   }
 
   /**
-   * Reemplaza el <tbody> por una sola fila con el mensaje de error (mismo
-   * texto que antes se mostraba fuera de la tabla) y un botón Reintentar
-   * que vuelve a llamar a la función de carga original.
+   * Botón "Reportar problema" (propuesta C, punto 528) — solo se arma si
+   * viene un `modulo` (si no, ninguna llamada sabe a qué endpoint
+   * reportar, así que se omite en vez de mandar un reporte vacío).
+   * `data-sk-*` lleva el diagnóstico, nunca el mensaje completo (puede
+   * tener comillas/HTML si algún caller cambia el texto a futuro).
    */
-  function aplicarErrorTabla(tbody, columnas, mensaje, reintentar) {
+  function botonReportar(modulo, codigo) {
+    if (!modulo) return '';
+    return (
+      '<button type="button" class="sk-reportar-btn" data-sk-modulo="' + modulo + '" data-sk-codigo="' + (codigo || '') + '">' +
+      'Reportar problema</button>'
+    );
+  }
+
+  /**
+   * El clic en "Reportar problema" nunca llama directo a admin.js (esta
+   * librería se carga ANTES y sin depender de ningún *.js de página,
+   * ver cabecera del archivo) — dispara un CustomEvent en `document` y
+   * quien quiera escucharlo (el modal de diagnóstico de admin.js) decide
+   * qué hacer. Sin listener registrado, el botón simplemente no hace
+   * nada — nunca un error en consola.
+   */
+  function vincularBotonReportar(contenedor, mensaje, reintentar) {
+    var btn = contenedor.querySelector('.sk-reportar-btn');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      document.dispatchEvent(
+        new CustomEvent('sk:reportar-error', {
+          detail: {
+            modulo: btn.getAttribute('data-sk-modulo'),
+            codigo: btn.getAttribute('data-sk-codigo') || '',
+            mensaje: mensaje,
+            reintentar: typeof reintentar === 'function' ? reintentar : null,
+          },
+        })
+      );
+    });
+  }
+
+  /**
+   * Reemplaza el <tbody> por una sola fila con el mensaje de error (mismo
+   * texto que antes se mostraba fuera de la tabla), un botón Reintentar
+   * que vuelve a llamar a la función de carga original, y opcionalmente
+   * "Reportar problema" si `opciones.modulo` viene definido.
+   */
+  function aplicarErrorTabla(tbody, columnas, mensaje, reintentar, opciones) {
     if (!tbody) return;
+    var opts = opciones || {};
     quitarEsqueletoTabla(tbody);
     tbody.innerHTML =
       '<tr><td colspan="' + columnas + '">' +
       '<div class="sk-retry-inline"><span>' + mensaje + '</span>' +
-      '<button type="button" class="sk-retry-btn">Reintentar</button></div>' +
+      '<div class="sk-retry-acciones">' +
+      '<button type="button" class="sk-retry-btn">Reintentar</button>' +
+      botonReportar(opts.modulo, opts.codigo) +
+      '</div></div>' +
       '</td></tr>';
     if (typeof reintentar === 'function') {
       var boton = tbody.querySelector('.sk-retry-btn');
       if (boton) boton.addEventListener('click', reintentar);
     }
+    vincularBotonReportar(tbody, mensaje, reintentar);
+  }
+
+  /**
+   * Misma pieza que aplicarErrorTabla() pero para un contenedor que NO es
+   * un <tbody> (ej. el <p>/<div> de error de una vista que no es tabla,
+   * como Pedidos o CRM) — mismo HTML interno, mismo evento de reporte.
+   */
+  function aplicarErrorInline(contenedor, mensaje, reintentar, opciones) {
+    if (!contenedor) return;
+    var opts = opciones || {};
+    contenedor.innerHTML =
+      '<div class="sk-retry-inline sk-retry-inline-bloque"><span>' + mensaje + '</span>' +
+      '<div class="sk-retry-acciones">' +
+      '<button type="button" class="sk-retry-btn">Reintentar</button>' +
+      botonReportar(opts.modulo, opts.codigo) +
+      '</div></div>';
+    if (typeof reintentar === 'function') {
+      var boton = contenedor.querySelector('.sk-retry-btn');
+      if (boton) boton.addEventListener('click', reintentar);
+    }
+    vincularBotonReportar(contenedor, mensaje, reintentar);
   }
 
   /**
@@ -80,6 +147,7 @@
     aplicarEsqueletoTabla: aplicarEsqueletoTabla,
     quitarEsqueletoTabla: quitarEsqueletoTabla,
     aplicarErrorTabla: aplicarErrorTabla,
+    aplicarErrorInline: aplicarErrorInline,
     marcarKpisCargando: marcarKpisCargando
   };
 })();

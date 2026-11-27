@@ -10184,6 +10184,73 @@ app.get(
   })
 );
 
+// Reporte automático de error de carga (propuesta C del punto 527/528,
+// mockup en el artifact de 4 propuestas) — cualquier vista con el banner
+// de "no se pudo cargar" (ver fetchConReintentoSilencioso()/
+// Esqueleto.aplicarErrorTabla() en el frontend) puede mandar este reporte
+// con un clic. Sin tabla propia ni panel de seguimiento (fuera de alcance
+// a propósito) — el folio es solo una referencia estable para buscar en
+// el correo de soporte, no un ticket con estado consultable todavía.
+// soporte@addv.mx: mismo canal TEMPORAL que ya usa el frontend
+// (CORREO_SOPORTE_TEMPORAL en admin.js) — cuando exista el definitivo,
+// cambiar las 2 constantes a la vez.
+const CORREO_SOPORTE_TEMPORAL = 'soporte@addv.mx';
+const MODULOS_REPORTE_ERROR_VALIDOS = [
+  'pedidos', 'crm', 'ventas', 'gastos', 'inventarios', 'tickets', 'usuarios', 'auditoria', 'cxc',
+];
+app.post(
+  '/api/admin/reportar-error',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    const modulo = typeof req.body.modulo === 'string' ? req.body.modulo.trim() : '';
+    const codigo = typeof req.body.codigo === 'string' ? req.body.codigo.trim().slice(0, 120) : '';
+    const mensaje = typeof req.body.mensaje === 'string' ? req.body.mensaje.trim().slice(0, 300) : '';
+    const contacto = typeof req.body.contacto === 'string' ? req.body.contacto.trim().slice(0, 180) : '';
+    if (!MODULOS_REPORTE_ERROR_VALIDOS.includes(modulo)) {
+      return res.status(400).json({ error: 'No reconocemos ese módulo.' });
+    }
+    if (!contacto) {
+      return res.status(400).json({ error: 'Falta un correo o teléfono de contacto.' });
+    }
+    const folio = `RPT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${crypto
+      .randomBytes(3)
+      .toString('hex')
+      .toUpperCase()}`;
+    const tenantSlug = req.tenant ? req.tenant.slug : 'sitio-base';
+    const { html, texto } = construirCorreoBase({
+      eyebrow: 'Reporte automático',
+      titulo: `Falla al cargar "${modulo}"`,
+      filas: [
+        { etiqueta: 'Folio', valor: escapeHtmlCorreo(folio), destacado: true },
+        { etiqueta: 'Empresa', valor: escapeHtmlCorreo(tenantSlug) },
+        { etiqueta: 'Módulo', valor: escapeHtmlCorreo(modulo) },
+        { etiqueta: 'Código', valor: escapeHtmlCorreo(codigo || 'desconocido') },
+        { etiqueta: 'Contacto para responder', valor: escapeHtmlCorreo(contacto) },
+        { etiqueta: 'Hora', valor: escapeHtmlCorreo(new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })) },
+      ],
+      parrafos: [
+        escapeHtmlCorreo(mensaje ? `Mensaje técnico: ${mensaje}` : 'Sin mensaje técnico adicional.'),
+      ],
+    });
+    try {
+      await enviarCorreo({
+        destinatario: CORREO_SOPORTE_TEMPORAL,
+        asunto: `[${folio}] Error en ${modulo} — ${tenantSlug}`,
+        cuerpo: texto,
+        html,
+      });
+    } catch (err) {
+      // Best-effort: el admin ya ve su folio de cualquier forma — un SMTP
+      // no configurado en ESTE entorno nunca debe convertirse en un 500
+      // para quien solo está reportando un problema (ver el mismo
+      // criterio en el correo de bienvenida de usuarios, más arriba).
+      console.error('No se pudo enviar el reporte de error automático:', err);
+    }
+    res.json({ ok: true, folio });
+  })
+);
+
 // CRM (punto en curso): ficha de contacto del cliente + métricas de
 // cartera. Fuente real de "quién es el cliente" es `usuarios` (perfil
 // 'cliente') — Pedidos/Ventas NO tienen FK a usuarios (se capturan con un
